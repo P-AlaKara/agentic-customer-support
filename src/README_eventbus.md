@@ -62,3 +62,66 @@ class MyAgent:
 ✅ **Fault Tolerant**: One agent crashing doesn't break others  
 ✅ **Flexible**: Easy to add new agents or event types  
 ✅ **Future-Proof**: Can swap to Redis later without changing agent code
+
+## Recommended Folder Structure
+
+```
+your-project/
+├── scripts/              # SQL scripts
+├── policies/             # Policy documents  
+├── src/                  # NEW - All application code
+│   ├── __init__.py
+│   ├── event_bus.py      # Move this file here
+│   ├── context_store.py  # TODO: Create this next
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── coordinator.py       # TODO
+│   │   ├── sentiment_agent.py   # TODO
+│   │   ├── intent_agent.py      # TODO
+│   │   ├── returns_agent.py     # TODO
+│   │   └── escalation_agent.py  # TODO
+│   └── api/
+│       ├── __init__.py
+│       └── gateway.py    # TODO: FastAPI/Flask endpoints
+├── embed.py
+├── .env
+└── requirements.txt      # TODO: Add dependencies
+```
+
+# 🎯 Next Steps
+
+### 2. Build the Coordinator Agent
+
+Use the pattern from `agent_example.py` but add:
+- More robust error handling
+- Logging to track workflow state
+- Connection to your Context Store
+
+### 3. Create a Simple API Gateway
+
+```python
+# src/api/gateway.py
+from fastapi import FastAPI
+from event_bus import get_event_bus
+
+app = FastAPI()
+bus = get_event_bus()
+
+@app.post("/message")
+async def receive_message(session_id: str, text: str):
+    # Publish to event bus
+    bus.publish('NEW_USER_MESSAGE', {
+        'session_id': session_id,
+        'text': text
+    })
+    return {"status": "received"}
+```
+
+### 4. Implement Agents One by One
+
+Start with the simplest:
+1. **Sentiment Agent** (rule-based to start)
+2. **Intent Agent** (keyword matching to start)
+3. **Returns Agent** (connects to your DB)
+4. **Escalation Agent**
+5. **Transcription Agent**
