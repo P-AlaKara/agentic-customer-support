@@ -17,8 +17,8 @@ Design Decisions:
 
 import logging
 from typing import Optional, Dict, Any
-from event_bus import EventBus, Event
-from context_store import ContextStore, ConversationStatus
+from .event_bus import EventBus, Event
+from .context_store import ContextStore, ConversationStatus
 
 
 logging.basicConfig(level=logging.INFO)

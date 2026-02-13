@@ -2,3 +2,6 @@ venv/
 .env
 __pycache__/
 *.pyc
+.pytest_cache/
+customer_support_agents.egg-info/
+dist/
