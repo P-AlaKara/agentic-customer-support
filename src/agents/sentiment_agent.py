@@ -261,12 +261,12 @@ class SentimentAgent:
         """
         ML-based sentiment analysis using a transformer model.
         
-        This is a placeholder for when you want to use a real model.
+        Uses: distilbert-base-uncased-finetuned-sst-2-english
+        - Lightweight (67M parameters vs 110M for BERT)
+        - Fast inference
+        - Good accuracy for sentiment
         
-        Options:
-        1. distilbert-base-uncased-finetuned-sst-2-english (sentiment)
-        2. cardiffnlp/twitter-roberta-base-sentiment
-        3. Fine-tune your own model on customer support data
+        Fallback: Rule-based if model not available
         
         Args:
             text: The message to analyze
@@ -274,15 +274,61 @@ class SentimentAgent:
         Returns:
             {'sentiment': str, 'confidence': float, 'details': dict}
         """
-        # TODO: Implement ML-based sentiment analysis
-        # Example with transformers:
-        # from transformers import pipeline
-        # classifier = pipeline("sentiment-analysis")
-        # result = classifier(text)[0]
-        # return self._map_ml_result_to_sentiment(result)
+        try:
+            from transformers import pipeline
+            
+            # Initialize sentiment pipeline (cached after first call)
+            if not hasattr(self, '_sentiment_pipeline'):
+                logger.info("[Sentiment Agent] Loading ML model (distilbert-sst-2)...")
+                self._sentiment_pipeline = pipeline(
+                    "sentiment-analysis",
+                    model="distilbert-base-uncased-finetuned-sst-2-english",
+                    device=-1  # CPU (-1), or 0 for GPU
+                )
+            
+            # Run inference
+            result = self._sentiment_pipeline(text[:512])[0]  # Limit to 512 tokens
+            
+            # Map model output to our sentiment labels
+            # Model returns: POSITIVE or NEGATIVE
+            label = result['label']
+            score = result['score']
+            
+            if label == 'NEGATIVE' and score >= 0.90:
+                sentiment = 'ANGRY'
+                confidence = min(score + 0.05, 0.98)
+            elif label == 'NEGATIVE':
+                sentiment = 'NEGATIVE'
+                confidence = score
+            elif label == 'POSITIVE' and score >= 0.90:
+                sentiment = 'POSITIVE'
+                confidence = score
+            else:
+                sentiment = 'NEUTRAL'
+                confidence = 1.0 - score  # Uncertainty means neutral
+            
+            # Check for urgency keywords (model doesn't detect this)
+            if any(word in text.lower() for word in self.URGENT_KEYWORDS):
+                sentiment = 'URGENT'
+                confidence = min(confidence + 0.1, 0.95)
+            
+            return {
+                'sentiment': sentiment,
+                'confidence': confidence,
+                'details': {
+                    'model': 'distilbert-sst-2',
+                    'raw_label': label,
+                    'raw_score': score
+                }
+            }
+            
+        except ImportError:
+            logger.warning("[Sentiment Agent] transformers not installed, falling back to rules")
+            return self._analyze_with_rules(text)
         
-        logger.warning("[Sentiment Agent] ML mode not implemented, falling back to rules")
-        return self._analyze_with_rules(text)
+        except Exception as e:
+            logger.error(f"[Sentiment Agent] ML inference error: {e}, falling back to rules")
+            return self._analyze_with_rules(text)
     
     def get_stats(self) -> Dict[str, int]:
         """Get sentiment analysis statistics"""
