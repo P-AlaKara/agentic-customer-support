@@ -1,14 +1,17 @@
 """
+Coordinator Agent for Multi-Agent Customer Support System
+
 The Coordinator is the central orchestrator that manages the conversation workflow.
 It does NOT perform complex logic itself - it delegates to specialist agents.
 
-Workflow Gates:
+Workflow Gates (from architecture):
 1. Gate 0: New message received → Trigger sentiment analysis
 2. Gate 1: Sentiment check → If OK, trigger intent recognition; else escalate
 3. Gate 2: Intent confidence check → If high, route to BPA; else escalate
 4. Gate 3: BPA handles the query and responds directly to user
 
 Design Decisions:
+- Lightweight orchestrator - no heavy ML or complex logic
 - Delegates all "heavy lifting" to specialist agents
 - Manages Context Store updates
 - If a specialist agent fails, Coordinator logs and can escalate
@@ -37,6 +40,9 @@ class CoordinatorAgent:
     5. Check intent confidence and decide to route or escalate
     6. Route to appropriate Business Process Agent
     7. Handle escalation events
+    
+    The Coordinator is intentionally simple and robust - if a specialist
+    agent crashes, the Coordinator can still handle the error and escalate.
     """
     
     # Configuration thresholds
@@ -45,10 +51,11 @@ class CoordinatorAgent:
     
     # Intent to agent task mapping
     INTENT_ROUTING = {
-        'track_order': 'TASK_HANDLE_ORDER_TRACKING',
-        'process_return': 'TASK_HANDLE_RETURNS',
-        'general_inquiry': 'TASK_HANDLE_GENERAL_INQUIRY',
-        'update_account': 'TASK_HANDLE_ACCOUNT'
+        'track_order': 'TASK_HANDLE_ORDER_TRACKING',      # Shipping Agent
+        'process_return': 'TASK_HANDLE_RETURNS',          # Returns Agent
+        'greeting': 'TASK_HANDLE_GREETING',               # General conversation starter
+        'account_issues': 'TASK_ESCALATE',                # Escalate to human for now
+        'general_inquiry': 'TASK_ESCALATE',               # Escalate to human for now
     }
     
     def __init__(self, event_bus: EventBus, context_store: ContextStore):
@@ -187,18 +194,38 @@ class CoordinatorAgent:
                 )
                 return
             
-            # Sentiment OK - proceed to Intent Recognition
-            logger.info(f"[GATE 1] ✓ Sentiment acceptable: {sentiment}")
-            logger.info(f"[GATE 1] → Publishing TASK_RECOGNIZE_INTENT")
-            
-            # Get the latest user message for intent analysis
-            last_message = context.messages[-1].text if context.messages else ""
-            
-            self.bus.publish('TASK_RECOGNIZE_INTENT', {
-                'session_id': session_id,
-                'text': last_message,
-                'conversation_history': context.get_user_message_history()  # Optional context
-            })
+            # Sentiment OK - Check if we need intent recognition
+            # Only run intent recognition on FIRST message
+            if context.current_intent is None:
+                logger.info(f"[GATE 1] ✓ Sentiment acceptable: {sentiment}")
+                logger.info(f"[GATE 1] → Publishing TASK_RECOGNIZE_INTENT (first message)")
+                
+                # Get the latest user message for intent analysis
+                last_message = context.messages[-1].text if context.messages else ""
+                
+                self.bus.publish('TASK_RECOGNIZE_INTENT', {
+                    'session_id': session_id,
+                    'text': last_message,
+                    'conversation_history': context.get_user_message_history()
+                })
+            else:
+                # Intent already established, route directly to BPA
+                logger.info(f"[GATE 1] ✓ Sentiment acceptable, using existing intent: {context.current_intent}")
+                logger.info(f"[GATE 1] → Routing directly to BPA")
+                
+                # Get full context for BPA
+                context_dict = context.to_dict()
+                
+                # Route to appropriate BPA
+                if context.current_intent in self.INTENT_ROUTING:
+                    task_event = self.INTENT_ROUTING[context.current_intent]
+                    logger.info(f"[GATE 2] → Publishing {task_event}")
+                    self.bus.publish(task_event, context_dict)
+                    self.stats['successful_routes'] += 1
+                else:
+                    # Unknown intent - escalate
+                    logger.warning(f"[GATE 2] Unknown intent: {context.current_intent}")
+                    self._escalate(session_id, 'UNKNOWN_INTENT', {})
             
         except Exception as e:
             logger.error(f"[GATE 1] Error handling sentiment result: {e}", exc_info=True)
@@ -412,8 +439,8 @@ if __name__ == "__main__":
     """Demo/test code"""
     print("=== CoordinatorAgent Demo ===\n")
     
-    from event_bus import get_event_bus
-    from context_store import get_context_store
+    from .event_bus import get_event_bus
+    from .context_store import get_context_store
     
     # Initialize
     bus = get_event_bus()

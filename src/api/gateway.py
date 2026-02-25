@@ -1,0 +1,1075 @@
+"""
+API Gateway - FastAPI
+
+Provides REST endpoints for:
+1. Customer Chat Interface (POST /chat)
+2. Operator Interface (GET /operator/queue, POST /operator/assign)
+3. Admin Monitoring (GET /admin/stats, GET /admin/logs)
+
+Run with: uvicorn src.api.gateway:app --reload
+"""
+
+import os
+import uuid
+import logging
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Import system components
+try:
+    from ..event_bus import get_event_bus
+    from ..context_store import get_context_store
+    from ..coordinator import CoordinatorAgent
+    from ..agents import (
+        SentimentAgent, IntentAgent, EscalationAgent, 
+        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent
+    )
+except (ImportError, ValueError):
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+    from src.event_bus import get_event_bus
+    from src.context_store import get_context_store
+    from src.coordinator import CoordinatorAgent
+    from src.agents import (
+        SentimentAgent, IntentAgent, EscalationAgent,
+        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent
+    )
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Pydantic Models
+# ============================================================================
+
+class ChatMessage(BaseModel):
+    """Incoming chat message from user"""
+    message: str = Field(..., min_length=1, max_length=5000, description="User's message")
+    session_id: Optional[str] = Field(None, description="Session ID (auto-generated if not provided)")
+    customer_email: Optional[str] = Field(None, description="Customer email (optional)")
+
+class ChatResponse(BaseModel):
+    """Response to user"""
+    session_id: str
+    response: str
+    status: str  # "processing", "responded", "escalated"
+    timestamp: str
+
+class OperatorAssignment(BaseModel):
+    """Operator assignment request"""
+    operator_id: str = Field(..., description="Operator ID")
+    operator_name: str = Field(..., description="Operator name")
+
+class QueueItem(BaseModel):
+    """Escalation queue item"""
+    session_id: str
+    reason: str
+    priority: str
+    position: int
+    escalated_at: str
+
+class SystemStats(BaseModel):
+    """System statistics"""
+    coordinator: Dict[str, Any]
+    sentiment: Dict[str, Any]
+    intent: Dict[str, Any]
+    escalation: Dict[str, Any]
+    transcription: Dict[str, Any]
+    context_store: Dict[str, Any]
+
+
+# ============================================================================
+# FastAPI App
+# ============================================================================
+
+app = FastAPI(
+    title="Customer Support Multi-Agent System",
+    description="API for AI-powered customer support with multi-agent orchestration",
+    version="1.0.0"
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify allowed origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================================================================
+# System Initialization
+# ============================================================================
+
+# Initialize core components
+bus = get_event_bus()
+store = get_context_store()
+coordinator = CoordinatorAgent(bus, store)
+
+# Initialize agents
+sentiment_agent = SentimentAgent(bus)
+intent_agent = IntentAgent(bus)
+escalation_agent = EscalationAgent(bus)
+transcription_agent = TranscriptionAgent(bus, store)
+returns_agent = ReturnsAgent(bus)
+shipping_agent = ShippingAgent(bus)
+greeting_agent = GreetingAgent(bus)
+
+# Response collector for /chat endpoint
+class ResponseCollector:
+    """Collects agent responses for the /chat endpoint"""
+    def __init__(self):
+        self.responses = {}  # session_id -> response
+        bus.subscribe('RESULT_SEND_RESPONSE_TO_USER', self.collect)
+        bus.subscribe('RESULT_ESCALATION_COMPLETE', self.collect_escalation)
+    
+    def collect(self, event):
+        """Collect agent response"""
+        payload = event.payload
+        session_id = payload['session_id']
+        self.responses[session_id] = {
+            'text': payload['text'],
+            'agent': payload.get('agent', 'SYSTEM'),
+            'status': 'responded'
+        }
+    
+    def collect_escalation(self, event):
+        """Collect escalation notification"""
+        payload = event.payload
+        session_id = payload['session_id']
+        self.responses[session_id] = {
+            'text': f"Your request has been escalated to a human operator. Queue position: {payload.get('queue_position', 'unknown')}",
+            'agent': 'ESCALATION',
+            'status': 'escalated'
+        }
+    
+    def get_response(self, session_id: str, timeout: float = 5.0) -> Optional[Dict]:
+        """Wait for and retrieve response"""
+        import time
+        start = time.time()
+        while time.time() - start < timeout:
+            if session_id in self.responses:
+                return self.responses.pop(session_id)
+            time.sleep(0.1)
+        return None
+
+response_collector = ResponseCollector()
+
+logger.info("✅ API Gateway initialized with all agents")
+
+
+# ============================================================================
+# User Chat Endpoints
+# ============================================================================
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(message: ChatMessage):
+    """
+    Send a message to the customer support system.
+    
+    Flow:
+    1. Create/retrieve session
+    2. Publish message to event bus
+    3. Wait for agent response (or escalation)
+    4. Return response to user
+    """
+    try:
+        # Generate session ID if not provided
+        session_id = message.session_id or str(uuid.uuid4())
+        
+        logger.info(f"[API] Received message for session {session_id}")
+        
+        # Publish message to event bus
+        bus.publish('NEW_USER_MESSAGE', {
+            'session_id': session_id,
+            'text': message.message,
+            'customer_email': message.customer_email
+        })
+        
+        # Wait for response (with timeout)
+        response_data = response_collector.get_response(session_id, timeout=5.0)
+        
+        if response_data:
+            return ChatResponse(
+                session_id=session_id,
+                response=response_data['text'],
+                status=response_data['status'],
+                timestamp=datetime.utcnow().isoformat()
+            )
+        else:
+            # Timeout - still processing
+            return ChatResponse(
+                session_id=session_id,
+                response="Your message is being processed. Please wait a moment...",
+                status="processing",
+                timestamp=datetime.utcnow().isoformat()
+            )
+    
+    except Exception as e:
+        logger.error(f"[API] Error in /chat: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/chat/{session_id}")
+async def get_session(session_id: str):
+    """Get conversation history for a session"""
+    try:
+        context = store.get(session_id)
+        if not context:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {
+            "session_id": session_id,
+            "messages": [
+                {
+                    "sender": msg.sender,
+                    "text": msg.text,
+                    "timestamp": msg.timestamp
+                }
+                for msg in context.messages
+            ],
+            "status": context.status.value,
+            "sentiment": context.current_sentiment,
+            "intent": context.current_intent
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error getting session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Operator Endpoints
+# ============================================================================
+
+@app.get("/operator/queue")
+async def get_queue():
+    """Get escalation queue for operators"""
+    try:
+        queue_status = escalation_agent.get_queue_status()
+        
+        return {
+            "queue_size": queue_status['queue_size'],
+            "estimated_wait_time": queue_status['estimated_wait_time'],
+            "queue": [
+                QueueItem(
+                    session_id=item['session_id'],
+                    reason=item['reason'],
+                    priority=item['priority'],
+                    position=item['position'],
+                    escalated_at=item.get('escalated_at', 'unknown')
+                )
+                for item in queue_status['queue']
+            ]
+        }
+    
+    except Exception as e:
+        logger.error(f"[API] Error getting queue: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/operator/assign")
+async def assign_operator(assignment: OperatorAssignment):
+    """Assign an operator to handle the next escalation in queue"""
+    try:
+        logger.info(f"[API] Operator {assignment.operator_name} requesting assignment")
+        
+        # Publish operator available event
+        bus.publish('OPERATOR_AVAILABLE', {
+            'operator_id': assignment.operator_id,
+            'operator_name': assignment.operator_name
+        })
+        
+        # Wait for assignment (or queue empty notification)
+        import time
+        time.sleep(0.3)  # Give system time to process
+        
+        return {
+            "status": "success",
+            "message": f"Operator {assignment.operator_name} has been assigned to next available escalation"
+        }
+    
+    except Exception as e:
+        logger.error(f"[API] Error assigning operator: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/operator/session/{session_id}")
+async def get_escalation_details(session_id: str):
+    """Get full context for an escalated session"""
+    try:
+        context = store.get(session_id)
+        if not context:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {
+            "session_id": session_id,
+            "customer_email": context.customer_email,
+            "status": context.status.value,
+            "sentiment": context.current_sentiment,
+            "intent": context.current_intent,
+            "escalation_reason": context.escalation_reason,
+            "messages": [
+                {
+                    "sender": msg.sender,
+                    "text": msg.text,
+                    "timestamp": msg.timestamp,
+                    "sentiment": msg.sentiment_label,
+                    "intent": msg.intent_label
+                }
+                for msg in context.messages
+            ],
+            "entities": context.entities
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error getting escalation details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/operator/respond/{session_id}")
+async def operator_respond(session_id: str, message: str):
+    """Operator sends a response to customer"""
+    try:
+        # Publish operator response
+        bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
+            'session_id': session_id,
+            'text': message,
+            'agent': 'HUMAN_OPERATOR'
+        })
+        
+        return {"status": "success", "message": "Response sent"}
+    
+    except Exception as e:
+        logger.error(f"[API] Error sending operator response: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Admin Monitoring Endpoints
+# ============================================================================
+
+@app.get("/admin/stats", response_model=SystemStats)
+async def get_system_stats():
+    """Get comprehensive system statistics"""
+    try:
+        return SystemStats(
+            coordinator=coordinator.get_stats(),
+            sentiment=sentiment_agent.get_stats(),
+            intent=intent_agent.get_stats(),
+            escalation=escalation_agent.get_stats(),
+            transcription=transcription_agent.get_stats(),
+            context_store=store.get_stats()
+        )
+    
+    except Exception as e:
+        logger.error(f"[API] Error getting stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/reports/orders")
+async def get_orders_report(
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Get orders report with filtering"""
+    # TODO: Connect to actual database
+    return {
+        "data": [],
+        "total": 0,
+        "message": "Database connection not configured"
+    }
+
+
+@app.get("/admin/reports/returns")
+async def get_returns_report(
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Get returns report with filtering"""
+    # TODO: Connect to actual database
+    return {
+        "data": [],
+        "total": 0,
+        "message": "Database connection not configured"
+    }
+
+
+@app.get("/admin/reports/conversations")
+async def get_conversations_report(
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Get conversations report with filtering"""
+    # TODO: Connect to actual database
+    return {
+        "data": [],
+        "total": 0,
+        "message": "Database connection not configured"
+    }
+
+
+@app.get("/admin/transcript/{conversation_id}")
+async def get_conversation_transcript(conversation_id: str):
+    """Get full transcript with metadata for a conversation"""
+    # TODO: Connect to actual database
+    return {
+        "conversation_id": conversation_id,
+        "customer_email": "example@example.com",
+        "status": "RESOLVED",
+        "start_time": "2026-02-20T14:30:00",
+        "end_time": "2026-02-20T14:33:45",
+        "messages": [],
+        "message": "Database connection not configured"
+    }
+
+
+@app.get("/admin/logs")
+async def get_system_logs(
+    level: Optional[str] = None,
+    limit: int = 100
+):
+    """Get system logs with filtering"""
+    # TODO: Implement log aggregation
+    return {
+        "logs": [],
+        "message": "Log aggregation not yet implemented"
+    }
+
+
+@app.get("/admin/agents")
+async def get_agents_status():
+    """Get detailed agent status and recent events"""
+    try:
+        agents = [
+            {
+                "name": "Coordinator",
+                "health": "healthy",
+                "stats": coordinator.get_stats(),
+                "events": []  # TODO: Implement event tracking
+            },
+            {
+                "name": "Sentiment Agent",
+                "health": "healthy",
+                "stats": sentiment_agent.get_stats(),
+                "events": []
+            },
+            {
+                "name": "Intent Agent",
+                "health": "healthy",
+                "stats": intent_agent.get_stats(),
+                "events": []
+            },
+            {
+                "name": "Escalation Agent",
+                "health": "healthy",
+                "stats": escalation_agent.get_stats(),
+                "events": []
+            },
+            {
+                "name": "Transcription Agent",
+                "health": "healthy",
+                "stats": transcription_agent.get_stats(),
+                "events": []
+            },
+            {
+                "name": "Returns Agent",
+                "health": "healthy",
+                "stats": returns_agent.get_stats(),
+                "events": []
+            },
+            {
+                "name": "Shipping Agent",
+                "health": "healthy",
+                "stats": shipping_agent.get_stats(),
+                "events": []
+            }
+        ]
+        
+        return {"agents": agents}
+    
+    except Exception as e:
+        logger.error(f"[API] Error getting agents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/agent/{agent_name}/events")
+async def get_agent_events(agent_name: str, limit: int = 20):
+    """Get recent events for a specific agent"""
+    # TODO: Implement event tracking per agent
+    return {
+        "agent": agent_name,
+        "events": [],
+        "message": "Event tracking not yet implemented"
+    }
+
+
+@app.get("/admin/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "agents": {
+            "coordinator": "active",
+            "sentiment": "active",
+            "intent": "active",
+            "escalation": "active",
+            "transcription": "active",
+            "returns": "active",
+            "shipping": "active",
+            "greeting": "active"
+        }
+    }
+
+
+@app.get("/admin/reports")
+async def get_database_reports(
+    report_type: str,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 100
+):
+    """
+    Get database reports for orders, returns, or conversations
+    
+    Args:
+        report_type: 'orders', 'returns', or 'conversations'
+        date_from: Start date filter (YYYY-MM-DD)
+        date_to: End date filter (YYYY-MM-DD)
+        status: Status filter
+        search: Search query (order ID, email, etc.)
+        limit: Max results to return
+    """
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        
+        if report_type == "orders":
+            query = """
+                SELECT 
+                    order_id,
+                    customer_email,
+                    order_date,
+                    status,
+                    total_amount,
+                    items
+                FROM orders
+                WHERE 1=1
+            """
+            params = []
+            
+            if date_from:
+                query += " AND order_date >= %s"
+                params.append(date_from)
+            
+            if date_to:
+                query += " AND order_date <= %s"
+                params.append(date_to)
+            
+            if status:
+                query += " AND status = %s"
+                params.append(status)
+            
+            if search:
+                query += " AND (order_id ILIKE %s OR customer_email ILIKE %s)"
+                params.extend([f"%{search}%", f"%{search}%"])
+            
+            query += " ORDER BY order_date DESC LIMIT %s"
+            params.append(limit)
+            
+            with db_conn.get_cursor() as cursor:
+                cursor.execute(query, params)
+                results = cursor.fetchall()
+                
+                return {
+                    "report_type": "orders",
+                    "count": len(results),
+                    "data": [dict(row) for row in results]
+                }
+        
+        elif report_type == "returns":
+            query = """
+                SELECT 
+                    r.return_id,
+                    r.order_id,
+                    r.customer_email,
+                    r.requested_at,
+                    r.status,
+                    r.reason,
+                    o.total_amount
+                FROM returns r
+                LEFT JOIN orders o ON r.order_id = o.order_id
+                WHERE 1=1
+            """
+            params = []
+            
+            if date_from:
+                query += " AND r.requested_at >= %s"
+                params.append(date_from)
+            
+            if date_to:
+                query += " AND r.requested_at <= %s"
+                params.append(date_to)
+            
+            if status:
+                query += " AND r.status = %s"
+                params.append(status)
+            
+            if search:
+                query += " AND (r.return_id ILIKE %s OR r.order_id ILIKE %s OR r.customer_email ILIKE %s)"
+                params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
+            
+            query += " ORDER BY r.requested_at DESC LIMIT %s"
+            params.append(limit)
+            
+            with db_conn.get_cursor() as cursor:
+                cursor.execute(query, params)
+                results = cursor.fetchall()
+                
+                return {
+                    "report_type": "returns",
+                    "count": len(results),
+                    "data": [dict(row) for row in results]
+                }
+        
+        elif report_type == "conversations":
+            query = """
+                SELECT 
+                    conversation_id,
+                    customer_id as customer_email,
+                    start_time,
+                    end_time,
+                    final_status,
+                    operator_id,
+                    EXTRACT(EPOCH FROM (end_time - start_time)) as duration_seconds
+                FROM completed_conversations
+                WHERE 1=1
+            """
+            params = []
+            
+            if date_from:
+                query += " AND start_time >= %s"
+                params.append(date_from)
+            
+            if date_to:
+                query += " AND start_time <= %s"
+                params.append(date_to)
+            
+            if status:
+                query += " AND final_status = %s"
+                params.append(status)
+            
+            if search:
+                query += " AND (conversation_id::text ILIKE %s OR customer_id ILIKE %s)"
+                params.extend([f"%{search}%", f"%{search}%"])
+            
+            query += " ORDER BY start_time DESC LIMIT %s"
+            params.append(limit)
+            
+            with db_conn.get_cursor() as cursor:
+                cursor.execute(query, params)
+                results = cursor.fetchall()
+                
+                return {
+                    "report_type": "conversations",
+                    "count": len(results),
+                    "data": [dict(row) for row in results]
+                }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid report_type. Must be 'orders', 'returns', or 'conversations'")
+    
+    except Exception as e:
+        logger.error(f"[API] Error generating report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/transcript/{conversation_id}")
+async def get_conversation_transcript(conversation_id: str):
+    """
+    Get complete transcript for a conversation
+    
+    Args:
+        conversation_id: UUID or string identifier of the conversation
+    """
+    try:
+        from ..utils.database import get_db_connection, ensure_uuid
+        db_conn = get_db_connection()
+        
+        # Convert to UUID
+        conv_uuid = str(ensure_uuid(conversation_id))
+        
+        # Get conversation header
+        with db_conn.get_cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    conversation_id,
+                    customer_id,
+                    start_time,
+                    end_time,
+                    final_status,
+                    operator_id
+                FROM completed_conversations
+                WHERE conversation_id = %s
+            """, (conv_uuid,))
+            
+            conversation = cursor.fetchone()
+            
+            if not conversation:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+            
+            # Get messages
+            cursor.execute("""
+                SELECT 
+                    message_id,
+                    timestamp,
+                    sender,
+                    text_content,
+                    intent_label,
+                    sentiment_label,
+                    entities,
+                    agent_action
+                FROM completed_messages
+                WHERE conversation_id = %s
+                ORDER BY timestamp ASC
+            """, (conv_uuid,))
+            
+            messages = cursor.fetchall()
+            
+            # Calculate duration
+            duration_seconds = None
+            if conversation['end_time'] and conversation['start_time']:
+                duration = conversation['end_time'] - conversation['start_time']
+                duration_seconds = duration.total_seconds()
+            
+            return {
+                "conversation_id": str(conversation['conversation_id']),
+                "customer_email": conversation['customer_id'],
+                "status": conversation['final_status'],
+                "start_time": conversation['start_time'].isoformat(),
+                "end_time": conversation['end_time'].isoformat() if conversation['end_time'] else None,
+                "duration_seconds": duration_seconds,
+                "operator_id": conversation['operator_id'],
+                "messages": [
+                    {
+                        "message_id": msg['message_id'],
+                        "timestamp": msg['timestamp'].isoformat(),
+                        "sender": msg['sender'],
+                        "text": msg['text_content'],
+                        "intent": msg['intent_label'],
+                        "sentiment": msg['sentiment_label'],
+                        "entities": msg['entities'],
+                        "agent_action": msg['agent_action']
+                    }
+                    for msg in messages
+                ]
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error fetching transcript: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/active-sessions")
+async def get_active_sessions():
+    """Get all active conversation sessions for tracer"""
+    try:
+        sessions = []
+        for session_id in store.get_all_sessions():
+            context = store.get(session_id)
+            if context:
+                sessions.append({
+                    "session_id": session_id,
+                    "customer_email": context.customer_email,
+                    "status": context.status.value,
+                    "current_intent": context.current_intent,
+                    "current_sentiment": context.current_sentiment,
+                    "start_time": context.start_time,
+                    "message_count": len(context.messages),
+                    "escalation_reason": context.escalation_reason
+                })
+        
+        # Sort by start_time descending (newest first)
+        sessions.sort(key=lambda x: x['start_time'], reverse=True)
+        
+        return {"sessions": sessions, "count": len(sessions)}
+    
+    except Exception as e:
+        logger.error(f"[API] Error getting active sessions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Global log storage (in-memory)
+system_logs = []
+MAX_LOGS = 1000
+
+def add_system_log(level: str, agent: str, message: str):
+    """Add a log entry to system logs"""
+    global system_logs
+    system_logs.append({
+        "timestamp": datetime.utcnow().isoformat(),
+        "level": level,
+        "agent": agent,
+        "message": message
+    })
+    # Keep only last MAX_LOGS entries
+    if len(system_logs) > MAX_LOGS:
+        system_logs = system_logs[-MAX_LOGS:]
+
+
+@app.get("/admin/logs")
+async def get_system_logs(
+    level: Optional[str] = None,
+    agent: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 200
+):
+    """
+    Get system logs
+    
+    Args:
+        level: Filter by log level (INFO, WARNING, ERROR, DEBUG)
+        agent: Filter by agent name
+        search: Search in log messages
+        limit: Max number of logs to return
+    """
+    try:
+        filtered_logs = system_logs.copy()
+        
+        # Apply filters
+        if level and level != "ALL":
+            filtered_logs = [log for log in filtered_logs if log['level'] == level]
+        
+        if agent and agent != "ALL":
+            filtered_logs = [log for log in filtered_logs if log['agent'] == agent]
+        
+        if search:
+            search_lower = search.lower()
+            filtered_logs = [log for log in filtered_logs if search_lower in log['message'].lower()]
+        
+        # Return most recent first, limited
+        filtered_logs.reverse()
+        filtered_logs = filtered_logs[:limit]
+        
+        return {
+            "logs": filtered_logs,
+            "count": len(filtered_logs),
+            "total_logs": len(system_logs)
+        }
+    
+    except Exception as e:
+        logger.error(f"[API] Error fetching logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/logs/clear")
+async def clear_system_logs():
+    """Clear all system logs"""
+    global system_logs
+    system_logs = []
+    return {"status": "success", "message": "Logs cleared"}
+
+
+@app.get("/admin/session-trace/{session_id}")
+async def get_session_trace(session_id: str):
+    """Get detailed trace of events for an active session"""
+    try:
+        context = store.get(session_id)
+        if not context:
+            raise HTTPException(status_code=404, detail="Session not found or already ended")
+        
+        # Build event trace from context
+        trace_events = []
+        
+        # Add initial message event
+        if context.messages:
+            first_msg = context.messages[0]
+            trace_events.append({
+                "event_type": "NEW_USER_MESSAGE",
+                "timestamp": first_msg.timestamp,
+                "payload": {
+                    "session_id": session_id,
+                    "text": first_msg.text,
+                    "customer_email": context.customer_email
+                }
+            })
+        
+        # Add sentiment analysis if available
+        if context.current_sentiment:
+            trace_events.append({
+                "event_type": "RESULT_SENTIMENT_RECOGNIZED",
+                "timestamp": context.messages[0].timestamp if context.messages else context.start_time,
+                "payload": {
+                    "session_id": session_id,
+                    "sentiment": context.current_sentiment,
+                    "confidence": context.messages[0].sentiment_confidence if context.messages else None
+                }
+            })
+        
+        # Add intent recognition if available
+        if context.current_intent:
+            trace_events.append({
+                "event_type": "RESULT_INTENT_RECOGNIZED",
+                "timestamp": context.messages[0].timestamp if context.messages else context.start_time,
+                "payload": {
+                    "session_id": session_id,
+                    "intent": context.current_intent,
+                    "confidence": context.messages[0].intent_confidence if context.messages else None,
+                    "entities": context.entities
+                }
+            })
+        
+        # Add all messages as events
+        for i, msg in enumerate(context.messages):
+            if msg.sender == "USER":
+                trace_events.append({
+                    "event_type": "USER_MESSAGE",
+                    "timestamp": msg.timestamp,
+                    "payload": {
+                        "text": msg.text,
+                        "sentiment": msg.sentiment_label,
+                        "intent": msg.intent_label
+                    }
+                })
+            else:
+                trace_events.append({
+                    "event_type": "AGENT_RESPONSE",
+                    "timestamp": msg.timestamp,
+                    "payload": {
+                        "text": msg.text,
+                        "agent": "BPA"
+                    }
+                })
+        
+        # Add escalation if present
+        if context.escalation_reason:
+            trace_events.append({
+                "event_type": "TASK_ESCALATE",
+                "timestamp": context.messages[-1].timestamp if context.messages else context.start_time,
+                "payload": {
+                    "session_id": session_id,
+                    "reason": context.escalation_reason,
+                    "priority": "HIGH" if "ANGRY" in context.escalation_reason else "NORMAL"
+                }
+            })
+        
+        return {
+            "session_id": session_id,
+            "trace_events": trace_events,
+            "summary": {
+                "total_events": len(trace_events),
+                "status": context.status.value,
+                "intent": context.current_intent,
+                "sentiment": context.current_sentiment
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error getting session trace: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Agent event history (in-memory for demo)
+agent_event_history = {}
+
+def log_agent_event(agent_name: str, event_type: str, input_data: dict, output_data: dict):
+    """Log agent input/output for debugging"""
+    if agent_name not in agent_event_history:
+        agent_event_history[agent_name] = []
+    
+    agent_event_history[agent_name].append({
+        "timestamp": datetime.utcnow().isoformat(),
+        "event_type": event_type,
+        "input": input_data,
+        "output": output_data
+    })
+    
+    # Keep only last 50 events per agent
+    if len(agent_event_history[agent_name]) > 50:
+        agent_event_history[agent_name] = agent_event_history[agent_name][-50:]
+
+
+@app.get("/admin/agent/{agent_name}/events")
+async def get_agent_events(agent_name: str, limit: int = 20):
+    """
+    Get recent event history for a specific agent
+    
+    Args:
+        agent_name: Name of the agent (coordinator, sentiment, intent, etc.)
+        limit: Number of events to return
+    """
+    try:
+        events = agent_event_history.get(agent_name.lower(), [])
+        
+        # Return most recent first
+        events = events[-limit:]
+        events.reverse()
+        
+        return {
+            "agent": agent_name,
+            "events": events,
+            "count": len(events)
+        }
+    
+    except Exception as e:
+        logger.error(f"[API] Error getting agent events: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with API info"""
+    return {
+        "name": "Customer Support Multi-Agent System",
+        "version": "1.0.0",
+        "endpoints": {
+            "user": {
+                "chat": "POST /chat",
+                "session": "GET /chat/{session_id}"
+            },
+            "operator": {
+                "queue": "GET /operator/queue",
+                "assign": "POST /operator/assign",
+                "details": "GET /operator/session/{session_id}",
+                "respond": "POST /operator/respond/{session_id}"
+            },
+            "admin": {
+                "stats": "GET /admin/stats",
+                "health": "GET /admin/health"
+            }
+        }
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

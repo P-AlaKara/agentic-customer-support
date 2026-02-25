@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Command Center</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1419;
+            color: #e7e9ea;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: #16181c;
+            border-right: 1px solid #2f3336;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #2f3336;
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            color: #71767b;
+            margin-top: 4px;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 10px 0;
+        }
+
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: background 0.2s;
+            color: #e7e9ea;
+            text-decoration: none;
+        }
+
+        .nav-item:hover {
+            background: #1c1f23;
+        }
+
+        .nav-item.active {
+            background: #1d4ed8;
+            border-right: 3px solid #3b82f6;
+        }
+
+        .nav-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        /* Main Content */
+        .main-content {
+            overflow-y: auto;
+            background: #0f1419;
+        }
+
+        .content-header {
+            background: #16181c;
+            padding: 20px 30px;
+            border-bottom: 1px solid #2f3336;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .content-header h2 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .content-header p {
+            color: #71767b;
+            font-size: 14px;
+        }
+
+        .content-body {
+            padding: 30px;
+        }
+
+        /* Cards */
+        .card {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Filters */
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            color: #71767b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            color: #e7e9ea;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #1d4ed8;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #1d4ed8;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1e40af;
+        }
+
+        .btn-secondary {
+            background: #2f3336;
+            color: #e7e9ea;
+        }
+
+        .btn-secondary:hover {
+            background: #3a3f44;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #1c1f23;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #71767b;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #2f3336;
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #2f3336;
+            font-size: 14px;
+        }
+
+        tbody tr:hover {
+            background: #1c1f23;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .badge-error {
+            background: #ef4444;
+            color: white;
+        }
+
+        .badge-info {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .badge-neutral {
+            background: #6b7280;
+            color: white;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #71767b;
+            margin-top: 8px;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .stat-change.positive {
+            color: #10b981;
+        }
+
+        .stat-change.negative {
+            color: #ef4444;
+        }
+
+        /* Logs */
+        .log-container {
+            background: #0a0c0f;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 8px 0;
+            display: flex;
+            gap: 12px;
+            border-bottom: 1px solid #1c1f23;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-timestamp {
+            color: #6b7280;
+            min-width: 180px;
+        }
+
+        .log-level {
+            min-width: 80px;
+            font-weight: 600;
+        }
+
+        .log-level.INFO {
+            color: #3b82f6;
+        }
+
+        .log-level.WARNING {
+            color: #f59e0b;
+        }
+
+        .log-level.ERROR {
+            color: #ef4444;
+        }
+
+        .log-level.DEBUG {
+            color: #8b5cf6;
+        }
+
+        .log-message {
+            color: #e7e9ea;
+            flex: 1;
+        }
+
+        /* Agent Cards */
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .agent-card {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .agent-card:hover {
+            border-color: #1d4ed8;
+            transform: translateY(-2px);
+        }
+
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .agent-name {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .agent-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+
+        .agent-status.offline {
+            background: #6b7280;
+            box-shadow: none;
+        }
+
+        .agent-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .agent-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .agent-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+
+        .agent-stat-label {
+            font-size: 11px;
+            color: #71767b;
+            text-transform: uppercase;
+        }
+
+        /* Trace Timeline */
+        .trace-timeline {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .trace-timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #2f3336;
+        }
+
+        .trace-event {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .trace-event::before {
+            content: '';
+            position: absolute;
+            left: -32px;
+            top: 8px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #1d4ed8;
+            border: 3px solid #0f1419;
+        }
+
+        .trace-event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .trace-event-name {
+            font-weight: 600;
+            color: #3b82f6;
+        }
+
+        .trace-event-time {
+            font-size: 12px;
+            color: #71767b;
+        }
+
+        .trace-event-payload {
+            background: #0a0c0f;
+            border: 1px solid #2f3336;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            color: #9ca3af;
+            overflow-x: auto;
+        }
+
+        /* Transcript View */
+        .transcript-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .transcript-metadata {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+        }
+
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metadata-label {
+            font-size: 11px;
+            color: #71767b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metadata-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .transcript-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .transcript-message {
+            display: flex;
+            gap: 12px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #2f3336;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .message-avatar i {
+            font-size: 18px;
+            color: #71767b;
+        }
+
+        .message-content {
+            flex: 1;
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #71767b;
+        }
+
+        .message-text {
+            line-height: 1.6;
+            color: #e7e9ea;
+        }
+
+        .message-meta {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #2f3336;
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #71767b;
+        }
+
+        .spinner {
+            border: 3px solid #2f3336;
+            border-top: 3px solid #1d4ed8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #71767b;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #16181c;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #2f3336;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3a3f44;
+        }
+
+        /* Clickable rows */
+        .clickable {
+            cursor: pointer;
+        }
+
+        .clickable:hover {
+            background: #1c1f23 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>Command Center</h1>
+                <p>System Administration</p>
+            </div>
+            <nav class="nav-menu">
+                <div class="nav-item active" onclick="showSection('overview')">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Overview</span>
+                </div>
+                <div class="nav-item" onclick="showSection('reports')">
+                    <i class="fas fa-table"></i>
+                    <span>Database Reports</span>
+                </div>
+                <div class="nav-item" onclick="showSection('transcripts')">
+                    <i class="fas fa-comments"></i>
+                    <span>Transcripts</span>
+                </div>
+                <div class="nav-item" onclick="showSection('logs')">
+                    <i class="fas fa-terminal"></i>
+                    <span>System Logs</span>
+                </div>
+                <div class="nav-item" onclick="showSection('agents')">
+                    <i class="fas fa-robot"></i>
+                    <span>Agents</span>
+                </div>
+                <div class="nav-item" onclick="showSection('tracer')">
+                    <i class="fas fa-route"></i>
+                    <span>Conversation Tracer</span>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Overview Section -->
+            <div id="overview-section" class="section">
+                <div class="content-header">
+                    <h2>System Overview</h2>
+                    <p>Real-time metrics and system health</p>
+                </div>
+                <div class="content-body">
+                    <div class="stats-grid" id="statsGrid">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Loading statistics...</p>
+                        </div>
+                    </div>
+
+                    <div class="agent-grid" id="agentGrid">
+                        <div class="loading">Loading agents...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Reports Section -->
+            <div id="reports-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Database Reports</h2>
+                    <p>Query orders and returns data</p>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-filter"></i> Filters
+                            </div>
+                            <div>
+                                <button class="btn btn-secondary" onclick="resetFilters()">
+                                    <i class="fas fa-redo"></i> Reset
+                                </button>
+                                <button class="btn btn-primary" onclick="applyFilters()">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
+                        <div class="filters">
+                            <div class="filter-group">
+                                <label>Report Type</label>
+                                <select id="reportType" onchange="updateReportFilters()">
+                                    <option value="orders">Orders</option>
+                                    <option value="returns">Returns</option>
+                                    <option value="conversations">Conversations</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Date From</label>
+                                <input type="date" id="dateFrom">
+                            </div>
+                            <div class="filter-group">
+                                <label>Date To</label>
+                                <input type="date" id="dateTo">
+                            </div>
+                            <div class="filter-group">
+                                <label>Status</label>
+                                <select id="statusFilter">
+                                    <option value="">All</option>
+                                    <option value="PENDING">Pending</option>
+                                    <option value="PROCESSING">Processing</option>
+                                    <option value="COMPLETED">Completed</option>
+                                    <option value="CANCELLED">Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Search</label>
+                                <input type="text" id="searchQuery" placeholder="Order ID, Email, etc.">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-table"></i> Results
+                            </div>
+                            <button class="btn btn-secondary" onclick="exportReport()">
+                                <i class="fas fa-download"></i> Export CSV
+                            </button>
+                        </div>
+                        <div class="table-container" id="reportTable">
+                            <div class="loading">Click Search to load data</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transcripts Section -->
+            <div id="transcripts-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Conversation Transcripts</h2>
+                    <p>View complete conversation history</p>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="filters">
+                            <div class="filter-group">
+                                <label>Search Conversation</label>
+                                <input type="text" id="transcriptSearch" placeholder="Enter conversation ID">
+                            </div>
+                            <div class="filter-group">
+                                <label>&nbsp;</label>
+                                <button class="btn btn-primary" onclick="loadTranscript()">
+                                    <i class="fas fa-search"></i> Load Transcript
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="transcriptContent">
+                        <div class="empty-state">
+                            <i class="fas fa-comments"></i>
+                            <p>Enter a conversation ID to view transcript</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Section -->
+            <div id="logs-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>System Logs</h2>
+                    <p>Real-time application logs</p>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-filter"></i> Log Filters
+                            </div>
+                            <div>
+                                <button class="btn btn-secondary" onclick="clearLogs()">
+                                    <i class="fas fa-trash"></i> Clear
+                                </button>
+                                <button class="btn btn-primary" onclick="refreshLogs()">
+                                    <i class="fas fa-sync"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="filters">
+                            <div class="filter-group">
+                                <label>Log Level</label>
+                                <select id="logLevel" onchange="filterLogs()">
+                                    <option value="ALL">All Levels</option>
+                                    <option value="DEBUG">Debug</option>
+                                    <option value="INFO">Info</option>
+                                    <option value="WARNING">Warning</option>
+                                    <option value="ERROR">Error</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Agent Filter</label>
+                                <select id="agentFilter" onchange="filterLogs()">
+                                    <option value="ALL">All Agents</option>
+                                    <option value="COORDINATOR">Coordinator</option>
+                                    <option value="SENTIMENT">Sentiment</option>
+                                    <option value="INTENT">Intent</option>
+                                    <option value="RETURNS">Returns</option>
+                                    <option value="SHIPPING">Shipping</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Search</label>
+                                <input type="text" id="logSearch" placeholder="Search logs..." onkeyup="filterLogs()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="log-container" id="logContainer">
+                            <div class="loading">Loading logs...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agents Section -->
+            <div id="agents-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Agent Management</h2>
+                    <p>Monitor agent health and performance</p>
+                </div>
+                <div class="content-body">
+                    <div class="agent-grid" id="agentDetails">
+                        <div class="loading">Loading agents...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tracer Section -->
+            <div id="tracer-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Conversation Tracer</h2>
+                    <p>Debug active conversation flow and events</p>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fas fa-comment-dots"></i> Active Conversations
+                            </div>
+                            <button class="btn btn-primary" onclick="loadTracerList()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="table-container" id="tracerList">
+                            <div class="loading">Click Refresh to load active sessions</div>
+                        </div>
+                    </div>
+
+                    <div id="traceDetail" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <i class="fas fa-route"></i> Event Trace
+                                </div>
+                                <button class="btn btn-secondary" onclick="closeTraceDetail()">
+                                    <i class="fas fa-times"></i> Close
+                                </button>
+                            </div>
+                            <div class="trace-timeline" id="traceTimeline">
+                                <div class="loading">Loading trace...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let allLogs = [];
+
+        // Navigation
+        function showSection(sectionName) {
+            // Update nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.closest('.nav-item').classList.add('active');
+
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.style.display = 'none';
+            });
+
+            // Show selected section
+            document.getElementById(`${sectionName}-section`).style.display = 'block';
+
+            // Load section data
+            switch(sectionName) {
+                case 'overview':
+                    loadOverview();
+                    break;
+                case 'logs':
+                    loadLogs();
+                    break;
+                case 'agents':
+                    loadAgentDetails();
+                    break;
+            }
+        }
+
+        // Overview
+        async function loadOverview() {
+            try {
+                const response = await fetch(`${API_URL}/admin/stats`);
+                const data = await response.json();
+
+                // Stats Grid
+                const statsHtml = `
+                    <div class="stat-card">
+                        <div class="stat-value">${data.coordinator.messages_processed}</div>
+                        <div class="stat-label">Messages Processed</div>
+                        <div class="stat-change positive">
+                            <i class="fas fa-arrow-up"></i> Active
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.context_store.sessions_active}</div>
+                        <div class="stat-label">Active Sessions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.escalation.total_escalations}</div>
+                        <div class="stat-label">Total Escalations</div>
+                        <div class="stat-change ${data.escalation.queued > 0 ? 'negative' : 'positive'}">
+                            ${data.escalation.queued} in queue
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${Math.round((data.coordinator.successful_routes / data.coordinator.messages_processed) * 100)}%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                `;
+                document.getElementById('statsGrid').innerHTML = statsHtml;
+
+                // Agent Grid
+                const agentsHtml = Object.entries(data).slice(0, 6).map(([name, stats]) => `
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <div class="agent-name">${name.charAt(0).toUpperCase() + name.slice(1)}</div>
+                            <div class="agent-status"></div>
+                        </div>
+                        <div class="agent-stats">
+                            ${Object.entries(stats).slice(0, 4).map(([key, value]) => `
+                                <div class="agent-stat">
+                                    <div class="agent-stat-value">${value}</div>
+                                    <div class="agent-stat-label">${key.replace(/_/g, ' ')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('agentGrid').innerHTML = agentsHtml;
+            } catch (error) {
+                console.error('Error loading overview:', error);
+            }
+        }
+
+        // Database Reports
+        function updateReportFilters() {
+            const type = document.getElementById('reportType').value;
+            // Update status filter options based on type
+            const statusFilter = document.getElementById('statusFilter');
+            if (type === 'conversations') {
+                statusFilter.innerHTML = `
+                    <option value="">All</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="ESCALATED">Escalated</option>
+                    <option value="RESOLVED">Resolved</option>
+                `;
+            }
+        }
+
+        async function applyFilters() {
+            const type = document.getElementById('reportType').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            const status = document.getElementById('statusFilter').value;
+            const search = document.getElementById('searchQuery').value;
+
+            document.getElementById('reportTable').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading data...</p></div>';
+
+            try {
+                const params = new URLSearchParams({
+                    report_type: type,
+                    limit: 100
+                });
+                
+                if (dateFrom) params.append('date_from', dateFrom);
+                if (dateTo) params.append('date_to', dateTo);
+                if (status) params.append('status', status);
+                if (search) params.append('search', search);
+                
+                const response = await fetch(`${API_URL}/admin/reports?${params}`);
+                const data = await response.json();
+                
+                if (data.count === 0) {
+                    document.getElementById('reportTable').innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No results found</p></div>';
+                    return;
+                }
+                
+                let columns, rows;
+                if (type === 'orders') {
+                    columns = ['Order ID', 'Customer', 'Amount', 'Status', 'Date'];
+                    rows = data.data.map(row => `
+                        <tr class="clickable">
+                            <td><code>${row.order_id}</code></td>
+                            <td>${row.customer_email}</td>
+                            <td>$${row.total_amount}</td>
+                            <td><span class="badge badge-${row.status === 'COMPLETED' ? 'success' : 'warning'}">${row.status}</span></td>
+                            <td>${new Date(row.order_date).toLocaleDateString()}</td>
+                        </tr>
+                    `).join('');
+                } else if (type === 'returns') {
+                    columns = ['Return ID', 'Order ID', 'Customer', 'Reason', 'Status', 'Date'];
+                    rows = data.data.map(row => `
+                        <tr class="clickable">
+                            <td><code>${row.return_id}</code></td>
+                            <td><code>${row.order_id}</code></td>
+                            <td>${row.customer_email}</td>
+                            <td>${row.reason || 'N/A'}</td>
+                            <td><span class="badge badge-${row.status === 'APPROVED' ? 'success' : 'warning'}">${row.status}</span></td>
+                            <td>${new Date(row.requested_at).toLocaleDateString()}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    columns = ['Conversation ID', 'Customer', 'Status', 'Started', 'Duration'];
+                    rows = data.data.map(row => `
+                        <tr class="clickable" onclick="loadTranscriptById('${row.conversation_id}')">
+                            <td><code style="font-size: 11px;">${row.conversation_id}</code></td>
+                            <td>${row.customer_email}</td>
+                            <td><span class="badge badge-${row.final_status.includes('RESOLVED') ? 'success' : 'warning'}">${row.final_status}</span></td>
+                            <td>${new Date(row.start_time).toLocaleString()}</td>
+                            <td>${row.duration_seconds ? Math.round(row.duration_seconds) + 's' : 'N/A'}</td>
+                        </tr>
+                    `).join('');
+                }
+                
+                const tableHtml = `
+                    <table>
+                        <thead>
+                            <tr>${columns.map(col => `<th>${col}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                `;
+                document.getElementById('reportTable').innerHTML = tableHtml;
+            } catch (error) {
+                console.error('Error loading report:', error);
+                document.getElementById('reportTable').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading data</p></div>';
+            }
+        }
+
+        function resetFilters() {
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('searchQuery').value = '';
+        }
+
+        function exportReport() {
+            alert('CSV export functionality - To be implemented');
+        }
+
+        // Transcripts
+        async function loadTranscript() {
+            const convId = document.getElementById('transcriptSearch').value;
+            if (!convId) {
+                alert('Please enter a conversation ID');
+                return;
+            }
+            await loadTranscriptById(convId);
+        }
+
+        async function loadTranscriptById(convId) {
+            document.getElementById('transcriptContent').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading transcript...</p></div>';
+
+            try {
+                const response = await fetch(`${API_URL}/admin/transcript/${convId}`);
+                
+                if (!response.ok) {
+                    throw new Error('Transcript not found');
+                }
+                
+                const transcript = await response.json();
+
+                const html = `
+                    <div class="transcript-container">
+                        <div class="transcript-metadata">
+                            <div class="metadata-item">
+                                <div class="metadata-label">Conversation ID</div>
+                                <div class="metadata-value"><code style="font-size: 11px;">${transcript.conversation_id}</code></div>
+                            </div>
+                            <div class="metadata-item">
+                                <div class="metadata-label">Customer</div>
+                                <div class="metadata-value">${transcript.customer_email || 'Unknown'}</div>
+                            </div>
+                            <div class="metadata-item">
+                                <div class="metadata-label">Status</div>
+                                <div class="metadata-value"><span class="badge badge-${transcript.status.includes('RESOLVED') ? 'success' : 'warning'}">${transcript.status}</span></div>
+                            </div>
+                            <div class="metadata-item">
+                                <div class="metadata-label">Started</div>
+                                <div class="metadata-value">${new Date(transcript.start_time).toLocaleString()}</div>
+                            </div>
+                            <div class="metadata-item">
+                                <div class="metadata-label">Duration</div>
+                                <div class="metadata-value">${transcript.duration_seconds ? Math.round(transcript.duration_seconds) + 's' : 'N/A'}</div>
+                            </div>
+                            ${transcript.operator_id ? `
+                            <div class="metadata-item">
+                                <div class="metadata-label">Operator</div>
+                                <div class="metadata-value">${transcript.operator_id}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">
+                                <i class="fas fa-comments"></i> Message Transcript
+                            </div>
+                            <div class="transcript-messages">
+                                ${transcript.messages.map(msg => `
+                                    <div class="transcript-message">
+                                        <div class="message-avatar">
+                                            <i class="fas fa-${msg.sender === 'USER' ? 'user' : 'robot'}"></i>
+                                        </div>
+                                        <div class="message-content">
+                                            <div class="message-header">
+                                                <div class="message-sender">${msg.sender}</div>
+                                                <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                                            </div>
+                                            <div class="message-text">${msg.text}</div>
+                                            ${msg.sentiment || msg.intent ? `
+                                                <div class="message-meta">
+                                                    ${msg.sentiment ? `<span class="badge badge-info">${msg.sentiment}</span>` : ''}
+                                                    ${msg.intent ? `<span class="badge badge-neutral">${msg.intent}</span>` : ''}
+                                                    ${msg.agent_action ? `<span class="badge badge-success">${msg.agent_action.agent || 'AGENT'}</span>` : ''}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('transcriptContent').innerHTML = html;
+                
+                // Switch to transcripts tab
+                showSection('transcripts');
+            } catch (error) {
+                console.error('Error loading transcript:', error);
+                document.getElementById('transcriptContent').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Transcript not found or error loading</p></div>';
+            }
+        }
+
+        // Logs
+        async function loadLogs() {
+            try {
+                // Mock logs - replace with actual log streaming
+                allLogs = [
+                    {timestamp: '2026-02-24 14:30:15', level: 'INFO', agent: 'COORDINATOR', message: '[GATE 1] Sentiment result for session-001: NEUTRAL'},
+                    {timestamp: '2026-02-24 14:30:16', level: 'INFO', agent: 'INTENT', message: '[Intent Agent] Result: process_return (confidence: 0.95)'},
+                    {timestamp: '2026-02-24 14:30:17', level: 'WARNING', agent: 'COORDINATOR', message: '[GATE 2] Low confidence detected: 0.65'},
+                    {timestamp: '2026-02-24 14:30:18', level: 'ERROR', agent: 'RETURNS', message: 'Database connection timeout'},
+                    {timestamp: '2026-02-24 14:30:19', level: 'INFO', agent: 'ESCALATION', message: 'Session escalated to queue'},
+                    {timestamp: '2026-02-24 14:30:20', level: 'DEBUG', agent: 'SENTIMENT', message: 'Analyzing text: "I want to return my laptop"'},
+                ];
+                displayLogs();
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        function displayLogs() {
+            const html = allLogs.map(log => `
+                <div class="log-entry">
+                    <div class="log-timestamp">${log.timestamp}</div>
+                    <div class="log-level ${log.level}">${log.level}</div>
+                    <div class="log-agent">${log.agent}</div>
+                    <div class="log-message">${log.message}</div>
+                </div>
+            `).join('');
+            document.getElementById('logContainer').innerHTML = html || '<div class="empty-state"><i class="fas fa-inbox"></i><p>No logs available</p></div>';
+        }
+
+        function filterLogs() {
+            const level = document.getElementById('logLevel').value;
+            const agent = document.getElementById('agentFilter').value;
+            const search = document.getElementById('logSearch').value.toLowerCase();
+
+            const filtered = allLogs.filter(log => {
+                const matchLevel = level === 'ALL' || log.level === level;
+                const matchAgent = agent === 'ALL' || log.agent === agent;
+                const matchSearch = !search || log.message.toLowerCase().includes(search);
+                return matchLevel && matchAgent && matchSearch;
+            });
+
+            const html = filtered.map(log => `
+                <div class="log-entry">
+                    <div class="log-timestamp">${log.timestamp}</div>
+                    <div class="log-level ${log.level}">${log.level}</div>
+                    <div class="log-message">${log.message}</div>
+                </div>
+            `).join('');
+            document.getElementById('logContainer').innerHTML = html || '<div class="empty-state"><p>No logs match your filters</p></div>';
+        }
+
+        function clearLogs() {
+            allLogs = [];
+            displayLogs();
+        }
+
+        function refreshLogs() {
+            loadLogs();
+        }
+
+        // Agents
+        async function loadAgentDetails() {
+            try {
+                const response = await fetch(`${API_URL}/admin/stats`);
+                const data = await response.json();
+
+                const html = Object.entries(data).map(([name, stats]) => `
+                    <div class="agent-card" onclick="showAgentDetail('${name}')">
+                        <div class="agent-header">
+                            <div class="agent-name">${name.charAt(0).toUpperCase() + name.slice(1)} Agent</div>
+                            <div class="agent-status"></div>
+                        </div>
+                        <div class="agent-stats">
+                            ${Object.entries(stats).map(([key, value]) => `
+                                <div class="agent-stat">
+                                    <div class="agent-stat-value">${value}</div>
+                                    <div class="agent-stat-label">${key.replace(/_/g, ' ')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('agentDetails').innerHTML = html;
+            } catch (error) {
+                document.getElementById('agentDetails').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading agents</p></div>';
+            }
+        }
+
+        function showAgentDetail(agentName) {
+            alert(`Agent detail modal for ${agentName} - To be implemented with event history`);
+        }
+
+        // Tracer
+        async function loadTracerList() {
+            document.getElementById('tracerList').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading active sessions...</p></div>';
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/active-sessions`);
+                const data = await response.json();
+
+                if (data.count === 0) {
+                    document.getElementById('tracerList').innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-comment-slash"></i>
+                            <p>No active conversations</p>
+                            <p style="font-size: 12px; color: #71767b; margin-top: 8px;">
+                                Sessions appear here only while active. Start a conversation to see it traced.
+                            </p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Session ID</th>
+                                <th>Customer</th>
+                                <th>Started</th>
+                                <th>Intent</th>
+                                <th>Sentiment</th>
+                                <th>Status</th>
+                                <th>Messages</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.sessions.map(session => `
+                                <tr>
+                                    <td><code style="font-size: 11px;">${session.session_id}</code></td>
+                                    <td>${session.customer_email || 'Unknown'}</td>
+                                    <td>${new Date(session.start_time).toLocaleString()}</td>
+                                    <td>${session.current_intent ? `<span class="badge badge-neutral">${session.current_intent}</span>` : '<span style="color: #71767b;">-</span>'}</td>
+                                    <td>${session.current_sentiment ? `<span class="badge badge-info">${session.current_sentiment}</span>` : '<span style="color: #71767b;">-</span>'}</td>
+                                    <td><span class="badge badge-${
+                                        session.status === 'ACTIVE' ? 'success' : 
+                                        session.status === 'ESCALATED' ? 'warning' : 
+                                        'neutral'
+                                    }">${session.status}</span></td>
+                                    <td>${session.message_count}</td>
+                                    <td>
+                                        <button class="btn btn-primary" onclick="showTrace('${session.session_id}')">
+                                            <i class="fas fa-route"></i> Trace
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                document.getElementById('tracerList').innerHTML = html;
+            } catch (error) {
+                console.error('Error loading active sessions:', error);
+                document.getElementById('tracerList').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error loading active sessions</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function showTrace(sessionId) {
+            document.getElementById('traceDetail').style.display = 'block';
+            document.getElementById('traceTimeline').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading trace...</p></div>';
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/session-trace/${sessionId}`);
+                const data = await response.json();
+
+                const html = data.trace_events.map(trace => `
+                    <div class="trace-event">
+                        <div class="trace-event-header">
+                            <div class="trace-event-name">${trace.event_type}</div>
+                            <div class="trace-event-time">${new Date(trace.timestamp).toLocaleTimeString()}.${new Date(trace.timestamp).getMilliseconds()}</div>
+                        </div>
+                        <div class="trace-event-payload"><pre>${JSON.stringify(trace.payload, null, 2)}</pre></div>
+                    </div>
+                `).join('');
+                
+                document.getElementById('traceTimeline').innerHTML = html;
+                
+                // Scroll to trace detail
+                document.getElementById('traceDetail').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error('Error loading trace:', error);
+                document.getElementById('traceTimeline').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error loading trace. Session may have ended.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function closeTraceDetail() {
+            document.getElementById('traceDetail').style.display = 'none';
+        }
+
+        // Initialize
+        loadOverview();
+    </script>
+</body>
+</html>

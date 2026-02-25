@@ -236,7 +236,7 @@ class TranscriptDB:
         """
         
         data = {
-            'conversation_id': ensure_uuid(transcript['session_id']),
+            'conversation_id': str(ensure_uuid(transcript['session_id'])),
             'start_time': transcript['start_time'],
             'end_time': transcript.get('end_time'),
             'final_status': transcript.get('final_status', 'UNKNOWN'),

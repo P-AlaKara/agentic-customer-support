@@ -58,6 +58,11 @@ class IntentAgent:
             'primary': ['account', 'login', 'password', 'sign in', 'log in'],
             'secondary': ['email', 'profile', 'username', 'change', 'update', 'reset'],
             'entities': ['credentials', 'access', 'settings']
+        },
+        'greeting': {
+            'primary': ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening'],
+            'secondary': ['how are you', 'thanks', 'thank you', 'help'],
+            'entities': []
         }
     }
     
@@ -92,6 +97,18 @@ class IntentAgent:
             'change password',
             'account locked',
             'can\'t access'
+        ],
+        'greeting': [
+            'hi',
+            'hello',
+            'hey',
+            'hi there',
+            'hello there',
+            'good morning',
+            'good afternoon',
+            'good evening',
+            'hey there',
+            'greetings'
         ]
     }
     
