@@ -80,6 +80,11 @@ class IntentAgent:
             'primary': ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening'],
             'secondary': ['how are you', 'thanks', 'thank you', 'help'],
             'entities': []
+        },
+        'close_conversation': {
+            'primary': ['bye', 'goodbye', 'that is all', "that's all", 'done', 'no thanks'],
+            'secondary': ['thank you bye', 'all good', 'nothing else'],
+            'entities': []
         }
     }
     
@@ -126,6 +131,15 @@ class IntentAgent:
             'good evening',
             'hey there',
             'greetings'
+        ],
+        'close_conversation': [
+            'bye',
+            'goodbye',
+            'that is all',
+            "that's all",
+            'nothing else',
+            'all good thanks',
+            'no thanks bye'
         ]
     }
     
@@ -165,6 +179,7 @@ class IntentAgent:
             'track_order': 0,
             'process_return': 0,
             'account_issues': 0,
+            'close_conversation': 0,
             'general_inquiry': 0,
             'high_confidence': 0,
             'low_confidence': 0

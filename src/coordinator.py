@@ -71,6 +71,7 @@ class CoordinatorAgent:
         'track_order': 'TASK_HANDLE_ORDER_TRACKING',      # Shipping Agent
         'process_return': 'TASK_HANDLE_RETURNS',          # Returns Agent
         'greeting': 'TASK_HANDLE_GREETING',               # General conversation starter
+        'close_conversation': 'TASK_HANDLE_CLOSING',      # Graceful explicit close
         'account_issues': 'TASK_ESCALATE',                # Escalate to human for now
         'general_inquiry': 'TASK_ESCALATE',               # Escalate to human for now
     }
@@ -218,11 +219,12 @@ class CoordinatorAgent:
                 )
                 return
             
-            # Sentiment OK - Check if we need intent recognition
-            # Only run intent recognition on FIRST message
-            if context.current_intent is None:
+            # Sentiment OK - Check if we need intent recognition.
+            # We re-run intent if no intent exists OR prior intent is greeting
+            # (greeting is transient and should not become sticky state).
+            if context.current_intent is None or context.current_intent == 'greeting':
                 logger.info(f"[GATE 1] ✓ Sentiment acceptable: {sentiment}")
-                logger.info(f"[GATE 1] → Publishing TASK_RECOGNIZE_INTENT (first message)")
+                logger.info(f"[GATE 1] → Publishing TASK_RECOGNIZE_INTENT")
                 
                 # Get the latest user message for intent analysis
                 last_message = context.messages[-1].text if context.messages else ""
@@ -303,6 +305,12 @@ class CoordinatorAgent:
             context.update_intent(intent, confidence)
             if entities:
                 context.merge_entities(entities)
+
+            # Explicit close intent should always end gracefully.
+            if intent == 'close_conversation':
+                logger.info(f"[GATE 2] ✓ Explicit close intent detected for {session_id}")
+                self._route_to_agent(session_id, intent, context)
+                return
             
             # Gate 2 Decision: Check confidence threshold
             if confidence < self.INTENT_CONFIDENCE_THRESHOLD:

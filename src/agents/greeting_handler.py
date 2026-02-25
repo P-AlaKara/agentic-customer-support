@@ -49,9 +49,10 @@ class GreetingAgent:
     
     def __init__(self, event_bus: EventBus):
         self.bus = event_bus
-        self.stats = {'greetings_handled': 0}
+        self.stats = {'greetings_handled': 0, 'closings_handled': 0}
         
         self.bus.subscribe('TASK_HANDLE_GREETING', self.handle_greeting)
+        self.bus.subscribe('TASK_HANDLE_CLOSING', self.handle_closing)
         logger.info("GreetingAgent initialized")
     
     def handle_greeting(self, event: Event):
@@ -99,6 +100,40 @@ class GreetingAgent:
         except Exception as e:
             logger.error(f"[Greeting Agent] Error: {e}", exc_info=True)
     
+
+    def handle_closing(self, event: Event):
+        """Handle explicit close intent and gracefully end conversation."""
+        try:
+            context = event.payload
+            session_id = context['session_id']
+
+            logger.info(f"[Greeting Agent] Handling closing intent for session {session_id}")
+            self.stats['closings_handled'] += 1
+
+            response = (
+                "You’re welcome — happy to help. "
+                "I’ll close this conversation now. "
+                "If you need anything else, just start a new message anytime!"
+            )
+
+            self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
+                'session_id': session_id,
+                'text': response,
+                'agent': 'GREETING_AGENT',
+                'confidence': 1.0,
+                'final': True
+            })
+
+            _safe_log_agent_event(
+                agent_name='greeting',
+                event_type='TASK_HANDLE_CLOSING',
+                input_data={'session_id': session_id},
+                output_data={'response_preview': response[:160], 'final': True}
+            )
+
+        except Exception as e:
+            logger.error(f"[Greeting Agent] Closing handler error: {e}", exc_info=True)
+
     def get_stats(self) -> Dict[str, int]:
         return self.stats.copy()
 
