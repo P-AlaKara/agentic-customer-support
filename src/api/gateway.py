@@ -14,6 +14,7 @@ import uuid
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from threading import RLock
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,8 +49,14 @@ except (ImportError, ValueError):
     )
 
 
+try:
+    from ..utils.logging_handler import setup_inmemory_logging
+except (ImportError, ValueError):
+    from src.utils.logging_handler import setup_inmemory_logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+log_handler = setup_inmemory_logging(max_entries=100)
 
 
 # ============================================================================
@@ -392,13 +399,14 @@ async def get_orders_report(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
-    """Get orders report with filtering"""
-    # TODO: Connect to actual database
-    return {
-        "data": [],
-        "total": 0,
-        "message": "Database connection not configured"
-    }
+    """Compatibility endpoint: orders report."""
+    return await get_database_reports(
+        report_type="orders",
+        date_from=start_date,
+        date_to=end_date,
+        status=None,
+        search=search
+    )
 
 
 @app.get("/admin/reports/returns")
@@ -407,13 +415,14 @@ async def get_returns_report(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
-    """Get returns report with filtering"""
-    # TODO: Connect to actual database
-    return {
-        "data": [],
-        "total": 0,
-        "message": "Database connection not configured"
-    }
+    """Compatibility endpoint: returns report."""
+    return await get_database_reports(
+        report_type="returns",
+        date_from=start_date,
+        date_to=end_date,
+        status=None,
+        search=search
+    )
 
 
 @app.get("/admin/reports/conversations")
@@ -422,41 +431,14 @@ async def get_conversations_report(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
-    """Get conversations report with filtering"""
-    # TODO: Connect to actual database
-    return {
-        "data": [],
-        "total": 0,
-        "message": "Database connection not configured"
-    }
-
-
-@app.get("/admin/transcript/{conversation_id}")
-async def get_conversation_transcript(conversation_id: str):
-    """Get full transcript with metadata for a conversation"""
-    # TODO: Connect to actual database
-    return {
-        "conversation_id": conversation_id,
-        "customer_email": "example@example.com",
-        "status": "RESOLVED",
-        "start_time": "2026-02-20T14:30:00",
-        "end_time": "2026-02-20T14:33:45",
-        "messages": [],
-        "message": "Database connection not configured"
-    }
-
-
-@app.get("/admin/logs")
-async def get_system_logs(
-    level: Optional[str] = None,
-    limit: int = 100
-):
-    """Get system logs with filtering"""
-    # TODO: Implement log aggregation
-    return {
-        "logs": [],
-        "message": "Log aggregation not yet implemented"
-    }
+    """Compatibility endpoint: conversations report."""
+    return await get_database_reports(
+        report_type="conversations",
+        date_from=start_date,
+        date_to=end_date,
+        status=None,
+        search=search
+    )
 
 
 @app.get("/admin/agents")
@@ -468,43 +450,43 @@ async def get_agents_status():
                 "name": "Coordinator",
                 "health": "healthy",
                 "stats": coordinator.get_stats(),
-                "events": []  # TODO: Implement event tracking
+                "event_count": len(agent_event_history.get('coordinator', []))
             },
             {
                 "name": "Sentiment Agent",
                 "health": "healthy",
                 "stats": sentiment_agent.get_stats(),
-                "events": []
+                "event_count": len(agent_event_history.get('sentiment', []))
             },
             {
                 "name": "Intent Agent",
                 "health": "healthy",
                 "stats": intent_agent.get_stats(),
-                "events": []
+                "event_count": len(agent_event_history.get('intent', []))
             },
             {
                 "name": "Escalation Agent",
                 "health": "healthy",
                 "stats": escalation_agent.get_stats(),
-                "events": []
+                "event_count": len(agent_event_history.get('escalation', []))
             },
             {
                 "name": "Transcription Agent",
                 "health": "healthy",
                 "stats": transcription_agent.get_stats(),
-                "events": []
+                "event_count": len(agent_event_history.get('transcription', []))
             },
             {
                 "name": "Returns Agent",
                 "health": "healthy",
                 "stats": returns_agent.get_stats(),
-                "events": []
+                "event_count": len(agent_event_history.get('returns', []))
             },
             {
                 "name": "Shipping Agent",
                 "health": "healthy",
                 "stats": shipping_agent.get_stats(),
-                "events": []
+                "event_count": len(agent_event_history.get('shipping', []))
             }
         ]
         
@@ -513,17 +495,6 @@ async def get_agents_status():
     except Exception as e:
         logger.error(f"[API] Error getting agents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/admin/agent/{agent_name}/events")
-async def get_agent_events(agent_name: str, limit: int = 20):
-    """Get recent events for a specific agent"""
-    # TODO: Implement event tracking per agent
-    return {
-        "agent": agent_name,
-        "events": [],
-        "message": "Event tracking not yet implemented"
-    }
 
 
 @app.get("/admin/health")
@@ -555,111 +526,104 @@ async def get_database_reports(
     limit: int = 100
 ):
     """
-    Get database reports for orders, returns, or conversations
-    
-    Args:
-        report_type: 'orders', 'returns', or 'conversations'
-        date_from: Start date filter (YYYY-MM-DD)
-        date_to: End date filter (YYYY-MM-DD)
-        status: Status filter
-        search: Search query (order ID, email, etc.)
-        limit: Max results to return
+    Get database reports for orders, returns, or conversations.
+
+    Notes:
+    - Orders/returns schema in scripts has no date columns, so date filters apply
+      only to conversations.
     """
     try:
         from ..utils.database import get_db_connection
         db_conn = get_db_connection()
-        
+
         if report_type == "orders":
             query = """
-                SELECT 
+                SELECT
                     order_id,
                     customer_email,
-                    order_date,
                     status,
-                    total_amount,
-                    items
+                    items,
+                    jsonb_array_length(COALESCE(items, '[]'::jsonb)) AS item_count
                 FROM orders
                 WHERE 1=1
             """
             params = []
-            
-            if date_from:
-                query += " AND order_date >= %s"
-                params.append(date_from)
-            
-            if date_to:
-                query += " AND order_date <= %s"
-                params.append(date_to)
-            
+
             if status:
                 query += " AND status = %s"
                 params.append(status)
-            
+
             if search:
-                query += " AND (order_id ILIKE %s OR customer_email ILIKE %s)"
+                query += " AND (order_id::text ILIKE %s OR customer_email ILIKE %s)"
                 params.extend([f"%{search}%", f"%{search}%"])
-            
-            query += " ORDER BY order_date DESC LIMIT %s"
+
+            query += " ORDER BY order_id DESC LIMIT %s"
             params.append(limit)
-            
+
             with db_conn.get_cursor() as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
-                
-                return {
-                    "report_type": "orders",
-                    "count": len(results),
-                    "data": [dict(row) for row in results]
-                }
-        
-        elif report_type == "returns":
+
+            data = []
+            for row in results:
+                row_dict = dict(row)
+                row_dict['order_id'] = str(row_dict['order_id'])
+                data.append(row_dict)
+
+            return {
+                "report_type": "orders",
+                "count": len(data),
+                "total": len(data),
+                "data": data
+            }
+
+        if report_type == "returns":
             query = """
-                SELECT 
+                SELECT
                     r.return_id,
                     r.order_id,
                     r.customer_email,
-                    r.requested_at,
                     r.status,
-                    r.reason,
-                    o.total_amount
+                    r.item_details,
+                    o.status AS order_status
                 FROM returns r
                 LEFT JOIN orders o ON r.order_id = o.order_id
                 WHERE 1=1
             """
             params = []
-            
-            if date_from:
-                query += " AND r.requested_at >= %s"
-                params.append(date_from)
-            
-            if date_to:
-                query += " AND r.requested_at <= %s"
-                params.append(date_to)
-            
+
             if status:
                 query += " AND r.status = %s"
                 params.append(status)
-            
+
             if search:
-                query += " AND (r.return_id ILIKE %s OR r.order_id ILIKE %s OR r.customer_email ILIKE %s)"
+                query += " AND (r.return_id::text ILIKE %s OR r.order_id::text ILIKE %s OR r.customer_email ILIKE %s)"
                 params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
-            
-            query += " ORDER BY r.requested_at DESC LIMIT %s"
+
+            query += " ORDER BY r.return_id DESC LIMIT %s"
             params.append(limit)
-            
+
             with db_conn.get_cursor() as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
-                
-                return {
-                    "report_type": "returns",
-                    "count": len(results),
-                    "data": [dict(row) for row in results]
-                }
-        
-        elif report_type == "conversations":
+
+            data = []
+            for row in results:
+                row_dict = dict(row)
+                row_dict['return_id'] = str(row_dict['return_id'])
+                row_dict['order_id'] = str(row_dict['order_id']) if row_dict.get('order_id') else None
+                data.append(row_dict)
+
+            return {
+                "report_type": "returns",
+                "count": len(data),
+                "total": len(data),
+                "data": data
+            }
+
+        if report_type == "conversations":
             query = """
-                SELECT 
+                SELECT
                     conversation_id,
                     customer_id as customer_email,
                     start_time,
@@ -671,39 +635,51 @@ async def get_database_reports(
                 WHERE 1=1
             """
             params = []
-            
+
             if date_from:
                 query += " AND start_time >= %s"
                 params.append(date_from)
-            
+
             if date_to:
                 query += " AND start_time <= %s"
                 params.append(date_to)
-            
+
             if status:
                 query += " AND final_status = %s"
                 params.append(status)
-            
+
             if search:
                 query += " AND (conversation_id::text ILIKE %s OR customer_id ILIKE %s)"
                 params.extend([f"%{search}%", f"%{search}%"])
-            
+
             query += " ORDER BY start_time DESC LIMIT %s"
             params.append(limit)
-            
+
             with db_conn.get_cursor() as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
-                
-                return {
-                    "report_type": "conversations",
-                    "count": len(results),
-                    "data": [dict(row) for row in results]
-                }
-        
-        else:
-            raise HTTPException(status_code=400, detail="Invalid report_type. Must be 'orders', 'returns', or 'conversations'")
-    
+
+            data = []
+            for row in results:
+                row_dict = dict(row)
+                row_dict['conversation_id'] = str(row_dict['conversation_id'])
+                if row_dict.get('start_time'):
+                    row_dict['start_time'] = row_dict['start_time'].isoformat()
+                if row_dict.get('end_time'):
+                    row_dict['end_time'] = row_dict['end_time'].isoformat()
+                data.append(row_dict)
+
+            return {
+                "report_type": "conversations",
+                "count": len(data),
+                "total": len(data),
+                "data": data
+            }
+
+        raise HTTPException(status_code=400, detail="Invalid report_type. Must be 'orders', 'returns', or 'conversations'")
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[API] Error generating report: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -826,22 +802,35 @@ async def get_active_sessions():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Global log storage (in-memory)
-system_logs = []
-MAX_LOGS = 1000
+# Global agent event history (in-memory)
+agent_event_history: Dict[str, List[Dict[str, Any]]] = {}
+MAX_AGENT_EVENTS_PER_AGENT = 100
+agent_event_lock = RLock()
 
-def add_system_log(level: str, agent: str, message: str):
-    """Add a log entry to system logs"""
-    global system_logs
-    system_logs.append({
+
+def _normalize_agent_name(agent_name: str) -> str:
+    return (agent_name or "unknown").strip().lower()
+
+
+def log_agent_event(agent_name: str, event_type: str, input_data: dict, output_data: dict):
+    """Log agent input/output for debugging in admin dashboard."""
+    normalized_name = _normalize_agent_name(agent_name)
+
+    event_payload = {
         "timestamp": datetime.utcnow().isoformat(),
-        "level": level,
-        "agent": agent,
-        "message": message
-    })
-    # Keep only last MAX_LOGS entries
-    if len(system_logs) > MAX_LOGS:
-        system_logs = system_logs[-MAX_LOGS:]
+        "event_type": event_type,
+        "input": input_data,
+        "output": output_data
+    }
+
+    with agent_event_lock:
+        if normalized_name not in agent_event_history:
+            agent_event_history[normalized_name] = []
+
+        agent_event_history[normalized_name].append(event_payload)
+
+        if len(agent_event_history[normalized_name]) > MAX_AGENT_EVENTS_PER_AGENT:
+            agent_event_history[normalized_name] = agent_event_history[normalized_name][-MAX_AGENT_EVENTS_PER_AGENT:]
 
 
 @app.get("/admin/logs")
@@ -849,41 +838,19 @@ async def get_system_logs(
     level: Optional[str] = None,
     agent: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 200
+    limit: int = 100
 ):
-    """
-    Get system logs
-    
-    Args:
-        level: Filter by log level (INFO, WARNING, ERROR, DEBUG)
-        agent: Filter by agent name
-        search: Search in log messages
-        limit: Max number of logs to return
-    """
+    """Get system logs with filtering from in-memory logging handler."""
     try:
-        filtered_logs = system_logs.copy()
-        
-        # Apply filters
-        if level and level != "ALL":
-            filtered_logs = [log for log in filtered_logs if log['level'] == level]
-        
-        if agent and agent != "ALL":
-            filtered_logs = [log for log in filtered_logs if log['agent'] == agent]
-        
-        if search:
-            search_lower = search.lower()
-            filtered_logs = [log for log in filtered_logs if search_lower in log['message'].lower()]
-        
-        # Return most recent first, limited
-        filtered_logs.reverse()
-        filtered_logs = filtered_logs[:limit]
-        
+        filtered_logs = log_handler.get_logs(level=level, agent=agent, search=search, limit=limit)
+
         return {
             "logs": filtered_logs,
             "count": len(filtered_logs),
-            "total_logs": len(system_logs)
+            "total_logs": log_handler.total_logs,
+            "agents": log_handler.available_agents()
         }
-    
+
     except Exception as e:
         logger.error(f"[API] Error fetching logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -891,9 +858,8 @@ async def get_system_logs(
 
 @app.post("/admin/logs/clear")
 async def clear_system_logs():
-    """Clear all system logs"""
-    global system_logs
-    system_logs = []
+    """Clear all captured in-memory logs."""
+    log_handler.clear()
     return {"status": "success", "message": "Logs cleared"}
 
 
@@ -998,48 +964,23 @@ async def get_session_trace(session_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Agent event history (in-memory for demo)
-agent_event_history = {}
-
-def log_agent_event(agent_name: str, event_type: str, input_data: dict, output_data: dict):
-    """Log agent input/output for debugging"""
-    if agent_name not in agent_event_history:
-        agent_event_history[agent_name] = []
-    
-    agent_event_history[agent_name].append({
-        "timestamp": datetime.utcnow().isoformat(),
-        "event_type": event_type,
-        "input": input_data,
-        "output": output_data
-    })
-    
-    # Keep only last 50 events per agent
-    if len(agent_event_history[agent_name]) > 50:
-        agent_event_history[agent_name] = agent_event_history[agent_name][-50:]
-
-
 @app.get("/admin/agent/{agent_name}/events")
 async def get_agent_events(agent_name: str, limit: int = 20):
-    """
-    Get recent event history for a specific agent
-    
-    Args:
-        agent_name: Name of the agent (coordinator, sentiment, intent, etc.)
-        limit: Number of events to return
-    """
+    """Get recent event history for a specific agent."""
     try:
-        events = agent_event_history.get(agent_name.lower(), [])
-        
-        # Return most recent first
+        normalized_name = _normalize_agent_name(agent_name)
+        with agent_event_lock:
+            events = list(agent_event_history.get(normalized_name, []))
+
         events = events[-limit:]
         events.reverse()
-        
+
         return {
-            "agent": agent_name,
+            "agent": normalized_name,
             "events": events,
             "count": len(events)
         }
-    
+
     except Exception as e:
         logger.error(f"[API] Error getting agent events: {e}")
         raise HTTPException(status_code=500, detail=str(e))

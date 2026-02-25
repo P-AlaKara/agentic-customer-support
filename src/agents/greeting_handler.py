@@ -23,6 +23,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _safe_log_agent_event(agent_name: str, event_type: str, input_data: Dict[str, Any], output_data: Dict[str, Any]):
+    """Best-effort event logging to API gateway without tight coupling."""
+    try:
+        from ..api.gateway import log_agent_event
+    except (ImportError, ValueError):
+        try:
+            from src.api.gateway import log_agent_event
+        except (ImportError, ValueError):
+            return
+
+    try:
+        log_agent_event(agent_name=agent_name, event_type=event_type, input_data=input_data, output_data=output_data)
+    except Exception:
+        return
+
+
+
 class GreetingAgent:
     """
     Greeting Agent - handles initial conversation starters.
@@ -71,6 +88,13 @@ class GreetingAgent:
                 'agent': 'GREETING_AGENT',
                 'confidence': 1.0
             })
+
+            _safe_log_agent_event(
+                agent_name='greeting',
+                event_type='TASK_HANDLE_GREETING',
+                input_data={'session_id': session_id},
+                output_data={'response_preview': response[:160]}
+            )
             
         except Exception as e:
             logger.error(f"[Greeting Agent] Error: {e}", exc_info=True)

@@ -31,6 +31,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _safe_log_agent_event(agent_name: str, event_type: str, input_data: Dict[str, Any], output_data: Dict[str, Any]):
+    """Best-effort event logging to API gateway without tight coupling."""
+    try:
+        from ..api.gateway import log_agent_event
+    except (ImportError, ValueError):
+        try:
+            from src.api.gateway import log_agent_event
+        except (ImportError, ValueError):
+            return
+
+    try:
+        log_agent_event(agent_name=agent_name, event_type=event_type, input_data=input_data, output_data=output_data)
+    except Exception:
+        return
+
+
+
 class TranscriptionAgent:
     """
     Transcription Agent for logging conversations to the database.
@@ -163,6 +180,13 @@ class TranscriptionAgent:
             
             self.stats['messages_logged'] += 1
             logger.debug(f"[Transcription] Logged user message for {session_id}")
+
+            _safe_log_agent_event(
+                agent_name='transcription',
+                event_type='NEW_USER_MESSAGE',
+                input_data={'session_id': session_id, 'text': payload.get('text', '')[:100]},
+                output_data={'messages_logged': self.stats['messages_logged']}
+            )
             
         except Exception as e:
             logger.error(f"[Transcription] Error logging user message: {e}", exc_info=True)
@@ -211,6 +235,13 @@ class TranscriptionAgent:
                     timestamp=datetime.utcnow(),
                     event_id='auto-generated'
                 ))
+
+            _safe_log_agent_event(
+                agent_name='transcription',
+                event_type='RESULT_SEND_RESPONSE_TO_USER',
+                input_data={'session_id': session_id, 'agent': payload.get('agent', 'UNKNOWN')},
+                output_data={'final': payload.get('final', False)}
+            )
             
         except Exception as e:
             logger.error(f"[Transcription] Error logging agent response: {e}", exc_info=True)
@@ -236,6 +267,13 @@ class TranscriptionAgent:
                         break
             
             logger.debug(f"[Transcription] Updated sentiment for {session_id}")
+
+            _safe_log_agent_event(
+                agent_name='transcription',
+                event_type='RESULT_SENTIMENT_RECOGNIZED',
+                input_data={'session_id': session_id},
+                output_data={'sentiment': payload.get('sentiment'), 'confidence': payload.get('confidence')}
+            )
             
         except Exception as e:
             logger.error(f"[Transcription] Error updating sentiment: {e}", exc_info=True)
@@ -261,6 +299,13 @@ class TranscriptionAgent:
                         break
             
             logger.debug(f"[Transcription] Updated intent for {session_id}")
+
+            _safe_log_agent_event(
+                agent_name='transcription',
+                event_type='RESULT_INTENT_RECOGNIZED',
+                input_data={'session_id': session_id},
+                output_data={'intent': payload.get('intent'), 'confidence': payload.get('confidence')}
+            )
             
         except Exception as e:
             logger.error(f"[Transcription] Error updating intent: {e}", exc_info=True)
@@ -322,6 +367,13 @@ class TranscriptionAgent:
                 'message_count': len(transcript['messages']),
                 'final_status': transcript['final_status']
             })
+
+            _safe_log_agent_event(
+                agent_name='transcription',
+                event_type='CONVERSATION_END',
+                input_data={'session_id': session_id, 'reason': reason},
+                output_data={'final_status': transcript['final_status'], 'message_count': len(transcript['messages'])}
+            )
             
         except Exception as e:
             logger.error(f"[Transcription] Error ending conversation: {e}", exc_info=True)
