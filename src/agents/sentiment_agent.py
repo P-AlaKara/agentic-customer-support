@@ -32,6 +32,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _safe_log_agent_event(agent_name: str, event_type: str, input_data: Dict[str, Any], output_data: Dict[str, Any]):
+    """Best-effort event logging to API gateway without tight coupling."""
+    try:
+        from ..api.gateway import log_agent_event
+    except (ImportError, ValueError):
+        try:
+            from src.api.gateway import log_agent_event
+        except (ImportError, ValueError):
+            return
+
+    try:
+        log_agent_event(agent_name=agent_name, event_type=event_type, input_data=input_data, output_data=output_data)
+    except Exception:
+        return
+
+
+
 class SentimentAgent:
     """
     Sentiment Recognition Agent for customer support conversations.
@@ -158,6 +175,13 @@ class SentimentAgent:
                 'confidence': confidence,
                 'details': result.get('details', {})
             })
+
+            _safe_log_agent_event(
+                agent_name='sentiment',
+                event_type='TASK_RECOGNIZE_SENTIMENT',
+                input_data={'session_id': session_id, 'text': text[:100]},
+                output_data={'sentiment': sentiment, 'confidence': confidence}
+            )
             
         except Exception as e:
             logger.error(f"[Sentiment Agent] Error analyzing sentiment: {e}", exc_info=True)

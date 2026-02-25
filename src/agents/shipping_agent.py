@@ -30,6 +30,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _safe_log_agent_event(agent_name: str, event_type: str, input_data: Dict[str, Any], output_data: Dict[str, Any]):
+    """Best-effort event logging to API gateway without tight coupling."""
+    try:
+        from ..api.gateway import log_agent_event
+    except (ImportError, ValueError):
+        try:
+            from src.api.gateway import log_agent_event
+        except (ImportError, ValueError):
+            return
+
+    try:
+        log_agent_event(agent_name=agent_name, event_type=event_type, input_data=input_data, output_data=output_data)
+    except Exception:
+        return
+
+
+
 class ShippingAgent:
     """
     Shipping/Order Tracking Business Process Agent.
@@ -139,6 +156,13 @@ class ShippingAgent:
             
             self.stats['responses_generated'] += 1
             logger.info(f"[Shipping Agent] Response sent for {session_id}")
+
+            _safe_log_agent_event(
+                agent_name='shipping',
+                event_type='TASK_HANDLE_ORDER_TRACKING',
+                input_data={'session_id': session_id, 'customer_email': customer_email, 'entities': entities},
+                output_data={'response_preview': response[:160], 'order_found': bool(order_info)}
+            )
             
         except Exception as e:
             logger.error(f"[Shipping Agent] Error handling tracking request: {e}", exc_info=True)

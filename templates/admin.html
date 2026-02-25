@@ -50,6 +50,32 @@
             margin-top: 4px;
         }
 
+
+        .sidebar-controls {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 34px;
+            height: 34px;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            background: #0f1419;
+            color: #e7e9ea;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            border-color: #1d4ed8;
+            color: #3b82f6;
+        }
+
         .nav-menu {
             flex: 1;
             padding: 10px 0;
@@ -603,6 +629,72 @@
             font-size: 12px;
         }
 
+
+        /* Agent Event Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal {
+            width: min(1000px, 95vw);
+            max-height: 85vh;
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #2f3336;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .event-card {
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 12px;
+            background: #0f1419;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .event-payloads {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .event-payloads pre {
+            margin-top: 6px;
+            font-size: 11px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #9ca3af;
+        }
+
         /* Loading */
         .loading {
             text-align: center;
@@ -665,6 +757,122 @@
         .clickable:hover {
             background: #1c1f23 !important;
         }
+
+        /* Sidebar collapse */
+        body.sidebar-collapsed .dashboard {
+            grid-template-columns: 72px 1fr;
+        }
+
+        body.sidebar-collapsed .sidebar-header h1,
+        body.sidebar-collapsed .sidebar-header p,
+        body.sidebar-collapsed .nav-item span {
+            display: none;
+        }
+
+        body.sidebar-collapsed .sidebar-controls {
+            justify-content: center;
+        }
+
+        body.sidebar-collapsed .nav-item {
+            justify-content: center;
+            padding: 12px 8px;
+        }
+
+        body.sidebar-collapsed .nav-item.active {
+            border-right: none;
+            border-left: 3px solid #3b82f6;
+        }
+
+        /* Theme palettes */
+        body.light-mode {
+            background: #f3f6fb;
+            color: #111827;
+        }
+
+        body.light-mode .main-content,
+        body.light-mode ::-webkit-scrollbar-track {
+            background: #f3f6fb;
+        }
+
+        body.light-mode .sidebar,
+        body.light-mode .content-header,
+        body.light-mode .card,
+        body.light-mode .stat-card,
+        body.light-mode .message-content,
+        body.light-mode .modal,
+        body.light-mode .transcript-metadata {
+            background: #ffffff;
+            border-color: #d7dee8;
+            color: #111827;
+        }
+
+        body.light-mode .sidebar-header p,
+        body.light-mode .content-header p,
+        body.light-mode .filter-group label,
+        body.light-mode .stat-label,
+        body.light-mode .message-time,
+        body.light-mode .metadata-label,
+        body.light-mode .agent-stat-label,
+        body.light-mode .log-timestamp,
+        body.light-mode .empty-state,
+        body.light-mode .trace-event-time {
+            color: #64748b;
+        }
+
+        body.light-mode .nav-item {
+            color: #0f172a;
+        }
+
+        body.light-mode .nav-item:hover,
+        body.light-mode tbody tr:hover {
+            background: #eff6ff;
+        }
+
+        body.light-mode .nav-item.active {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        body.light-mode .filter-group input,
+        body.light-mode .filter-group select,
+        body.light-mode .icon-btn,
+        body.light-mode .btn-secondary {
+            background: #ffffff;
+            color: #0f172a;
+            border-color: #cbd5e1;
+        }
+
+        body.light-mode .btn-secondary:hover {
+            background: #f1f5f9;
+        }
+
+        body.light-mode thead {
+            background: #f8fafc;
+        }
+
+        body.light-mode th,
+        body.light-mode td {
+            border-color: #d7dee8;
+            color: #111827;
+        }
+
+        body.light-mode .log-container,
+        body.light-mode .trace-event-payload,
+        body.light-mode .event-card {
+            background: #f8fafc;
+            border-color: #d7dee8;
+        }
+
+        body.light-mode .log-message,
+        body.light-mode .trace-event-payload,
+        body.light-mode .message-text {
+            color: #1f2937;
+        }
+
+        body.light-mode ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+        }
+
     </style>
 </head>
 <body>
@@ -674,6 +882,14 @@
             <div class="sidebar-header">
                 <h1>Command Center</h1>
                 <p>System Administration</p>
+                <div class="sidebar-controls">
+                    <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="icon-btn" onclick="toggleSidebar()" title="Toggle menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
             </div>
             <nav class="nav-menu">
                 <div class="nav-item active" onclick="showSection('overview')">
@@ -939,9 +1155,52 @@
         </div>
     </div>
 
+
+
+    <div id="agentModalOverlay" class="modal-overlay" onclick="closeAgentModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="agentModalTitle">Agent Event History</h3>
+                <button class="btn btn-secondary" onclick="closeAgentModal()"><i class="fas fa-times"></i> Close</button>
+            </div>
+            <div class="modal-body" id="agentModalBody">
+                <div class="loading">Loading events...</div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_URL = 'http://localhost:8000';
         let allLogs = [];
+        let availableLogAgents = [];
+
+        function applyStoredUiPreferences() {
+            const theme = localStorage.getItem('adminTheme') || 'dark';
+            const sidebar = localStorage.getItem('adminSidebar') || 'expanded';
+
+            document.body.classList.toggle('light-mode', theme === 'light');
+            document.body.classList.toggle('sidebar-collapsed', sidebar === 'collapsed');
+            updateThemeToggleIcon(theme);
+        }
+
+        function updateThemeToggleIcon(theme) {
+            const icon = document.querySelector('#themeToggle i');
+            if (!icon) return;
+            icon.className = theme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        function toggleTheme() {
+            const isLight = document.body.classList.toggle('light-mode');
+            const theme = isLight ? 'light' : 'dark';
+            localStorage.setItem('adminTheme', theme);
+            updateThemeToggleIcon(theme);
+        }
+
+        function toggleSidebar() {
+            const collapsed = document.body.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('adminSidebar', collapsed ? 'collapsed' : 'expanded');
+        }
+
 
         // Navigation
         function showSection(sectionName) {
@@ -1032,16 +1291,33 @@
         // Database Reports
         function updateReportFilters() {
             const type = document.getElementById('reportType').value;
-            // Update status filter options based on type
             const statusFilter = document.getElementById('statusFilter');
-            if (type === 'conversations') {
+
+            if (type === 'orders') {
                 statusFilter.innerHTML = `
                     <option value="">All</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="ESCALATED">Escalated</option>
-                    <option value="RESOLVED">Resolved</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="SHIPPED">Shipped</option>
+                    <option value="DELIVERED">Delivered</option>
                 `;
+                return;
             }
+
+            if (type === 'returns') {
+                statusFilter.innerHTML = `
+                    <option value="">All</option>
+                    <option value="REQUESTED">Requested</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                `;
+                return;
+            }
+
+            statusFilter.innerHTML = `
+                <option value="">All</option>
+                <option value="ESCALATED_TO_HUMAN">Escalated</option>
+                <option value="RESOLVED_BY_AGENT">Resolved by Agent</option>
+            `;
         }
 
         async function applyFilters() {
@@ -1074,26 +1350,24 @@
                 
                 let columns, rows;
                 if (type === 'orders') {
-                    columns = ['Order ID', 'Customer', 'Amount', 'Status', 'Date'];
+                    columns = ['Order ID', 'Customer', 'Status', 'Items'];
                     rows = data.data.map(row => `
                         <tr class="clickable">
                             <td><code>${row.order_id}</code></td>
-                            <td>${row.customer_email}</td>
-                            <td>$${row.total_amount}</td>
-                            <td><span class="badge badge-${row.status === 'COMPLETED' ? 'success' : 'warning'}">${row.status}</span></td>
-                            <td>${new Date(row.order_date).toLocaleDateString()}</td>
+                            <td>${row.customer_email || 'N/A'}</td>
+                            <td><span class="badge badge-${row.status === 'DELIVERED' ? 'success' : 'warning'}">${row.status || 'UNKNOWN'}</span></td>
+                            <td>${row.item_count ?? (Array.isArray(row.items) ? row.items.length : 0)}</td>
                         </tr>
                     `).join('');
                 } else if (type === 'returns') {
-                    columns = ['Return ID', 'Order ID', 'Customer', 'Reason', 'Status', 'Date'];
+                    columns = ['Return ID', 'Order ID', 'Customer', 'Status', 'Item'];
                     rows = data.data.map(row => `
                         <tr class="clickable">
                             <td><code>${row.return_id}</code></td>
-                            <td><code>${row.order_id}</code></td>
-                            <td>${row.customer_email}</td>
-                            <td>${row.reason || 'N/A'}</td>
-                            <td><span class="badge badge-${row.status === 'APPROVED' ? 'success' : 'warning'}">${row.status}</span></td>
-                            <td>${new Date(row.requested_at).toLocaleDateString()}</td>
+                            <td><code>${row.order_id || 'N/A'}</code></td>
+                            <td>${row.customer_email || 'N/A'}</td>
+                            <td><span class="badge badge-${row.status === 'APPROVED' ? 'success' : (row.status === 'REJECTED' ? 'error' : 'warning')}">${row.status || 'UNKNOWN'}</span></td>
+                            <td>${row.item_details?.name || row.item_details?.sku || 'N/A'}</td>
                         </tr>
                     `).join('');
                 } else {
@@ -1127,8 +1401,8 @@
         function resetFilters() {
             document.getElementById('dateFrom').value = '';
             document.getElementById('dateTo').value = '';
-            document.getElementById('statusFilter').value = '';
             document.getElementById('searchQuery').value = '';
+            updateReportFilters();
         }
 
         function exportReport() {
@@ -1231,27 +1505,33 @@
         // Logs
         async function loadLogs() {
             try {
-                // Mock logs - replace with actual log streaming
-                allLogs = [
-                    {timestamp: '2026-02-24 14:30:15', level: 'INFO', agent: 'COORDINATOR', message: '[GATE 1] Sentiment result for session-001: NEUTRAL'},
-                    {timestamp: '2026-02-24 14:30:16', level: 'INFO', agent: 'INTENT', message: '[Intent Agent] Result: process_return (confidence: 0.95)'},
-                    {timestamp: '2026-02-24 14:30:17', level: 'WARNING', agent: 'COORDINATOR', message: '[GATE 2] Low confidence detected: 0.65'},
-                    {timestamp: '2026-02-24 14:30:18', level: 'ERROR', agent: 'RETURNS', message: 'Database connection timeout'},
-                    {timestamp: '2026-02-24 14:30:19', level: 'INFO', agent: 'ESCALATION', message: 'Session escalated to queue'},
-                    {timestamp: '2026-02-24 14:30:20', level: 'DEBUG', agent: 'SENTIMENT', message: 'Analyzing text: "I want to return my laptop"'},
-                ];
+                const level = document.getElementById('logLevel').value;
+                const agent = document.getElementById('agentFilter').value;
+                const search = document.getElementById('logSearch').value;
+                const params = new URLSearchParams({ limit: '100' });
+                if (level && level !== 'ALL') params.append('level', level);
+                if (agent && agent !== 'ALL') params.append('agent', agent);
+                if (search) params.append('search', search);
+
+                const response = await fetch(`${API_URL}/admin/logs?${params.toString()}`);
+                const data = await response.json();
+
+                allLogs = data.logs || [];
+                availableLogAgents = data.agents || [];
+                refreshLogAgentOptions();
                 displayLogs();
             } catch (error) {
                 console.error('Error loading logs:', error);
+                document.getElementById('logContainer').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading logs</p></div>';
             }
         }
 
         function displayLogs() {
             const html = allLogs.map(log => `
                 <div class="log-entry">
-                    <div class="log-timestamp">${log.timestamp}</div>
+                    <div class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</div>
                     <div class="log-level ${log.level}">${log.level}</div>
-                    <div class="log-agent">${log.agent}</div>
+                    <div class="log-agent">${log.agent || log.logger || 'SYSTEM'}</div>
                     <div class="log-message">${log.message}</div>
                 </div>
             `).join('');
@@ -1259,28 +1539,25 @@
         }
 
         function filterLogs() {
-            const level = document.getElementById('logLevel').value;
-            const agent = document.getElementById('agentFilter').value;
-            const search = document.getElementById('logSearch').value.toLowerCase();
-
-            const filtered = allLogs.filter(log => {
-                const matchLevel = level === 'ALL' || log.level === level;
-                const matchAgent = agent === 'ALL' || log.agent === agent;
-                const matchSearch = !search || log.message.toLowerCase().includes(search);
-                return matchLevel && matchAgent && matchSearch;
-            });
-
-            const html = filtered.map(log => `
-                <div class="log-entry">
-                    <div class="log-timestamp">${log.timestamp}</div>
-                    <div class="log-level ${log.level}">${log.level}</div>
-                    <div class="log-message">${log.message}</div>
-                </div>
-            `).join('');
-            document.getElementById('logContainer').innerHTML = html || '<div class="empty-state"><p>No logs match your filters</p></div>';
+            loadLogs();
         }
 
-        function clearLogs() {
+        function refreshLogAgentOptions() {
+            const select = document.getElementById('agentFilter');
+            const selected = select.value;
+            const dynamic = availableLogAgents
+                .filter(agent => !['ALL'].includes(agent))
+                .map(agent => `<option value="${agent}">${agent}</option>`)
+                .join('');
+
+            select.innerHTML = `<option value="ALL">All Agents</option>${dynamic}`;
+            if ([...select.options].some(option => option.value === selected)) {
+                select.value = selected;
+            }
+        }
+
+        async function clearLogs() {
+            await fetch(`${API_URL}/admin/logs/clear`, { method: 'POST' });
             allLogs = [];
             displayLogs();
         }
@@ -1292,33 +1569,85 @@
         // Agents
         async function loadAgentDetails() {
             try {
-                const response = await fetch(`${API_URL}/admin/stats`);
+                const response = await fetch(`${API_URL}/admin/agents`);
                 const data = await response.json();
 
-                const html = Object.entries(data).map(([name, stats]) => `
-                    <div class="agent-card" onclick="showAgentDetail('${name}')">
-                        <div class="agent-header">
-                            <div class="agent-name">${name.charAt(0).toUpperCase() + name.slice(1)} Agent</div>
-                            <div class="agent-status"></div>
-                        </div>
-                        <div class="agent-stats">
-                            ${Object.entries(stats).map(([key, value]) => `
+                const html = (data.agents || []).map(agent => {
+                    const normalizedName = agent.name.replace(' Agent', '').toLowerCase();
+                    const statsEntries = Object.entries(agent.stats || {});
+
+                    return `
+                        <div class="agent-card" onclick="showAgentDetail('${normalizedName}', '${agent.name}')">
+                            <div class="agent-header">
+                                <div class="agent-name">${agent.name}</div>
+                                <div class="agent-status"></div>
+                            </div>
+                            <div class="agent-stats">
                                 <div class="agent-stat">
-                                    <div class="agent-stat-value">${value}</div>
-                                    <div class="agent-stat-label">${key.replace(/_/g, ' ')}</div>
+                                    <div class="agent-stat-value">${agent.event_count || 0}</div>
+                                    <div class="agent-stat-label">events captured</div>
                                 </div>
-                            `).join('')}
+                                ${statsEntries.slice(0, 3).map(([key, value]) => `
+                                    <div class="agent-stat">
+                                        <div class="agent-stat-value">${value}</div>
+                                        <div class="agent-stat-label">${key.replace(/_/g, ' ')}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
-                    </div>
-                `).join('');
-                document.getElementById('agentDetails').innerHTML = html;
+                    `;
+                }).join('');
+
+                document.getElementById('agentDetails').innerHTML = html || '<div class="empty-state"><i class="fas fa-inbox"></i><p>No agents available</p></div>';
             } catch (error) {
                 document.getElementById('agentDetails').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading agents</p></div>';
             }
         }
 
-        function showAgentDetail(agentName) {
-            alert(`Agent detail modal for ${agentName} - To be implemented with event history`);
+        async function showAgentDetail(agentName, displayName = null) {
+            const normalizedAgent = agentName.toLowerCase();
+            const overlay = document.getElementById('agentModalOverlay');
+            const body = document.getElementById('agentModalBody');
+            document.getElementById('agentModalTitle').textContent = `${displayName || agentName} - Recent Events`;
+            overlay.style.display = 'flex';
+            body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading events...</p></div>';
+
+            try {
+                const response = await fetch(`${API_URL}/admin/agent/${normalizedAgent}/events?limit=20`);
+                const data = await response.json();
+
+                if (!data.events || data.events.length === 0) {
+                    body.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No recent events for this agent</p></div>';
+                    return;
+                }
+
+                body.innerHTML = data.events.map(event => `
+                    <div class="event-card">
+                        <div class="event-header">
+                            <span class="badge badge-info">${event.event_type}</span>
+                            <span>${new Date(event.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="event-payloads">
+                            <div>
+                                <strong>Input</strong>
+                                <pre>${JSON.stringify(event.input, null, 2)}</pre>
+                            </div>
+                            <div>
+                                <strong>Output</strong>
+                                <pre>${JSON.stringify(event.output, null, 2)}</pre>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                body.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading agent events</p></div>';
+            }
+        }
+
+        function closeAgentModal(event) {
+            if (!event || event.target.id === 'agentModalOverlay') {
+                document.getElementById('agentModalOverlay').style.display = 'none';
+            }
         }
 
         // Tracer
@@ -1430,6 +1759,8 @@
         }
 
         // Initialize
+        applyStoredUiPreferences();
+        updateReportFilters();
         loadOverview();
     </script>
 </body>
