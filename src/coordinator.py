@@ -28,6 +28,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _safe_log_agent_event(agent_name: str, event_type: str, input_data: Dict[str, Any], output_data: Dict[str, Any]):
+    """Best-effort event logging to API gateway without tight coupling."""
+    try:
+        from ..api.gateway import log_agent_event
+    except (ImportError, ValueError):
+        try:
+            from src.api.gateway import log_agent_event
+        except (ImportError, ValueError):
+            return
+
+    try:
+        log_agent_event(agent_name=agent_name, event_type=event_type, input_data=input_data, output_data=output_data)
+    except Exception:
+        return
+
+
+
 class CoordinatorAgent:
     """
     Central orchestrator for the multi-agent customer support system.
@@ -141,6 +158,13 @@ class CoordinatorAgent:
                 'session_id': session_id,
                 'text': text
             })
+
+            _safe_log_agent_event(
+                agent_name='coordinator',
+                event_type='NEW_USER_MESSAGE',
+                input_data={'session_id': session_id, 'text': text[:100]},
+                output_data={'next_event': 'TASK_RECOGNIZE_SENTIMENT'}
+            )
             
         except Exception as e:
             logger.error(f"[GATE 0] Error handling new message: {e}", exc_info=True)
@@ -226,6 +250,13 @@ class CoordinatorAgent:
                     # Unknown intent - escalate
                     logger.warning(f"[GATE 2] Unknown intent: {context.current_intent}")
                     self._escalate(session_id, 'UNKNOWN_INTENT', {})
+
+            _safe_log_agent_event(
+                agent_name='coordinator',
+                event_type='RESULT_SENTIMENT_RECOGNIZED',
+                input_data={'session_id': session_id, 'sentiment': sentiment, 'confidence': confidence},
+                output_data={'current_intent': context.current_intent, 'escalated': sentiment in self.SENTIMENT_ESCALATION_LABELS}
+            )
             
         except Exception as e:
             logger.error(f"[GATE 1] Error handling sentiment result: {e}", exc_info=True)
@@ -286,6 +317,13 @@ class CoordinatorAgent:
             # High confidence - route to Business Process Agent
             logger.info(f"[GATE 2] ✓ High confidence: {confidence:.2f}")
             self._route_to_agent(session_id, intent, context)
+
+            _safe_log_agent_event(
+                agent_name='coordinator',
+                event_type='RESULT_INTENT_RECOGNIZED',
+                input_data={'session_id': session_id, 'intent': intent, 'confidence': confidence},
+                output_data={'routed': confidence >= self.INTENT_CONFIDENCE_THRESHOLD, 'entities': entities}
+            )
             
         except Exception as e:
             logger.error(f"[GATE 2] Error handling intent result: {e}", exc_info=True)
@@ -350,6 +388,13 @@ class CoordinatorAgent:
         
         logger.info(f"[ESCALATION] Request received for session {session_id}: {reason}")
         self._escalate(session_id, reason, details)
+
+        _safe_log_agent_event(
+            agent_name='coordinator',
+            event_type='REQUEST_ESCALATION',
+            input_data={'session_id': session_id, 'reason': reason},
+            output_data={'details': details}
+        )
     
     def _escalate(self, session_id: str, reason: str, details: Optional[Dict[str, Any]] = None):
         """
@@ -416,6 +461,13 @@ class CoordinatorAgent:
             session_id=session_id,
             reason=f"AGENT_ERROR_{agent_name}",
             details={'agent': agent_name, 'error': error}
+        )
+
+        _safe_log_agent_event(
+            agent_name='coordinator',
+            event_type='AGENT_ERROR',
+            input_data={'session_id': session_id, 'agent_name': agent_name},
+            output_data={'error': error}
         )
     
     # ========================================================================

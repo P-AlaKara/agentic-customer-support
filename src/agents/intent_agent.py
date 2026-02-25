@@ -34,6 +34,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _safe_log_agent_event(agent_name: str, event_type: str, input_data: Dict[str, Any], output_data: Dict[str, Any]):
+    """Best-effort event logging to API gateway without tight coupling."""
+    try:
+        from ..api.gateway import log_agent_event
+    except (ImportError, ValueError):
+        try:
+            from src.api.gateway import log_agent_event
+        except (ImportError, ValueError):
+            return
+
+    try:
+        log_agent_event(agent_name=agent_name, event_type=event_type, input_data=input_data, output_data=output_data)
+    except Exception:
+        return
+
+
+
 class IntentAgent:
     """
     Intent Recognition Agent for customer support.
@@ -213,6 +230,13 @@ class IntentAgent:
                 'confidence': confidence,
                 'entities': entities
             })
+
+            _safe_log_agent_event(
+                agent_name='intent',
+                event_type='TASK_RECOGNIZE_INTENT',
+                input_data={'session_id': session_id, 'text': text[:100]},
+                output_data={'intent': intent, 'confidence': confidence, 'entities': entities}
+            )
             
         except Exception as e:
             logger.error(f"[Intent Agent] Error classifying intent: {e}", exc_info=True)

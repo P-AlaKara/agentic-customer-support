@@ -33,6 +33,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _safe_log_agent_event(agent_name: str, event_type: str, input_data: Dict[str, Any], output_data: Dict[str, Any]):
+    """Best-effort event logging to API gateway without tight coupling."""
+    try:
+        from ..api.gateway import log_agent_event
+    except (ImportError, ValueError):
+        try:
+            from src.api.gateway import log_agent_event
+        except (ImportError, ValueError):
+            return
+
+    try:
+        log_agent_event(agent_name=agent_name, event_type=event_type, input_data=input_data, output_data=output_data)
+    except Exception:
+        return
+
+
+
 class EscalationAgent:
     """
     Escalation Agent for managing human operator handoffs.
@@ -158,6 +175,13 @@ class EscalationAgent:
             })
             
             logger.info(f"[Escalation Agent] Session {session_id} queued (position: {escalation['queue_position']})")
+
+            _safe_log_agent_event(
+                agent_name='escalation',
+                event_type='TASK_ESCALATE',
+                input_data={'session_id': session_id, 'reason': reason, 'priority': priority},
+                output_data={'status': 'QUEUED', 'queue_position': escalation['queue_position']}
+            )
             
         except Exception as e:
             logger.error(f"[Escalation Agent] Error handling escalation: {e}", exc_info=True)
@@ -216,6 +240,13 @@ class EscalationAgent:
                 'escalated_at': escalation['escalated_at'],
                 'wait_time_seconds': self._calculate_wait_time(escalation)
             })
+
+            _safe_log_agent_event(
+                agent_name='escalation',
+                event_type='OPERATOR_AVAILABLE',
+                input_data={'operator_id': operator_id, 'operator_name': operator_name},
+                output_data={'assigned': True, 'session_id': session_id, 'reason': escalation['reason']}
+            )
             
         except Exception as e:
             logger.error(f"[Escalation Agent] Error assigning to operator: {e}", exc_info=True)
@@ -256,6 +287,13 @@ class EscalationAgent:
                 'total_time_seconds': self._calculate_total_time(escalation),
                 'resolution_notes': payload.get('resolution_notes')
             })
+
+            _safe_log_agent_event(
+                agent_name='escalation',
+                event_type='ESCALATION_RESOLVED',
+                input_data={'session_id': session_id, 'operator_id': operator_id},
+                output_data={'resolved': True}
+            )
             
         except Exception as e:
             logger.error(f"[Escalation Agent] Error handling resolution: {e}", exc_info=True)

@@ -23,6 +23,8 @@ try:
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     PSYCOPG2_AVAILABLE = False
+    RealDictCursor = None  # type: ignore[assignment]
+    Json = None  # type: ignore[assignment]
     logging.warning("psycopg2 not installed. Database operations will be simulated.")
 
 
@@ -120,7 +122,7 @@ class DatabaseConnection:
         return self.connection
     
     @contextmanager
-    def get_cursor(self, cursor_factory=RealDictCursor):
+    def get_cursor(self, cursor_factory=None):
         """
         Context manager for database cursor.
         
@@ -149,7 +151,8 @@ class DatabaseConnection:
             return
         
         conn = self.get_connection()
-        cursor = conn.cursor(cursor_factory=cursor_factory)
+        chosen_factory = cursor_factory or RealDictCursor
+        cursor = conn.cursor(cursor_factory=chosen_factory)
         try:
             yield cursor
             conn.commit()
@@ -388,7 +391,7 @@ class OrdersDB:
                     VALUES (%s, %s, %s, 'REQUESTED')
                     RETURNING return_id
                     """,
-                    (order_id, customer_email, Json(item_details))
+                    (order_id, customer_email, Json(item_details) if Json else item_details)
                 )
                 result = cursor.fetchone()
                 return result['return_id'] if result else None
