@@ -224,7 +224,7 @@ class TranscriptDB:
             return False
     
     def _insert_conversation_header(self, cursor, transcript: Dict[str, Any]):
-        """Insert into completed_conversations table"""
+        """Insert/update completed_conversations table idempotently."""
         query = """
             INSERT INTO completed_conversations (
                 conversation_id, 
@@ -236,6 +236,13 @@ class TranscriptDB:
             )
             VALUES (%(conversation_id)s, %(start_time)s, %(end_time)s, 
                     %(final_status)s, %(customer_id)s, %(operator_id)s)
+            ON CONFLICT (conversation_id)
+            DO UPDATE SET
+                start_time = EXCLUDED.start_time,
+                end_time = EXCLUDED.end_time,
+                final_status = EXCLUDED.final_status,
+                customer_id = EXCLUDED.customer_id,
+                operator_id = EXCLUDED.operator_id
         """
         
         data = {
@@ -250,7 +257,18 @@ class TranscriptDB:
         cursor.execute(query, data)
     
     def _insert_messages(self, cursor, transcript: Dict[str, Any]):
-        """Insert into completed_messages table"""
+        """Insert messages for the conversation.
+
+        We first clear any existing rows for this conversation so a replayed
+        transcript write does not duplicate message history.
+        """
+        conversation_id = str(ensure_uuid(transcript['session_id']))
+
+        cursor.execute(
+            "DELETE FROM completed_messages WHERE conversation_id = %(conversation_id)s",
+            {'conversation_id': conversation_id}
+        )
+
         query = """
             INSERT INTO completed_messages (
                 conversation_id,
@@ -268,7 +286,7 @@ class TranscriptDB:
         
         for msg in transcript.get('messages', []):
             data = {
-                'conversation_id': transcript['session_id'],
+                'conversation_id': conversation_id,
                 'timestamp': msg['timestamp'],
                 'sender': msg['sender'],
                 'text_content': msg['text'],

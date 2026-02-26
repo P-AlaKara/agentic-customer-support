@@ -19,6 +19,7 @@ Design Decisions:
 """
 
 import logging
+import re
 from typing import Optional, Dict, Any
 from .event_bus import EventBus, Event
 from .context_store import ContextStore, ConversationStatus
@@ -65,6 +66,10 @@ class CoordinatorAgent:
     # Configuration thresholds
     SENTIMENT_ESCALATION_LABELS = ['NEGATIVE', 'ANGRY']
     INTENT_CONFIDENCE_THRESHOLD = 0.7
+    CLOSING_RECLASSIFY_PATTERN = re.compile(
+        r"\b(?:bye|goodbye|farewell|that's all|that is all|done|no thanks|nothing else|end (?:this )?(?:chat|conversation))\b",
+        re.IGNORECASE
+    )
     
     # Intent to agent task mapping
     INTENT_ROUTING = {
@@ -220,14 +225,20 @@ class CoordinatorAgent:
                 return
             
             # Sentiment OK - Check if we need intent recognition.
-            # We re-run intent if no intent exists OR prior intent is greeting
-            # (greeting is transient and should not become sticky state).
-            if context.current_intent is None or context.current_intent == 'greeting':
+            # We re-run intent if:
+            # - no intent exists,
+            # - prior intent is greeting (transient), or
+            # - latest user message looks like an explicit close.
+            last_message = context.messages[-1].text if context.messages else ""
+            should_reclassify = (
+                context.current_intent is None
+                or context.current_intent == 'greeting'
+                or self._looks_like_closing(last_message)
+            )
+
+            if should_reclassify:
                 logger.info(f"[GATE 1] ✓ Sentiment acceptable: {sentiment}")
                 logger.info(f"[GATE 1] → Publishing TASK_RECOGNIZE_INTENT")
-                
-                # Get the latest user message for intent analysis
-                last_message = context.messages[-1].text if context.messages else ""
                 
                 self.bus.publish('TASK_RECOGNIZE_INTENT', {
                     'session_id': session_id,
@@ -264,6 +275,13 @@ class CoordinatorAgent:
             logger.error(f"[GATE 1] Error handling sentiment result: {e}", exc_info=True)
             self.stats['errors'] += 1
             self._emergency_escalate(event.payload.get('session_id'), str(e))
+
+    def _looks_like_closing(self, text: str) -> bool:
+        """Detect common explicit close phrases to force intent re-check."""
+        if not text:
+            return False
+
+        return bool(self.CLOSING_RECLASSIFY_PATTERN.search(text))
     
     # ========================================================================
     # GATE 2: INTENT CONFIDENCE CHECK
