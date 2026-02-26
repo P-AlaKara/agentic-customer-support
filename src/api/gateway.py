@@ -139,7 +139,7 @@ intent_agent = IntentAgent(bus)
 escalation_agent = EscalationAgent(bus)
 returns_agent = ReturnsAgent(bus)
 shipping_agent = ShippingAgent(bus)
-greeting_agent = GreetingAgent(bus)
+greeting_handler = GreetingAgent(bus)
 
 # Response collector for /chat endpoint
 class ResponseCollector:
