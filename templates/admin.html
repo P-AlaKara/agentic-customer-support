@@ -902,27 +902,27 @@
                 </div>
             </div>
             <nav class="nav-menu">
-                <div class="nav-item active" onclick="showSection('overview')">
+                <div class="nav-item active" onclick="showSection('overview', this)">
                     <i class="fas fa-chart-line"></i>
                     <span>Overview</span>
                 </div>
-                <div class="nav-item" onclick="showSection('reports')">
+                <div class="nav-item" onclick="showSection('reports', this)">
                     <i class="fas fa-table"></i>
                     <span>Database Reports</span>
                 </div>
-                <div class="nav-item" onclick="showSection('transcripts')">
+                <div class="nav-item" onclick="showSection('transcripts', this)">
                     <i class="fas fa-comments"></i>
                     <span>Transcripts</span>
                 </div>
-                <div class="nav-item" onclick="showSection('logs')">
+                <div class="nav-item" onclick="showSection('logs', this)">
                     <i class="fas fa-terminal"></i>
                     <span>System Logs</span>
                 </div>
-                <div class="nav-item" onclick="showSection('agents')">
+                <div class="nav-item" onclick="showSection('agents', this)">
                     <i class="fas fa-robot"></i>
                     <span>Agents</span>
                 </div>
-                <div class="nav-item" onclick="showSection('tracer')">
+                <div class="nav-item" onclick="showSection('tracer', this)">
                     <i class="fas fa-route"></i>
                     <span>Conversation Tracer</span>
                 </div>
@@ -1243,12 +1243,19 @@
 
 
         // Navigation
-        function showSection(sectionName) {
+        function showSection(sectionName, clickedElement = null) {
             // Update nav items
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
             });
-            event.target.closest('.nav-item').classList.add('active');
+
+            const activeItem = clickedElement
+                || (typeof event !== 'undefined' && event?.target ? event.target.closest('.nav-item') : null)
+                || document.querySelector(`.nav-item[onclick*="showSection('${sectionName}')"]`);
+
+            if (activeItem) {
+                activeItem.classList.add('active');
+            }
 
             // Hide all sections
             document.querySelectorAll('.section').forEach(section => {
@@ -1544,7 +1551,7 @@
                 document.getElementById('transcriptContent').innerHTML = html;
                 
                 // Switch to transcripts tab
-                showSection('transcripts');
+                showSection('transcripts', document.querySelector(".nav-item[onclick*=\"showSection('transcripts')\"]"));
             } catch (error) {
                 console.error('Error loading transcript:', error);
                 document.getElementById('transcriptContent').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Transcript not found or error loading</p></div>';
