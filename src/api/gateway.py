@@ -127,13 +127,16 @@ app.add_middleware(
 # Initialize core components
 bus = get_event_bus()
 store = get_context_store()
-coordinator = CoordinatorAgent(bus, store)
 
-# Initialize agents
+# Initialize agents.
+# IMPORTANT: transcription subscribes to NEW_USER_MESSAGE before coordinator so
+# the user's latest message is always logged before downstream events can close
+# and persist the conversation.
+transcription_agent = TranscriptionAgent(bus, store)
+coordinator = CoordinatorAgent(bus, store)
 sentiment_agent = SentimentAgent(bus)
 intent_agent = IntentAgent(bus)
 escalation_agent = EscalationAgent(bus)
-transcription_agent = TranscriptionAgent(bus, store)
 returns_agent = ReturnsAgent(bus)
 shipping_agent = ShippingAgent(bus)
 greeting_agent = GreetingAgent(bus)
@@ -737,7 +740,7 @@ async def get_conversation_transcript(conversation_id: str):
                     agent_action
                 FROM completed_messages
                 WHERE conversation_id = %s
-                ORDER BY timestamp ASC
+                ORDER BY timestamp ASC, message_id ASC
             """, (conv_uuid,))
             
             messages = cursor.fetchall()
