@@ -758,6 +758,10 @@
             background: #1c1f23 !important;
         }
 
+        body.light-mode .clickable:hover {
+            background: #dbeafe !important;
+        }
+
         /* Sidebar collapse */
         body.sidebar-collapsed .dashboard {
             grid-template-columns: 72px 1fr;
@@ -804,6 +808,12 @@
             background: #ffffff;
             border-color: #d7dee8;
             color: #111827;
+        }
+
+        body.light-mode .agent-card {
+            background: #f8fafc;
+            border-color: #d7dee8;
+            color: #0f172a;
         }
 
         body.light-mode .sidebar-header p,
@@ -1411,7 +1421,7 @@
 
         // Transcripts
         async function loadTranscript() {
-            const convId = document.getElementById('transcriptSearch').value;
+            const convId = document.getElementById('transcriptSearch').value.trim();
             if (!convId) {
                 alert('Please enter a conversation ID');
                 return;
@@ -1423,7 +1433,7 @@
             document.getElementById('transcriptContent').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading transcript...</p></div>';
 
             try {
-                const response = await fetch(`${API_URL}/admin/transcript/${convId}`);
+                const response = await fetch(`${API_URL}/admin/transcript/${encodeURIComponent(convId.trim())}`);
                 
                 if (!response.ok) {
                     throw new Error('Transcript not found');

@@ -446,6 +446,15 @@
                 
                 // Add agent response
                 addMessage(data.response, 'agent', data.status);
+
+                // If the backend indicates the conversation is finalized,
+                // clear persisted session ID so the next message starts fresh.
+                if (data.final) {
+                    sessionId = null;
+                    localStorage.removeItem('sessionId');
+                    firstMessageSent = false;
+                    updateSessionInfo();
+                }
                 
             } catch (error) {
                 setTyping(false);
