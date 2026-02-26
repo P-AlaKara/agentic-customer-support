@@ -74,6 +74,7 @@ class ChatResponse(BaseModel):
     session_id: str
     response: str
     status: str  # "processing", "responded", "escalated"
+    final: bool = False
     timestamp: str
 
 class OperatorAssignment(BaseModel):
@@ -152,7 +153,8 @@ class ResponseCollector:
         self.responses[session_id] = {
             'text': payload['text'],
             'agent': payload.get('agent', 'SYSTEM'),
-            'status': 'responded'
+            'status': 'responded',
+            'final': payload.get('final', False)
         }
     
     def collect_escalation(self, event):
@@ -162,7 +164,8 @@ class ResponseCollector:
         self.responses[session_id] = {
             'text': f"Your request has been escalated to a human operator. Queue position: {payload.get('queue_position', 'unknown')}",
             'agent': 'ESCALATION',
-            'status': 'escalated'
+            'status': 'escalated',
+            'final': True
         }
     
     def get_response(self, session_id: str, timeout: float = 5.0) -> Optional[Dict]:
@@ -216,6 +219,7 @@ async def chat(message: ChatMessage):
                 session_id=session_id,
                 response=response_data['text'],
                 status=response_data['status'],
+                final=response_data.get('final', False),
                 timestamp=datetime.utcnow().isoformat()
             )
         else:
@@ -224,6 +228,7 @@ async def chat(message: ChatMessage):
                 session_id=session_id,
                 response="Your message is being processed. Please wait a moment...",
                 status="processing",
+                final=False,
                 timestamp=datetime.utcnow().isoformat()
             )
     

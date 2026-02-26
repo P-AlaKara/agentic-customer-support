@@ -209,8 +209,20 @@ class TranscriptionAgent:
             session_id = payload['session_id']
             
             if session_id not in self.active_transcripts:
-                logger.warning(f"[Transcription] Session {session_id} not found in active transcripts")
-                return
+                logger.info(
+                    f"[Transcription] Session {session_id} not found in active transcripts; "
+                    "initializing transcript from agent-side event"
+                )
+                self.active_transcripts[session_id] = {
+                    'session_id': session_id,
+                    'start_time': datetime.utcnow().isoformat(),
+                    'customer_email': payload.get('customer_email'),
+                    'messages': [],
+                    'current_sentiment': None,
+                    'current_intent': None,
+                    'final_status': 'ACTIVE'
+                }
+                self.stats['transcripts_started'] += 1
             
             # Add agent response
             self.active_transcripts[session_id]['messages'].append({
