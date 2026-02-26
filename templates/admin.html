@@ -1211,6 +1211,36 @@
             localStorage.setItem('adminSidebar', collapsed ? 'collapsed' : 'expanded');
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function getStatusBadgeClass(statusValue) {
+            return String(statusValue || '').includes('RESOLVED') ? 'success' : 'warning';
+        }
+
+        function formatDateTime(value, fallback = 'N/A') {
+            if (!value) return fallback;
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleString();
+        }
+
+        function formatTime(value, fallback = 'Unknown time') {
+            if (!value) return fallback;
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleTimeString();
+        }
+
+        function formatDuration(seconds) {
+            if (seconds === undefined || seconds === null) return 'N/A';
+            return `${Math.round(Number(seconds) || 0)}s`;
+        }
+
 
         // Navigation
         function showSection(sectionName) {
@@ -1386,9 +1416,9 @@
                         <tr class="clickable" onclick="loadTranscriptById('${row.conversation_id}')">
                             <td><code style="font-size: 11px;">${row.conversation_id}</code></td>
                             <td>${row.customer_email}</td>
-                            <td><span class="badge badge-${row.final_status.includes('RESOLVED') ? 'success' : 'warning'}">${row.final_status}</span></td>
-                            <td>${new Date(row.start_time).toLocaleString()}</td>
-                            <td>${row.duration_seconds ? Math.round(row.duration_seconds) + 's' : 'N/A'}</td>
+                            <td><span class="badge badge-${getStatusBadgeClass(row.final_status)}">${escapeHtml(row.final_status || 'UNKNOWN')}</span></td>
+                            <td>${formatDateTime(row.start_time)}</td>
+                            <td>${formatDuration(row.duration_seconds)}</td>
                         </tr>
                     `).join('');
                 }
@@ -1440,34 +1470,36 @@
                 }
                 
                 const transcript = await response.json();
+                const transcriptStatus = transcript.status || transcript.final_status || 'UNKNOWN';
+                const transcriptMessages = Array.isArray(transcript.messages) ? transcript.messages : [];
 
                 const html = `
                     <div class="transcript-container">
                         <div class="transcript-metadata">
                             <div class="metadata-item">
                                 <div class="metadata-label">Conversation ID</div>
-                                <div class="metadata-value"><code style="font-size: 11px;">${transcript.conversation_id}</code></div>
+                                <div class="metadata-value"><code style="font-size: 11px;">${escapeHtml(transcript.conversation_id || convId)}</code></div>
                             </div>
                             <div class="metadata-item">
                                 <div class="metadata-label">Customer</div>
-                                <div class="metadata-value">${transcript.customer_email || 'Unknown'}</div>
+                                <div class="metadata-value">${escapeHtml(transcript.customer_email || 'Unknown')}</div>
                             </div>
                             <div class="metadata-item">
                                 <div class="metadata-label">Status</div>
-                                <div class="metadata-value"><span class="badge badge-${transcript.status.includes('RESOLVED') ? 'success' : 'warning'}">${transcript.status}</span></div>
+                                <div class="metadata-value"><span class="badge badge-${getStatusBadgeClass(transcriptStatus)}">${escapeHtml(transcriptStatus)}</span></div>
                             </div>
                             <div class="metadata-item">
                                 <div class="metadata-label">Started</div>
-                                <div class="metadata-value">${new Date(transcript.start_time).toLocaleString()}</div>
+                                <div class="metadata-value">${formatDateTime(transcript.start_time)}</div>
                             </div>
                             <div class="metadata-item">
                                 <div class="metadata-label">Duration</div>
-                                <div class="metadata-value">${transcript.duration_seconds ? Math.round(transcript.duration_seconds) + 's' : 'N/A'}</div>
+                                <div class="metadata-value">${formatDuration(transcript.duration_seconds)}</div>
                             </div>
                             ${transcript.operator_id ? `
                             <div class="metadata-item">
                                 <div class="metadata-label">Operator</div>
-                                <div class="metadata-value">${transcript.operator_id}</div>
+                                <div class="metadata-value">${escapeHtml(transcript.operator_id)}</div>
                             </div>
                             ` : ''}
                         </div>
@@ -1477,24 +1509,31 @@
                                 <i class="fas fa-comments"></i> Message Transcript
                             </div>
                             <div class="transcript-messages">
-                                ${transcript.messages.map(msg => `
+                                ${transcriptMessages.length === 0 ? `
+                                    <div class="empty-state" style="padding: 10px 0;">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No messages found for this conversation.</p>
+                                    </div>
+                                ` : transcriptMessages.map(msg => `
                                     <div class="transcript-message">
                                         <div class="message-avatar">
-                                            <i class="fas fa-${msg.sender === 'USER' ? 'user' : 'robot'}"></i>
+                                            <i class="fas fa-${['USER', 'CUSTOMER'].includes(String(msg.sender || '').toUpperCase()) ? 'user' : 'robot'}"></i>
                                         </div>
                                         <div class="message-content">
                                             <div class="message-header">
-                                                <div class="message-sender">${msg.sender}</div>
-                                                <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                                                <div class="message-sender">${escapeHtml(msg.sender || 'UNKNOWN')}</div>
+                                                <div class="message-time">${formatTime(msg.timestamp)}</div>
                                             </div>
-                                            <div class="message-text">${msg.text}</div>
-                                            ${msg.sentiment || msg.intent ? `
+                                            <div class="message-text">${escapeHtml(msg.text || '')}</div>
+                                            ${msg.sentiment || msg.intent || msg.agent_action ? `
                                                 <div class="message-meta">
-                                                    ${msg.sentiment ? `<span class="badge badge-info">${msg.sentiment}</span>` : ''}
-                                                    ${msg.intent ? `<span class="badge badge-neutral">${msg.intent}</span>` : ''}
-                                                    ${msg.agent_action ? `<span class="badge badge-success">${msg.agent_action.agent || 'AGENT'}</span>` : ''}
+                                                    ${msg.sentiment ? `<span class="badge badge-info">${escapeHtml(msg.sentiment)}</span>` : ''}
+                                                    ${msg.intent ? `<span class="badge badge-neutral">${escapeHtml(msg.intent)}</span>` : ''}
+                                                    ${msg.agent_action ? `<span class="badge badge-success">${escapeHtml(msg.agent_action.agent || msg.agent_action.type || 'AGENT')}</span>` : ''}
                                                 </div>
                                             ` : ''}
+                                            ${msg.entities ? `<pre style="margin-top:8px; white-space: pre-wrap; font-size: 12px; color: #94a3b8;">Entities: ${escapeHtml(JSON.stringify(msg.entities, null, 2))}</pre>` : ''}
+                                            ${msg.agent_action ? `<pre style="margin-top:8px; white-space: pre-wrap; font-size: 12px; color: #94a3b8;">Action: ${escapeHtml(JSON.stringify(msg.agent_action, null, 2))}</pre>` : ''}
                                         </div>
                                     </div>
                                 `).join('')}
