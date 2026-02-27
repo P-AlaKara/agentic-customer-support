@@ -322,6 +322,8 @@ class TranscriptionAgent:
         except Exception as e:
             logger.error(f"[Transcription] Error updating intent: {e}", exc_info=True)
     
+
+
     def end_conversation(self, event: Event):
         """
         End a conversation and write to database.

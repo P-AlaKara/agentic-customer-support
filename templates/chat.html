@@ -326,6 +326,7 @@
         let sessionId = localStorage.getItem('sessionId') || null;
         const customerEmail = 'customer@example.com';
         let firstMessageSent = false;
+        let seenMessageTimestamps = new Set();
 
         // Update session info
         function updateSessionInfo() {
@@ -396,6 +397,21 @@
             sendMessage();
         }
 
+
+        async function syncSeenMessages() {
+            if (!sessionId) return;
+            try {
+                const response = await fetch(`${API_URL}/chat/${sessionId}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                (data.messages || []).forEach(msg => {
+                    seenMessageTimestamps.add(`${msg.timestamp}-${msg.sender}-${msg.text}`);
+                });
+            } catch (error) {
+                console.error('Sync error:', error);
+            }
+        }
+
         // Send message to API
         async function sendMessage() {
             const input = document.getElementById('messageInput');
@@ -439,13 +455,17 @@
                     sessionId = data.session_id;
                     localStorage.setItem('sessionId', sessionId);
                     updateSessionInfo();
+                    seenMessageTimestamps.clear();
                 }
                 
                 // Hide typing indicator
                 setTyping(false);
                 
                 // Add agent response
+                const userMarker = `${new Date().toISOString()}-USER-${message}`;
+                seenMessageTimestamps.add(userMarker);
                 addMessage(data.response, 'agent', data.status);
+                await syncSeenMessages();
 
                 // If the backend indicates the conversation is finalized,
                 // clear persisted session ID so the next message starts fresh.
@@ -454,6 +474,7 @@
                     localStorage.removeItem('sessionId');
                     firstMessageSent = false;
                     updateSessionInfo();
+                    seenMessageTimestamps.clear();
                 }
                 
             } catch (error) {
@@ -471,8 +492,32 @@
             }
         }
 
+
+        async function pollForUpdates() {
+            if (!sessionId) return;
+            try {
+                const response = await fetch(`${API_URL}/chat/${sessionId}`);
+                if (!response.ok) return;
+                const data = await response.json();
+
+                (data.messages || []).forEach(msg => {
+                    const marker = `${msg.timestamp}-${msg.sender}-${msg.text}`;
+                    if (!seenMessageTimestamps.has(marker)) {
+                        seenMessageTimestamps.add(marker);
+                        if (msg.sender === 'AGENT') {
+                            addMessage(msg.text, 'agent', data.status?.toLowerCase());
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+        }
+
         // Initialize
         updateSessionInfo();
+        syncSeenMessages();
+        setInterval(pollForUpdates, 2000);
     </script>
 </body>
 </html>
