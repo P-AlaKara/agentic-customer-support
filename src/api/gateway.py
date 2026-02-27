@@ -82,6 +82,11 @@ class OperatorAssignment(BaseModel):
     operator_id: str = Field(..., description="Operator ID")
     operator_name: str = Field(..., description="Operator name")
 
+
+class OperatorTakeoverRequest(OperatorAssignment):
+    """Operator assignment request for a specific session."""
+    session_id: str = Field(..., description="Escalated session ID")
+
 class QueueItem(BaseModel):
     """Escalation queue item"""
     session_id: str
@@ -168,7 +173,7 @@ class ResponseCollector:
             'text': f"Your request has been escalated to a human operator. Queue position: {payload.get('queue_position', 'unknown')}",
             'agent': 'ESCALATION',
             'status': 'escalated',
-            'final': True
+            'final': False
         }
     
     def get_response(self, session_id: str, timeout: float = 5.0) -> Optional[Dict]:
@@ -207,12 +212,26 @@ async def chat(message: ChatMessage):
         
         logger.info(f"[API] Received message for session {session_id}")
         
+        # If a session is currently controlled by an operator, we still ingest
+        # the user message, but bypass automated response waiting.
+        existing_context = store.get(session_id)
+        is_operator_controlled = bool(existing_context and existing_context.metadata.get('controlled_by') == 'OPERATOR')
+
         # Publish message to event bus
         bus.publish('NEW_USER_MESSAGE', {
             'session_id': session_id,
             'text': message.message,
             'customer_email': message.customer_email
         })
+
+        if is_operator_controlled:
+            return ChatResponse(
+                session_id=session_id,
+                response="Your message was delivered to a human operator.",
+                status="waiting_operator",
+                final=False,
+                timestamp=datetime.utcnow().isoformat()
+            )
         
         # Wait for response (with timeout)
         response_data = response_collector.get_response(session_id, timeout=5.0)
@@ -258,7 +277,7 @@ async def get_session(session_id: str):
                 }
                 for msg in context.messages
             ],
-            "status": context.status.value,
+            "status": context.status,
             "sentiment": context.current_sentiment,
             "intent": context.current_intent
         }
@@ -304,25 +323,68 @@ async def get_queue():
 async def assign_operator(assignment: OperatorAssignment):
     """Assign an operator to handle the next escalation in queue"""
     try:
-        logger.info(f"[API] Operator {assignment.operator_name} requesting assignment")
-        
-        # Publish operator available event
+        queue_status = escalation_agent.get_queue_status()
+        if queue_status['queue_size'] == 0:
+            return {
+                "status": "empty",
+                "assigned": False,
+                "message": "No escalations in queue"
+            }
+
+        next_session_id = queue_status['queue'][0]['session_id']
         bus.publish('OPERATOR_AVAILABLE', {
             'operator_id': assignment.operator_id,
             'operator_name': assignment.operator_name
         })
-        
-        # Wait for assignment (or queue empty notification)
-        import time
-        time.sleep(0.3)  # Give system time to process
-        
+
+        context = store.get(next_session_id)
+        if context:
+            context.operator_id = assignment.operator_id
+            context.status = "ESCALATED"
+            context.metadata['controlled_by'] = 'OPERATOR'
+            context.metadata['operator_name'] = assignment.operator_name
+
         return {
             "status": "success",
+            "assigned": True,
+            "session_id": next_session_id,
             "message": f"Operator {assignment.operator_name} has been assigned to next available escalation"
         }
     
     except Exception as e:
         logger.error(f"[API] Error assigning operator: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/operator/takeover")
+async def assign_specific_escalation(request: OperatorTakeoverRequest):
+    """Assign an operator to a specific escalated session."""
+    try:
+        assigned = escalation_agent.assign_specific_session(
+            session_id=request.session_id,
+            operator_id=request.operator_id,
+            operator_name=request.operator_name
+        )
+        if not assigned:
+            raise HTTPException(status_code=404, detail="Session not found in escalation queue")
+
+        context = store.get(request.session_id)
+        if context:
+            context.operator_id = request.operator_id
+            context.status = "ESCALATED"
+            context.metadata['controlled_by'] = 'OPERATOR'
+            context.metadata['operator_name'] = request.operator_name
+
+        return {
+            "status": "success",
+            "assigned": True,
+            "session_id": request.session_id,
+            "message": f"{request.operator_name} now controls this conversation"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error assigning specific escalation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -337,10 +399,14 @@ async def get_escalation_details(session_id: str):
         return {
             "session_id": session_id,
             "customer_email": context.customer_email,
-            "status": context.status.value,
+            "customer_id": context.customer_id,
+            "started_at": context.start_time,
+            "status": context.status,
             "sentiment": context.current_sentiment,
             "intent": context.current_intent,
             "escalation_reason": context.escalation_reason,
+            "controlled_by": context.metadata.get('controlled_by', 'AUTOMATION'),
+            "operator_id": context.operator_id,
             "messages": [
                 {
                     "sender": msg.sender,
@@ -365,17 +431,59 @@ async def get_escalation_details(session_id: str):
 async def operator_respond(session_id: str, message: str):
     """Operator sends a response to customer"""
     try:
+        context = store.get(session_id)
+        if not context:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if context.metadata.get('controlled_by') != 'OPERATOR':
+            raise HTTPException(status_code=409, detail="Session is not controlled by an operator")
+
+        context.add_message('AGENT', message, agent_action={
+            'agent': 'HUMAN_OPERATOR',
+            'action': 'respond',
+            'status': 'success'
+        })
+        context.metadata['controlled_by'] = 'OPERATOR'
+
         # Publish operator response
         bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
             'session_id': session_id,
             'text': message,
-            'agent': 'HUMAN_OPERATOR'
+            'agent': 'HUMAN_OPERATOR',
+            'operator_id': context.operator_id
         })
         
         return {"status": "success", "message": "Response sent"}
     
     except Exception as e:
         logger.error(f"[API] Error sending operator response: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/operator/end/{session_id}")
+async def operator_end_conversation(session_id: str):
+    """End a conversation using the same close intent workflow as the user flow."""
+    try:
+        context = store.get(session_id)
+        if not context:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if context.metadata.get('controlled_by') != 'OPERATOR':
+            raise HTTPException(status_code=409, detail="Session is not controlled by an operator")
+
+        bus.publish('TASK_HANDLE_CLOSING', context.to_dict())
+        bus.publish('ESCALATION_RESOLVED', {
+            'session_id': session_id,
+            'operator_id': context.operator_id or 'unknown',
+            'resolution_notes': 'Ended by operator from dashboard'
+        })
+
+        return {
+            "status": "success",
+            "message": "Conversation closed"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error ending conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -792,7 +900,7 @@ async def get_active_sessions():
                 sessions.append({
                     "session_id": session_id,
                     "customer_email": context.customer_email,
-                    "status": context.status.value,
+                    "status": context.status,
                     "current_intent": context.current_intent,
                     "current_sentiment": context.current_sentiment,
                     "start_time": context.start_time,
@@ -959,7 +1067,7 @@ async def get_session_trace(session_id: str):
             "trace_events": trace_events,
             "summary": {
                 "total_events": len(trace_events),
-                "status": context.status.value,
+                "status": context.status,
                 "intent": context.current_intent,
                 "sentiment": context.current_sentiment
             }

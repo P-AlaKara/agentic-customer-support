@@ -216,40 +216,56 @@ class EscalationAgent:
             
             # Get next escalation from queue
             escalation = self.queue.popleft()
-            session_id = escalation['session_id']
-            
-            # Update escalation record
-            escalation['status'] = 'ASSIGNED'
-            escalation['operator_id'] = operator_id
-            escalation['assigned_at'] = datetime.utcnow().isoformat()
-            
-            # Update statistics
-            self.stats['queued'] -= 1
-            self.stats['assigned'] += 1
-            
-            logger.info(f"[Escalation Agent] Assigned session {session_id} to operator {operator_name}")
-            
-            # Publish assignment confirmation
-            self.bus.publish('RESULT_OPERATOR_ASSIGNED', {
-                'operator_id': operator_id,
-                'operator_name': operator_name,
-                'assigned': True,
-                'session_id': session_id,
-                'reason': escalation['reason'],
-                'context': escalation.get('context'),
-                'escalated_at': escalation['escalated_at'],
-                'wait_time_seconds': self._calculate_wait_time(escalation)
-            })
+            self._mark_assigned(escalation=escalation, operator_id=operator_id, operator_name=operator_name)
 
             _safe_log_agent_event(
                 agent_name='escalation',
                 event_type='OPERATOR_AVAILABLE',
                 input_data={'operator_id': operator_id, 'operator_name': operator_name},
-                output_data={'assigned': True, 'session_id': session_id, 'reason': escalation['reason']}
+                output_data={'assigned': True, 'session_id': escalation['session_id'], 'reason': escalation['reason']}
             )
             
         except Exception as e:
             logger.error(f"[Escalation Agent] Error assigning to operator: {e}", exc_info=True)
+
+    def assign_specific_session(self, session_id: str, operator_id: str, operator_name: str) -> Optional[Dict[str, Any]]:
+        """Assign a specific queued escalation to an operator."""
+        escalation = None
+        for idx, item in enumerate(self.queue):
+            if item['session_id'] == session_id:
+                escalation = item
+                del self.queue[idx]
+                break
+
+        if escalation is None:
+            return None
+
+        self._mark_assigned(escalation=escalation, operator_id=operator_id, operator_name=operator_name)
+        return escalation
+
+    def _mark_assigned(self, escalation: Dict[str, Any], operator_id: str, operator_name: str):
+        """Update escalation state and publish assignment event."""
+        session_id = escalation['session_id']
+
+        escalation['status'] = 'ASSIGNED'
+        escalation['operator_id'] = operator_id
+        escalation['assigned_at'] = datetime.utcnow().isoformat()
+
+        self.stats['queued'] -= 1
+        self.stats['assigned'] += 1
+
+        logger.info(f"[Escalation Agent] Assigned session {session_id} to operator {operator_name}")
+
+        self.bus.publish('RESULT_OPERATOR_ASSIGNED', {
+            'operator_id': operator_id,
+            'operator_name': operator_name,
+            'assigned': True,
+            'session_id': session_id,
+            'reason': escalation['reason'],
+            'context': escalation.get('context'),
+            'escalated_at': escalation['escalated_at'],
+            'wait_time_seconds': self._calculate_wait_time(escalation)
+        })
     
     def handle_resolution(self, event: Event):
         """
@@ -334,6 +350,7 @@ class EscalationAgent:
                     'session_id': esc['session_id'],
                     'reason': esc['reason'],
                     'priority': esc['priority'],
+                    'escalated_at': esc.get('escalated_at'),
                     'position': i + 1
                 }
                 for i, esc in enumerate(self.queue)
