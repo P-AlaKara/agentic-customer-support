@@ -44,21 +44,21 @@
         }
         .hero-left { display:flex; align-items:center; gap:18px; }
         .hero-icon { width:64px; height:64px; border-radius:16px; background: rgba(255,255,255,.16); display:flex; align-items:center; justify-content:center; font-size:30px; }
-        .hero h1 { margin:0; font-size:52px; line-height:1.04; font-weight:800; letter-spacing:-.01em; }
-        .hero p { margin:8px 0 0; color: rgba(229,235,255,.92); font-size:26px; }
+        .hero h1 { margin:0; font-size:44px; line-height:1.08; font-weight:800; letter-spacing:-.01em; }
+        .hero p { margin:8px 0 0; color: rgba(229,235,255,.92); font-size:22px; }
         .hero-right { display:flex; gap:14px; align-items:center; }
         .chip {
             display:inline-flex; align-items:center; gap:10px;
             background: rgba(83,106,223,.9); border:1px solid rgba(255,255,255,.25);
-            border-radius:40px; padding:14px 24px; color:#fff; font-size:34px; font-weight:700;
+            border-radius:40px; padding:10px 18px; color:#fff; font-size:24px; font-weight:700;
         }
         .chip-dot { width:14px; height:14px; border-radius:50%; background: var(--success); }
         .btn {
             border: none; border-radius: 16px; cursor:pointer;
             display:inline-flex; align-items:center; gap:10px; font-weight:700;
-            font-size:32px; padding:16px 28px; transition:.2s ease;
+            font-size:22px; padding:12px 20px; transition:.2s ease;
         }
-        .btn i { font-size:28px; }
+        .btn i { font-size:20px; }
         .btn-primary { background:#fff; color:#1f49cf; }
         .btn-primary:hover { transform:translateY(-1px); }
         .btn-secondary {
@@ -79,7 +79,7 @@
             min-height: 300px;
         }
         .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
-        .card-title { margin:0; font-size:44px; font-weight:800; letter-spacing:-.01em; }
+        .card-title { margin:0; font-size:34px; font-weight:800; letter-spacing:-.01em; }
         .live-status { margin-left:10px; display:inline-flex; align-items:center; gap:8px; color:#6e7c90; background:#eceef3; border-radius:20px; padding:6px 12px; font-size:18px; vertical-align:middle; }
         .dot { width:10px; height:10px; border-radius:999px; background:#b8c0cc; }
 
@@ -89,8 +89,8 @@
         .stat-box.wait { background:var(--warning-bg); }
         .stat-icon { width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px; background: rgba(255,255,255,.45); color:#355ecf; }
         .stat-box.wait .stat-icon { color:#e39a13; }
-        .stat-number { font-size:60px; font-weight:800; line-height:1; }
-        .stat-label { font-size:36px; color:#506280; letter-spacing:.08em; font-weight:700; margin-top:4px; }
+        .stat-number { font-size:44px; font-weight:800; line-height:1; }
+        .stat-label { font-size:20px; color:#506280; letter-spacing:.06em; font-weight:700; margin-top:4px; }
 
         .queue-list {
             border:1px dashed #ccd3df; border-radius:18px; background:#fbfcfe;
@@ -115,8 +115,8 @@
         }
         .empty-state { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; color:#62738f; }
         .empty-state i { width:84px; height:84px; border-radius:22px; background:#e7e9ef; display:flex; align-items:center; justify-content:center; font-size:40px; margin-bottom:12px; }
-        .empty-state h3 { font-size:44px; margin:0 0 8px; color:#0f2544; }
-        .empty-state p { font-size:40px; margin:0; max-width:780px; }
+        .empty-state h3 { font-size:32px; margin:0 0 8px; color:#0f2544; }
+        .empty-state p { font-size:22px; margin:0; max-width:780px; }
 
         .conv-meta { border:1px solid #d5dbe8; border-radius:12px; background:#fff; padding:12px; }
         .meta-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
@@ -151,14 +151,14 @@
         .transcript-preview { border:1px solid #d6deec; border-radius:12px; padding:12px; background:#fff; white-space:pre-wrap; line-height:1.45; max-height:260px; overflow:auto; }
 
         @media (max-width: 1280px) {
-            .hero h1 { font-size: 38px; }
-            .hero p { font-size: 18px; }
-            .chip { font-size: 24px; }
-            .btn { font-size: 22px; }
-            .card-title { font-size: 32px; }
-            .stat-label { font-size: 24px; }
-            .empty-state h3 { font-size: 32px; }
-            .empty-state p { font-size: 22px; }
+            .hero h1 { font-size: 34px; }
+            .hero p { font-size: 16px; }
+            .chip { font-size: 18px; }
+            .btn { font-size: 16px; }
+            .card-title { font-size: 26px; }
+            .stat-label { font-size: 16px; }
+            .empty-state h3 { font-size: 24px; }
+            .empty-state p { font-size: 16px; }
         }
     </style>
 </head>
@@ -210,9 +210,6 @@
             <div class="card-header">
                 <h2 class="card-title">Live Conversation <span class="live-status"><span class="dot" id="statusDot"></span><span id="statusText">Idle</span></span></h2>
             </div>
-        </div>
-    </div>
-</div>
 
             <div id="conversationView" class="conversation-wrap"></div>
         </article>
@@ -250,6 +247,8 @@ let selectedSession = null;
 let selectedData = null;
 let fullTranscript = '';
 let transcriptExpanded = false;
+let operatorDraftText = '';
+let skipNextRender = false;
 
 function escapeHtml(input) {
     return String(input ?? '')
@@ -275,8 +274,8 @@ function renderEmptyQueue() {
     document.getElementById('queueList').innerHTML = `
         <div class="empty-state" style="min-height:510px;">
             <i class="fa-regular fa-inbox"></i>
-            <h3 style="font-size:34px;">No escalations waiting</h3>
-            <p style="font-size:26px;">New escalations will appear here automatically.</p>
+            <h3 style="font-size:26px;">No escalations waiting</h3>
+            <p style="font-size:18px;">New escalations will appear here automatically.</p>
         </div>
     `;
 }
@@ -471,6 +470,8 @@ async function renderConversation(sessionId) {
 
         const responseText = document.getElementById('responseText');
         if (responseText) {
+            responseText.value = operatorDraftText;
+            responseText.addEventListener('input', () => { operatorDraftText = responseText.value; });
             responseText.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault();
@@ -509,6 +510,7 @@ async function assignNext() {
 async function sendResponse() {
     const textArea = document.getElementById('responseText');
     const text = textArea ? textArea.value.trim() : '';
+    operatorDraftText = textArea ? textArea.value : operatorDraftText;
     if (!selectedSession || !text) return;
 
     try {
@@ -516,7 +518,9 @@ async function sendResponse() {
             method: 'POST'
         });
         if (!response.ok) throw new Error('Send failed');
+        operatorDraftText = '';
         textArea.value = '';
+        skipNextRender = true;
         await renderConversation(selectedSession);
     } catch (error) {
         console.error('Send response error:', error);
@@ -535,6 +539,7 @@ async function endConversation() {
 
         selectedSession = null;
         selectedData = null;
+        operatorDraftText = '';
         renderEmptyConversation();
         await loadQueue();
     } catch (error) {
@@ -545,9 +550,20 @@ async function endConversation() {
 
 async function poll() {
     await loadQueue();
-    if (selectedSession) {
-        await renderConversation(selectedSession);
+    if (!selectedSession) return;
+
+    if (skipNextRender) {
+        skipNextRender = false;
+        return;
     }
+
+    const active = document.activeElement;
+    const typingInComposer = active && active.id === 'responseText';
+    if (typingInComposer || operatorDraftText.trim()) {
+        return;
+    }
+
+    await renderConversation(selectedSession);
 }
 
 renderEmptyConversation();
