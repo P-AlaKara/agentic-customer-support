@@ -1,10 +1,11 @@
 from src.event_bus import EventBus
 from src.context_store import ContextStore
+from src.coordinator import CoordinatorAgent
 from src.agents.transcription_agent import TranscriptionAgent
 from src.agents.escalation_agent import EscalationAgent
 
 
-def test_transcription_finalizes_session_immediately_after_escalation():
+def test_transcription_finalizes_immediately_on_escalation_and_keeps_context():
     bus = EventBus()
     store = ContextStore()
     agent = TranscriptionAgent(bus, store, db_connection=None)
@@ -17,6 +18,26 @@ def test_transcription_finalizes_session_immediately_after_escalation():
 
     assert session_id not in agent.active_transcripts
     assert agent.stats["transcripts_completed"] == 1
+    # Context should remain for operator takeover after escalation.
+    assert store.get(session_id) is not None
+
+
+def test_coordinator_skips_automation_for_operator_controlled_sessions():
+    bus = EventBus()
+    store = ContextStore()
+    CoordinatorAgent(bus, store)
+
+    session_id = "session-controlled"
+    context = store.get_or_create(session_id)
+    context.metadata["controlled_by"] = "OPERATOR"
+
+    sentiment_tasks = []
+    bus.subscribe("TASK_RECOGNIZE_SENTIMENT", lambda event: sentiment_tasks.append(event.payload))
+
+    bus.publish("NEW_USER_MESSAGE", {"session_id": session_id, "text": "Hi operator", "customer_email": "user@example.com"})
+
+    assert sentiment_tasks == []
+    assert store.get(session_id).messages[-1].text == "Hi operator"
 
 
 def test_escalation_agent_assign_specific_session():

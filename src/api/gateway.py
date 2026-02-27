@@ -212,12 +212,26 @@ async def chat(message: ChatMessage):
         
         logger.info(f"[API] Received message for session {session_id}")
         
+        # If a session is currently controlled by an operator, we still ingest
+        # the user message, but bypass automated response waiting.
+        existing_context = store.get(session_id)
+        is_operator_controlled = bool(existing_context and existing_context.metadata.get('controlled_by') == 'OPERATOR')
+
         # Publish message to event bus
         bus.publish('NEW_USER_MESSAGE', {
             'session_id': session_id,
             'text': message.message,
             'customer_email': message.customer_email
         })
+
+        if is_operator_controlled:
+            return ChatResponse(
+                session_id=session_id,
+                response="Your message was delivered to a human operator.",
+                status="waiting_operator",
+                final=False,
+                timestamp=datetime.utcnow().isoformat()
+            )
         
         # Wait for response (with timeout)
         response_data = response_collector.get_response(session_id, timeout=5.0)
@@ -420,6 +434,8 @@ async def operator_respond(session_id: str, message: str):
         context = store.get(session_id)
         if not context:
             raise HTTPException(status_code=404, detail="Session not found")
+        if context.metadata.get('controlled_by') != 'OPERATOR':
+            raise HTTPException(status_code=409, detail="Session is not controlled by an operator")
 
         context.add_message('AGENT', message, agent_action={
             'agent': 'HUMAN_OPERATOR',
@@ -432,7 +448,8 @@ async def operator_respond(session_id: str, message: str):
         bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
             'session_id': session_id,
             'text': message,
-            'agent': 'HUMAN_OPERATOR'
+            'agent': 'HUMAN_OPERATOR',
+            'operator_id': context.operator_id
         })
         
         return {"status": "success", "message": "Response sent"}
@@ -449,6 +466,8 @@ async def operator_end_conversation(session_id: str):
         context = store.get(session_id)
         if not context:
             raise HTTPException(status_code=404, detail="Session not found")
+        if context.metadata.get('controlled_by') != 'OPERATOR':
+            raise HTTPException(status_code=409, detail="Session is not controlled by an operator")
 
         bus.publish('TASK_HANDLE_CLOSING', context.to_dict())
         bus.publish('ESCALATION_RESOLVED', {

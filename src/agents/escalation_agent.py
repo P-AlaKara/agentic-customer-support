@@ -350,6 +350,7 @@ class EscalationAgent:
                     'session_id': esc['session_id'],
                     'reason': esc['reason'],
                     'priority': esc['priority'],
+                    'escalated_at': esc.get('escalated_at'),
                     'position': i + 1
                 }
                 for i, esc in enumerate(self.queue)
