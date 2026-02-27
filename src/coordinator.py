@@ -148,6 +148,17 @@ class CoordinatorAgent:
                 session_id=session_id,
                 customer_email=customer_email
             )
+
+            # If a human operator has taken ownership, do not route this
+            # message through automated intent/sentiment/BPA workflows.
+            if context.metadata.get('controlled_by') == 'OPERATOR':
+                self.store.add_message(
+                    session_id=session_id,
+                    sender='USER',
+                    text=text
+                )
+                logger.info(f"[GATE 0] Session {session_id} is operator-controlled. Skipping automated routing.")
+                return
             
             # Add user message to context
             self.store.add_message(

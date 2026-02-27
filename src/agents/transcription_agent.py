@@ -321,7 +321,7 @@ class TranscriptionAgent:
             
         except Exception as e:
             logger.error(f"[Transcription] Error updating intent: {e}", exc_info=True)
-    
+
     def end_conversation(self, event: Event):
         """
         End a conversation and write to database.
@@ -345,7 +345,9 @@ class TranscriptionAgent:
             
             # Update final status
             reason = payload.get('reason', 'UNKNOWN')
-            if 'ESCALATE' in reason or payload.get('status') == 'QUEUED':
+            is_escalation = 'ESCALATE' in reason or payload.get('status') == 'QUEUED'
+
+            if is_escalation:
                 transcript['final_status'] = 'ESCALATED_TO_HUMAN'
                 transcript['operator_id'] = payload.get('operator_id')
             else:
@@ -362,14 +364,15 @@ class TranscriptionAgent:
                 # If no DB, just log what would be written
                 logger.info(f"[Transcription] Would write to DB: {len(transcript['messages'])} messages")
             
-            # Clean up Context Store
-            if self.context_store:
+            # Keep live context available after escalation so operators can
+            # continue handling the session, but finalize transcript tracking.
+            if not is_escalation and self.context_store:
                 self.context_store.delete(session_id)
                 logger.debug(f"[Transcription] Cleaned up context for {session_id}")
-            
+
             # Remove from active transcripts
             del self.active_transcripts[session_id]
-            
+
             # Update statistics
             self.stats['transcripts_completed'] += 1
             
