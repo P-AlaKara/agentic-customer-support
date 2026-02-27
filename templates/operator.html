@@ -4,467 +4,341 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Operator Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWix+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4VxEXS9Gf0xj4cJ8gD5C7XQ5W4W6gU9gA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --bg: #0f172a;
+            --panel: #ffffff;
+            --muted: #64748b;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --primary: #2563eb;
+            --primary-strong: #1d4ed8;
+            --success: #15803d;
+            --warning: #b45309;
+            --danger: #b91c1c;
+            --surface: #f8fafc;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
-            padding: 20px;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Inter, 'Segoe UI', Roboto, sans-serif; background: #f1f5f9; color: var(--text); padding: 24px; }
+        .dashboard { max-width: 1480px; margin: 0 auto; }
 
-        .dashboard {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+        .header, .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
+        .header { padding: 24px 28px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 28px; margin-bottom: 6px; display: flex; align-items: center; gap: 12px; }
+        .subtext { color: var(--muted); font-size: 14px; }
+        .operator-name { padding: 10px 16px; border-radius: 10px; background: #eff6ff; color: #1e40af; font-weight: 600; border: 1px solid #bfdbfe; }
 
-        .header {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .btn { border: 1px solid transparent; border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+        .btn:disabled { opacity: .55; cursor: not-allowed; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-strong); }
+        .btn-secondary { background: #fff; border-color: var(--border); color: var(--text); }
+        .btn-danger { background: var(--danger); color: #fff; }
 
-        .header h1 {
-            font-size: 28px;
-            color: #2c3e50;
-        }
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .card { padding: 20px; }
+        .section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
 
-        .operator-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+        .queue-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
+        .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+        .stat-number { font-size: 26px; font-weight: 700; color: #0f172a; }
+        .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .03em; }
 
-        .operator-name {
-            padding: 10px 20px;
-            background: #e8f5e9;
-            border-radius: 8px;
-            color: #2e7d32;
-            font-weight: 600;
-        }
+        .queue-list { max-height: 620px; overflow: auto; }
+        .queue-item { padding: 14px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; background: #fff; cursor: pointer; }
+        .queue-item.selected { border-color: #93c5fd; background: #f8fbff; }
+        .queue-item:hover { border-color: #bfdbfe; }
+        .queue-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
 
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
+        .badge { border-radius: 999px; font-size: 11px; font-weight: 700; padding: 4px 10px; text-transform: uppercase; letter-spacing: .03em; }
+        .priority-HIGH { background: #fee2e2; color: #991b1b; }
+        .priority-NORMAL { background: #fef3c7; color: #92400e; }
 
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
+        .conversation-view { height: 700px; display: flex; flex-direction: column; gap: 12px; }
+        .conversation-header { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: grid; gap: 8px; }
+        .meta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+        .pill { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; background: #e2e8f0; color: #334155; }
+        .conversation-messages { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: #fff; padding: 12px; }
+        .message { border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 10px; background: #fff; }
+        .message-header { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+        .response-box { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+        textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 12px; min-height: 82px; font-family: inherit; resize: vertical; }
+        .empty-state { text-align: center; color: var(--muted); margin: auto; padding: 30px; }
+        .empty-state i { font-size: 42px; margin-bottom: 10px; }
 
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .card {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .card h2 {
-            font-size: 20px;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .queue-stats {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-box {
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 32px;
-            font-weight: 700;
-            color: #667eea;
-        }
-
-        .stat-label {
-            font-size: 14px;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-
-        .queue-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .queue-item {
-            padding: 15px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .queue-item:hover {
-            border-color: #667eea;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-        }
-
-        .queue-item.selected {
-            border-color: #667eea;
-            background: #f0f4ff;
-        }
-
-        .priority-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .priority-HIGH {
-            background: #ffebee;
-            color: #c62828;
-        }
-
-        .priority-NORMAL {
-            background: #fff3e0;
-            color: #e65100;
-        }
-
-        .conversation-view {
-            height: 600px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .conversation-header {
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-
-        .conversation-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-
-        .message {
-            margin-bottom: 15px;
-            padding: 12px;
-            border-radius: 8px;
-            background: white;
-        }
-
-        .message-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 12px;
-            color: #6c757d;
-        }
-
-        .message-sender {
-            font-weight: 600;
-            color: #2c3e50;
-        }
-
-        .message-text {
-            color: #495057;
-        }
-
-        .response-box {
-            display: flex;
-            gap: 10px;
-        }
-
-        .response-box textarea {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            resize: vertical;
-            min-height: 80px;
-            font-family: inherit;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #6c757d;
-        }
-
-        .empty-state-icon {
-            font-size: 64px;
-            margin-bottom: 20px;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-left: 8px;
-        }
-
-        .badge-sentiment {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .badge-intent {
-            background: #f3e5f5;
-            color: #7b1fa2;
-        }
-
-        .refresh-btn {
-            padding: 8px 16px;
-            background: #f8f9fa;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .refresh-btn:hover {
-            background: #e9ecef;
-        }
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-backdrop.open { display: flex; }
+        .modal { width: 840px; max-height: 85vh; overflow: auto; background: #fff; border-radius: 14px; border: 1px solid var(--border); padding: 18px; }
+        .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }
+        .modal-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface); }
+        .transcript-preview { white-space: pre-wrap; font-size: 14px; line-height: 1.4; }
+        .muted { color: var(--muted); font-size: 13px; }
     </style>
 </head>
 <body>
-    <div class="dashboard">
-        <div class="header">
-            <div>
-                <h1>👨‍💼 Operator Dashboard</h1>
-                <p style="color: #6c757d; margin-top: 5px;">Manage escalated conversations</p>
-            </div>
-            <div class="operator-info">
-                <div class="operator-name" id="operatorName">Operator: Alice</div>
-                <button class="btn btn-primary" onclick="assignNext()">Take Next in Queue</button>
-            </div>
+<div class="dashboard">
+    <div class="header">
+        <div>
+            <h1><i class="fa-solid fa-headset"></i> Operator Dashboard</h1>
+            <p class="subtext">Manage escalated conversations and take ownership when needed.</p>
         </div>
-
-        <div class="grid">
-            <!-- Left: Queue -->
-            <div class="card">
-                <h2>
-                    📋 Escalation Queue
-                    <button class="refresh-btn" onclick="loadQueue()" style="margin-left: auto;">🔄 Refresh</button>
-                </h2>
-                
-                <div class="queue-stats">
-                    <div class="stat-box">
-                        <div class="stat-number" id="queueSize">0</div>
-                        <div class="stat-label">In Queue</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number" id="waitTime">0</div>
-                        <div class="stat-label">Est. Wait (min)</div>
-                    </div>
-                </div>
-
-                <div class="queue-list" id="queueList">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">✅</div>
-                        <p>No escalations in queue!</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right: Conversation -->
-            <div class="card">
-                <h2>💬 Conversation</h2>
-                
-                <div class="conversation-view" id="conversationView">
-                    <div class="empty-state" style="margin: auto;">
-                        <div class="empty-state-icon">👈</div>
-                        <p>Select a conversation from the queue</p>
-                    </div>
-                </div>
-            </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="operator-name" id="operatorName"><i class="fa-regular fa-user"></i> Alice (op-001)</div>
+            <button class="btn btn-primary" onclick="assignNext()"><i class="fa-solid fa-forward-step"></i> Take Next</button>
         </div>
     </div>
 
-    <script>
-        const API_URL = 'http://localhost:8000';
-        const OPERATOR_ID = 'op-001';
-        const OPERATOR_NAME = 'Alice';
-        let selectedSession = null;
+    <div class="grid">
+        <div class="card">
+            <div class="section-title">
+                <span><i class="fa-solid fa-list-check"></i> Escalation Queue</span>
+                <button class="btn btn-secondary" onclick="loadQueue()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+            </div>
+            <div class="queue-stats">
+                <div class="stat-box"><div class="stat-number" id="queueSize">0</div><div class="stat-label">In queue</div></div>
+                <div class="stat-box"><div class="stat-number" id="waitTime">0</div><div class="stat-label">Wait (min)</div></div>
+            </div>
+            <div class="queue-list" id="queueList"></div>
+        </div>
 
-        // Load queue
-        async function loadQueue() {
-            try {
-                const response = await fetch(`${API_URL}/operator/queue`);
-                const data = await response.json();
+        <div class="card">
+            <div class="section-title"><span><i class="fa-regular fa-comments"></i> Live Conversation</span></div>
+            <div class="conversation-view" id="conversationView">
+                <div class="empty-state"><i class="fa-regular fa-circle-check"></i><p>Select a queued conversation to preview and take over.</p></div>
+            </div>
+        </div>
+    </div>
+</div>
 
-                document.getElementById('queueSize').textContent = data.queue_size;
-                document.getElementById('waitTime').textContent = Math.round(data.estimated_wait_time / 60);
+<div class="modal-backdrop" id="previewModal">
+    <div class="modal">
+        <div class="modal-head">
+            <h3><i class="fa-regular fa-file-lines"></i> Escalation Preview</h3>
+            <button class="btn btn-secondary" onclick="closeModal()"><i class="fa-solid fa-xmark"></i> Close</button>
+        </div>
+        <div class="modal-grid" id="previewMeta"></div>
+        <div class="modal-card">
+            <strong>Transcript Preview</strong>
+            <p class="muted" style="margin:4px 0 8px;">Preview before accepting takeover.</p>
+            <div class="transcript-preview" id="previewTranscript"></div>
+            <button class="btn btn-secondary" id="toggleTranscriptBtn" onclick="toggleTranscript()" style="margin-top:10px; display:none;"><i class="fa-solid fa-chevron-down"></i> Show more</button>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+            <button class="btn btn-primary" id="takeoverBtn" onclick="acceptTakeover()"><i class="fa-solid fa-user-check"></i> Accept Takeover</button>
+        </div>
+    </div>
+</div>
 
-                const queueList = document.getElementById('queueList');
-                
-                if (data.queue.length === 0) {
-                    queueList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">✅</div>
-                            <p>No escalations in queue!</p>
-                        </div>
-                    `;
-                } else {
-                    queueList.innerHTML = data.queue.map(item => `
-                        <div class="queue-item" onclick="selectConversation('${item.session_id}')">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <strong>#${item.position}</strong>
-                                <span class="priority-badge priority-${item.priority}">${item.priority}</span>
-                            </div>
-                            <div style="font-size: 13px; color: #6c757d;">
-                                <div>Session: ${item.session_id.substring(0, 12)}...</div>
-                                <div>Reason: ${item.reason.replace(/_/g, ' ')}</div>
-                                <div>Escalated: ${new Date(item.escalated_at).toLocaleTimeString()}</div>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            } catch (error) {
-                console.error('Error loading queue:', error);
-            }
+<script>
+const API_URL = 'http://localhost:8000';
+const OPERATOR_ID = 'op-001';
+const OPERATOR_NAME = 'Alice';
+let selectedSession = null;
+let selectedData = null;
+let fullTranscript = '';
+let expandedTranscript = false;
+
+function escapeHtml(input) {
+    return String(input ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+async function loadQueue() {
+    try {
+        const response = await fetch(`${API_URL}/operator/queue`);
+        if (!response.ok) throw new Error('Queue request failed');
+        const data = await response.json();
+        document.getElementById('queueSize').textContent = data.queue_size;
+        document.getElementById('waitTime').textContent = Math.round(data.estimated_wait_time / 60);
+        const queueList = document.getElementById('queueList');
+
+        if (data.queue.length === 0) {
+            queueList.innerHTML = `<div class="empty-state"><i class="fa-regular fa-face-smile"></i><p>No escalations waiting.</p></div>`;
+            return;
         }
 
-        // Select conversation
-        async function selectConversation(sessionId) {
-            selectedSession = sessionId;
+        queueList.innerHTML = data.queue.map(item => `
+            <div class="queue-item ${selectedSession === item.session_id ? 'selected' : ''}" onclick="selectConversation('${item.session_id}')">
+                <div class="queue-top">
+                    <strong><i class="fa-solid fa-hashtag"></i> ${item.position}</strong>
+                    <span class="badge priority-${item.priority}">${item.priority}</span>
+                </div>
+                <div class="muted">Session: ${escapeHtml(item.session_id.slice(0, 12))}...</div>
+                <div class="muted">Reason: ${escapeHtml(item.reason.replace(/_/g, ' '))}</div>
+                <div class="muted">Escalated: ${new Date(item.escalated_at).toLocaleString()}</div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error(error);
+    }
+}
 
-            // Highlight selected
-            document.querySelectorAll('.queue-item').forEach(item => {
-                item.classList.remove('selected');
-                if (item.onclick.toString().includes(sessionId)) {
-                    item.classList.add('selected');
-                }
-            });
+async function selectConversation(sessionId) {
+    selectedSession = sessionId;
+    await loadQueue();
+    try {
+        const response = await fetch(`${API_URL}/operator/session/${sessionId}`);
+        if (!response.ok) throw new Error('Session details failed');
+        selectedData = await response.json();
+        openPreviewModal(selectedData);
+    } catch (error) {
+        console.error('Error loading conversation:', error);
+    }
+}
 
-            try {
-                const response = await fetch(`${API_URL}/operator/session/${sessionId}`);
-                const data = await response.json();
+function openPreviewModal(data) {
+    const transcript = (data.messages || []).map(m => `[${new Date(m.timestamp).toLocaleTimeString()}] ${m.sender}: ${m.text}`).join('\n');
+    fullTranscript = transcript;
+    expandedTranscript = false;
 
-                const conversationView = document.getElementById('conversationView');
-                conversationView.innerHTML = `
-                    <div class="conversation-header">
-                        <div><strong>Customer:</strong> ${data.customer_email || 'Unknown'}</div>
-                        <div style="margin-top: 5px;">
-                            <strong>Status:</strong> ${data.status}
-                            <span class="badge badge-sentiment">${data.sentiment}</span>
-                            <span class="badge badge-intent">${data.intent}</span>
-                        </div>
-                        <div style="margin-top: 5px; color: #c62828;">
-                            <strong>Escalation Reason:</strong> ${data.escalation_reason.replace(/_/g, ' ')}
-                        </div>
+    document.getElementById('previewMeta').innerHTML = `
+        <div class="modal-card"><strong>Session</strong><p class="muted">${escapeHtml(data.session_id)}</p><p><strong>User ID:</strong> ${escapeHtml(data.customer_id || data.customer_email || 'Unknown')}</p></div>
+        <div class="modal-card"><strong>Escalation</strong><p><strong>Reason:</strong> ${escapeHtml((data.escalation_reason || 'UNKNOWN').replace(/_/g, ' '))}</p><p><strong>Timestamp:</strong> ${new Date(data.started_at).toLocaleString()}</p></div>
+        <div class="modal-card"><strong>Detected Intent</strong><p>${escapeHtml(data.intent || 'N/A')}</p></div>
+        <div class="modal-card"><strong>Entities</strong><p class="muted">${escapeHtml(JSON.stringify(data.entities || {}, null, 2))}</p></div>
+    `;
+
+    renderTranscriptPreview();
+    document.getElementById('previewModal').classList.add('open');
+}
+
+function renderTranscriptPreview() {
+    const previewEl = document.getElementById('previewTranscript');
+    const toggleBtn = document.getElementById('toggleTranscriptBtn');
+    const limit = 500;
+    const needsTruncate = fullTranscript.length > limit;
+
+    if (!needsTruncate || expandedTranscript) {
+        previewEl.textContent = fullTranscript || 'No transcript available.';
+        toggleBtn.style.display = needsTruncate ? 'inline-flex' : 'none';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-chevron-up"></i> Show less';
+    } else {
+        previewEl.textContent = `${fullTranscript.slice(0, limit)}...`;
+        toggleBtn.style.display = 'inline-flex';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i> Show more';
+    }
+}
+
+function toggleTranscript() {
+    expandedTranscript = !expandedTranscript;
+    renderTranscriptPreview();
+}
+
+function closeModal() {
+    document.getElementById('previewModal').classList.remove('open');
+}
+
+async function acceptTakeover() {
+    if (!selectedSession) return;
+    try {
+        const res = await fetch(`${API_URL}/operator/takeover`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ session_id: selectedSession, operator_id: OPERATOR_ID, operator_name: OPERATOR_NAME })
+        });
+        if (!res.ok) throw new Error('Takeover failed');
+        closeModal();
+        await renderConversation(selectedSession);
+        await loadQueue();
+    } catch (error) {
+        alert('Unable to take over conversation.');
+        console.error(error);
+    }
+}
+
+async function renderConversation(sessionId) {
+    const response = await fetch(`${API_URL}/operator/session/${sessionId}`);
+    if (!response.ok) throw new Error('Failed to load session');
+    const data = await response.json();
+    const canRespond = data.controlled_by === 'OPERATOR';
+
+    document.getElementById('conversationView').innerHTML = `
+        <div class="conversation-header">
+            <div><strong>Customer:</strong> ${escapeHtml(data.customer_email || 'Unknown')}</div>
+            <div class="meta-row">
+                <span class="pill">Status: ${escapeHtml(data.status)}</span>
+                <span class="pill">Sentiment: ${escapeHtml(data.sentiment || 'N/A')}</span>
+                <span class="pill">Intent: ${escapeHtml(data.intent || 'N/A')}</span>
+                <span class="pill">Controlled By: ${escapeHtml(data.controlled_by || 'AUTOMATION')}</span>
+            </div>
+        </div>
+        <div class="conversation-messages">
+            ${(data.messages || []).map(msg => `
+                <div class="message">
+                    <div class="message-header">
+                        <span><strong>${escapeHtml(msg.sender)}</strong></span>
+                        <span>${new Date(msg.timestamp).toLocaleString()}</span>
                     </div>
+                    <div>${escapeHtml(msg.text)}</div>
+                </div>
+            `).join('')}
+        </div>
+        <div class="response-box">
+            <textarea id="responseText" placeholder="Type a response to the customer..." ${!canRespond ? 'disabled' : ''}></textarea>
+            <button class="btn btn-primary" onclick="sendResponse()" ${!canRespond ? 'disabled' : ''}><i class="fa-regular fa-paper-plane"></i> Send</button>
+            <button class="btn btn-danger" onclick="endConversation()" ${!canRespond ? 'disabled' : ''}><i class="fa-solid fa-phone-slash"></i> End Conversation</button>
+        </div>
+        ${!canRespond ? '<p class="muted">Accept takeover from preview modal before responding.</p>' : ''}
+    `;
+}
 
-                    <div class="conversation-messages">
-                        ${data.messages.map(msg => `
-                            <div class="message">
-                                <div class="message-header">
-                                    <span class="message-sender">${msg.sender}</span>
-                                    <span>${new Date(msg.timestamp).toLocaleString()}</span>
-                                </div>
-                                <div class="message-text">${msg.text}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <div class="response-box">
-                        <textarea id="responseText" placeholder="Type your response..."></textarea>
-                        <button class="btn btn-primary" onclick="sendResponse()" style="align-self: flex-end;">Send Response</button>
-                    </div>
-                `;
-            } catch (error) {
-                console.error('Error loading conversation:', error);
-            }
+async function assignNext() {
+    try {
+        const response = await fetch(`${API_URL}/operator/assign`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ operator_id: OPERATOR_ID, operator_name: OPERATOR_NAME })
+        });
+        const data = await response.json();
+        alert(data.message);
+        if (data.assigned && data.session_id) {
+            selectedSession = data.session_id;
+            await renderConversation(selectedSession);
         }
+        await loadQueue();
+    } catch (error) {
+        console.error('Error assigning:', error);
+    }
+}
 
-        // Assign next
-        async function assignNext() {
-            try {
-                const response = await fetch(`${API_URL}/operator/assign`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        operator_id: OPERATOR_ID,
-                        operator_name: OPERATOR_NAME
-                    })
-                });
+async function sendResponse() {
+    const text = document.getElementById('responseText')?.value.trim();
+    if (!text || !selectedSession) return;
+    try {
+        const response = await fetch(`${API_URL}/operator/respond/${selectedSession}?message=${encodeURIComponent(text)}`, { method: 'POST' });
+        if (!response.ok) throw new Error('Failed to send response');
+        document.getElementById('responseText').value = '';
+        await renderConversation(selectedSession);
+    } catch (error) {
+        console.error('Error sending response:', error);
+    }
+}
 
-                const data = await response.json();
-                alert(data.message);
-                loadQueue();
-            } catch (error) {
-                console.error('Error assigning:', error);
-                alert('Error assigning operator');
-            }
-        }
+async function endConversation() {
+    if (!selectedSession) return;
+    try {
+        const response = await fetch(`${API_URL}/operator/end/${selectedSession}`, { method: 'POST' });
+        if (!response.ok) throw new Error('End conversation failed');
+        alert('Conversation ended');
+        selectedSession = null;
+        selectedData = null;
+        document.getElementById('conversationView').innerHTML = '<div class="empty-state"><i class="fa-regular fa-circle-check"></i><p>Select a queued conversation to preview and take over.</p></div>';
+        await loadQueue();
+    } catch (error) {
+        console.error(error);
+    }
+}
 
-        // Send response
-        async function sendResponse() {
-            const text = document.getElementById('responseText').value.trim();
-            if (!text || !selectedSession) return;
+setInterval(async () => {
+    await loadQueue();
+    if (selectedSession) {
+        try { await renderConversation(selectedSession); } catch (e) { console.error(e); }
+    }
+}, 10000);
 
-            try {
-                await fetch(`${API_URL}/operator/respond/${selectedSession}?message=${encodeURIComponent(text)}`, {
-                    method: 'POST'
-                });
-
-                alert('Response sent!');
-                document.getElementById('responseText').value = '';
-                loadQueue();
-            } catch (error) {
-                console.error('Error sending response:', error);
-                alert('Error sending response');
-            }
-        }
-
-        // Auto-refresh every 10 seconds
-        setInterval(loadQueue, 10000);
-
-        // Initial load
-        loadQueue();
-    </script>
+loadQueue();
+</script>
 </body>
 </html>
