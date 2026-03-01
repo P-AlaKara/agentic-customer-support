@@ -454,6 +454,8 @@ async def operator_respond(session_id: str, message: str):
         
         return {"status": "success", "message": "Response sent"}
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[API] Error sending operator response: {e}")
         raise HTTPException(status_code=500, detail=str(e))
