@@ -109,6 +109,10 @@ class TranscriptionAgent:
         
         # Track conversations in progress (session_id -> metadata)
         self.active_transcripts: Dict[str, Dict[str, Any]] = {}
+        # Sessions that have already been finalized and persisted.
+        # Any follow-up events for these sessions are ignored to prevent
+        # post-escalation/operator traffic from mutating stored transcripts.
+        self.finalized_sessions = set()
         
         # Statistics
         self.stats = {
@@ -154,6 +158,11 @@ class TranscriptionAgent:
         try:
             payload = event.payload
             session_id = payload['session_id']
+
+            # Once finalized, a transcript is immutable.
+            if session_id in self.finalized_sessions:
+                logger.debug(f"[Transcription] Ignoring user message for finalized session {session_id}")
+                return
             
             # Initialize transcript if new session
             if session_id not in self.active_transcripts:
@@ -207,22 +216,20 @@ class TranscriptionAgent:
         try:
             payload = event.payload
             session_id = payload['session_id']
+
+            # Once finalized, a transcript is immutable.
+            if session_id in self.finalized_sessions:
+                logger.debug(f"[Transcription] Ignoring agent response for finalized session {session_id}")
+                return
+
+            # Never persist human operator replies in AI transcript records.
+            if payload.get('agent') == 'HUMAN_OPERATOR':
+                logger.debug(f"[Transcription] Skipping human operator message for {session_id}")
+                return
             
             if session_id not in self.active_transcripts:
-                logger.info(
-                    f"[Transcription] Session {session_id} not found in active transcripts; "
-                    "initializing transcript from agent-side event"
-                )
-                self.active_transcripts[session_id] = {
-                    'session_id': session_id,
-                    'start_time': datetime.utcnow().isoformat(),
-                    'customer_email': payload.get('customer_email'),
-                    'messages': [],
-                    'current_sentiment': None,
-                    'current_intent': None,
-                    'final_status': 'ACTIVE'
-                }
-                self.stats['transcripts_started'] += 1
+                logger.debug(f"[Transcription] Ignoring orphaned agent response for {session_id}")
+                return
             
             # Add agent response
             self.active_transcripts[session_id]['messages'].append({
@@ -264,6 +271,10 @@ class TranscriptionAgent:
         try:
             payload = event.payload
             session_id = payload['session_id']
+
+            if session_id in self.finalized_sessions:
+                logger.debug(f"[Transcription] Ignoring sentiment update for finalized session {session_id}")
+                return
             
             if session_id not in self.active_transcripts:
                 return
@@ -295,6 +306,10 @@ class TranscriptionAgent:
         try:
             payload = event.payload
             session_id = payload['session_id']
+
+            if session_id in self.finalized_sessions:
+                logger.debug(f"[Transcription] Ignoring intent update for finalized session {session_id}")
+                return
             
             if session_id not in self.active_transcripts:
                 return
@@ -336,6 +351,10 @@ class TranscriptionAgent:
         try:
             payload = event.payload
             session_id = payload['session_id']
+
+            if session_id in self.finalized_sessions:
+                logger.debug(f"[Transcription] Session {session_id} already finalized; ignoring duplicate end event")
+                return
             
             if session_id not in self.active_transcripts:
                 logger.warning(f"[Transcription] Session {session_id} not found, cannot end")
@@ -348,7 +367,7 @@ class TranscriptionAgent:
             is_escalation = 'ESCALATE' in reason or payload.get('status') == 'QUEUED'
 
             if is_escalation:
-                transcript['final_status'] = 'ESCALATED_TO_HUMAN'
+                transcript['final_status'] = 'RESOLVED_BY_HUMAN'
                 transcript['operator_id'] = payload.get('operator_id')
             else:
                 transcript['final_status'] = 'RESOLVED_BY_AGENT'
@@ -372,6 +391,7 @@ class TranscriptionAgent:
 
             # Remove from active transcripts
             del self.active_transcripts[session_id]
+            self.finalized_sessions.add(session_id)
 
             # Update statistics
             self.stats['transcripts_completed'] += 1
