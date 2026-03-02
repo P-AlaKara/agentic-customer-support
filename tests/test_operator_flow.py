@@ -40,3 +40,6 @@ def test_operator_queue_takeover_respond_and_end_flow(client):
     end = client.post(f'/operator/end/{session_id}')
     assert end.status_code == 200
     assert end.json()['status'] == 'success'
+
+    history_after_end = client.get(f'/chat/{session_id}')
+    assert history_after_end.status_code == 404

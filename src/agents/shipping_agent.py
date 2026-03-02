@@ -17,6 +17,7 @@ try:
     from ..event_bus import EventBus, Event
     from ..utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
     from ..utils.gemini import get_gemini_client
+    from ..utils.prompt_templates import SHIPPING_RESPONSE_TEMPLATE
 except (ImportError, ValueError):
     import sys
     import os
@@ -24,6 +25,7 @@ except (ImportError, ValueError):
     from event_bus import EventBus, Event
     from utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
     from utils.gemini import get_gemini_client
+    from utils.prompt_templates import SHIPPING_RESPONSE_TEMPLATE
 
 
 logging.basicConfig(level=logging.INFO)
@@ -266,22 +268,7 @@ class ShippingAgent:
             'order_info': order_info
         }
         
-        # Template for tracking responses
-        #TODO: Ask for order_id and/or email if not available in context, use it to check
-        # order status and include in response
-        template = """
-Response Guidelines:
-1. Acknowledge the tracking inquiry
-2. If order info available, provide specific tracking details:
-   - Order number
-   - Current status (e.g., "In Transit", "Delivered", "Processing")
-   - Tracking number (if available)
-   - Estimated delivery date
-3. If no order found, ask for order number politely
-4. Be reassuring and helpful
-5. Keep response to 3-4 sentences maximum
-6. Provide actionable next steps
-"""
+        template = SHIPPING_RESPONSE_TEMPLATE
         
         if self.gemini:
             return self.gemini.generate_response(
