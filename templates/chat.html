@@ -328,6 +328,27 @@
         let firstMessageSent = false;
         let seenMessageTimestamps = new Set();
 
+        function generateSessionId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+            return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+
+        function resetSessionState({initializeNewSession = false} = {}) {
+            sessionId = null;
+            localStorage.removeItem('sessionId');
+            firstMessageSent = false;
+            seenMessageTimestamps.clear();
+
+            if (initializeNewSession) {
+                sessionId = generateSessionId();
+                localStorage.setItem('sessionId', sessionId);
+            }
+
+            updateSessionInfo();
+        }
+
         // Update session info
         function updateSessionInfo() {
             const info = document.getElementById('sessionInfo');
@@ -470,11 +491,7 @@
                 // If the backend indicates the conversation is finalized,
                 // clear persisted session ID so the next message starts fresh.
                 if (data.final) {
-                    sessionId = null;
-                    localStorage.removeItem('sessionId');
-                    firstMessageSent = false;
-                    updateSessionInfo();
-                    seenMessageTimestamps.clear();
+                    resetSessionState({initializeNewSession: true});
                 }
                 
             } catch (error) {
@@ -497,7 +514,12 @@
             if (!sessionId) return;
             try {
                 const response = await fetch(`${API_URL}/chat/${sessionId}`);
-                if (!response.ok) return;
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        resetSessionState({initializeNewSession: true});
+                    }
+                    return;
+                }
                 const data = await response.json();
 
                 (data.messages || []).forEach(msg => {

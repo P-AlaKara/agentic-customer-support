@@ -17,6 +17,7 @@ try:
     from ..event_bus import EventBus, Event
     from ..utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
     from ..utils.gemini import get_gemini_client
+    from ..utils.prompt_templates import RETURNS_RESPONSE_TEMPLATE
 except (ImportError, ValueError):
     import sys
     import os
@@ -24,6 +25,7 @@ except (ImportError, ValueError):
     from event_bus import EventBus, Event
     from utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
     from utils.gemini import get_gemini_client
+    from utils.prompt_templates import RETURNS_RESPONSE_TEMPLATE
 
 
 logging.basicConfig(level=logging.INFO)
@@ -262,18 +264,7 @@ class ReturnsAgent:
             'order_info': order_info
         }
         
-        # Template for returns responses
-        #TODO: Ask for order_id and/or email if not available in context, use it to check
-        # order status and include in response
-        template = """
-Response Guidelines:
-1. Acknowledge the return request
-2. Explain the return policy clearly
-3. If order info available, mention specific order details
-4. Provide next steps (what customer needs to do)
-5. Be empathetic and helpful
-6. Keep response to 3-4 sentences maximum
-"""
+        template = RETURNS_RESPONSE_TEMPLATE
         
         if self.gemini:
             return self.gemini.generate_response(

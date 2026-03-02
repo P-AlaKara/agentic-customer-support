@@ -478,6 +478,10 @@ async def operator_end_conversation(session_id: str):
             'resolution_notes': 'Ended by operator from dashboard'
         })
 
+        # Escalated transcripts are already finalized when queued; only clean up
+        # the live context at operator close time.
+        store.delete(session_id)
+
         return {
             "status": "success",
             "message": "Conversation closed"

@@ -371,6 +371,8 @@ let fullTranscript = '';
 let transcriptExpanded = false;
 let operatorDraftText = '';
 let skipNextRender = false;
+let shouldAutoScrollMessages = true;
+const MESSAGE_BOTTOM_THRESHOLD = 24;
 
 function escapeHtml(input) {
     return String(input ?? '')
@@ -549,6 +551,11 @@ async function acceptTakeover() {
 
 async function renderConversation(sessionId) {
     try {
+        const previousMessagesEl = document.querySelector('#conversationView .messages');
+        if (previousMessagesEl) {
+            shouldAutoScrollMessages = isNearBottom(previousMessagesEl);
+        }
+
         const response = await fetch(`${API_URL}/operator/session/${encodeURIComponent(sessionId)}`);
         if (!response.ok) throw new Error('Failed to load active conversation');
         const data = await response.json();
@@ -591,6 +598,18 @@ async function renderConversation(sessionId) {
         `;
 
         const responseText = document.getElementById('responseText');
+        const messagesEl = document.querySelector('#conversationView .messages');
+
+        if (messagesEl) {
+            if (shouldAutoScrollMessages) {
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+
+            messagesEl.addEventListener('scroll', () => {
+                shouldAutoScrollMessages = isNearBottom(messagesEl);
+            });
+        }
+
         if (responseText) {
             responseText.value = operatorDraftText;
             responseText.addEventListener('input', () => { operatorDraftText = responseText.value; });
@@ -604,6 +623,11 @@ async function renderConversation(sessionId) {
     } catch (error) {
         console.error('Render conversation error:', error);
     }
+}
+
+function isNearBottom(container) {
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distanceFromBottom <= MESSAGE_BOTTOM_THRESHOLD;
 }
 
 async function assignNext() {
