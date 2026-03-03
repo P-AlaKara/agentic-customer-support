@@ -1,6 +1,5 @@
-INSERT INTO returns (return_id, order_id, order_reference, customer_email, item_details, status) VALUES
+INSERT INTO returns (return_id, order_reference, customer_email, item_details, status) VALUES
 (
-    uuid_generate_v4(),
     uuid_generate_v4(),
     'ORD12345',
     'alice@example.com',
@@ -9,7 +8,6 @@ INSERT INTO returns (return_id, order_id, order_reference, customer_email, item_
 ),
 (
     uuid_generate_v4(),
-    uuid_generate_v4(),
     'ORD23456',
     'bob@example.com',
     '{"sku": "LP-002", "name": "Laptop Pro 15"}',
@@ -17,14 +15,12 @@ INSERT INTO returns (return_id, order_id, order_reference, customer_email, item_
 ),
 (
     uuid_generate_v4(),
-    uuid_generate_v4(),
     'ORD34567',
     'carol@example.com',
     '{"sku": "HD-010", "name": "Noise Cancelling Headphones"}',
     'REJECTED'
 ),
 (
-    uuid_generate_v4(),
     uuid_generate_v4(),
     'ORD45678',
     'dave@example.com',

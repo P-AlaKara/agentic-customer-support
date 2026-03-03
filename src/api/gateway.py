@@ -705,7 +705,7 @@ async def get_database_reports(
             query = """
                 SELECT
                     r.return_id,
-                    r.order_id,
+                    o.order_id,
                     r.order_reference,
                     r.customer_email,
                     r.status,
@@ -722,7 +722,7 @@ async def get_database_reports(
                 params.append(status)
 
             if search:
-                query += " AND (r.return_id::text ILIKE %s OR r.order_reference ILIKE %s OR r.order_id::text ILIKE %s OR r.customer_email ILIKE %s)"
+                query += " AND (r.return_id::text ILIKE %s OR r.order_reference ILIKE %s OR o.order_id::text ILIKE %s OR r.customer_email ILIKE %s)"
                 params.extend([f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"])
 
             query += " ORDER BY r.return_id DESC LIMIT %s"

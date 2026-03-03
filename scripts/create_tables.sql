@@ -65,7 +65,6 @@ ON orders(order_reference);
 -- Stores return requests with denormalized info for agent logic
 CREATE TABLE returns (
     return_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID,                       -- retained for backward compatibility
     order_reference TEXT UNIQUE,         -- denormalized external order ID
     customer_email TEXT,                  -- denormalized for quick lookup
     item_details JSONB,                   -- JSON object for returned item
@@ -73,7 +72,6 @@ CREATE TABLE returns (
 );
 
 -- Indexes for fast lookups
-CREATE INDEX idx_returns_order_id ON returns(order_id);
 CREATE INDEX idx_returns_order_reference ON returns(order_reference);
 CREATE INDEX idx_returns_customer_email ON returns(customer_email);
 
