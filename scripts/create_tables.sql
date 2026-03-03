@@ -46,6 +46,7 @@ ON completed_messages(conversation_id);
 -- Stores order information in a denormalized way for agents
 CREATE TABLE orders (
     order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_reference TEXT UNIQUE,          -- external order ID shown to users (e.g., ORD12345)
     customer_email TEXT,
     status TEXT,                        -- e.g., 'PENDING', 'SHIPPED', 'DELIVERED'
     items JSONB                          -- JSON array of order items
@@ -55,13 +56,17 @@ CREATE TABLE orders (
 CREATE INDEX idx_orders_customer_email
 ON orders(customer_email);
 
+CREATE INDEX idx_orders_order_reference
+ON orders(order_reference);
+
 -- -----------------------------
 -- Knowledge Base - Returns
 -- -----------------------------
 -- Stores return requests with denormalized info for agent logic
 CREATE TABLE returns (
     return_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID,                       -- link to orders
+    order_id UUID,                       -- retained for backward compatibility
+    order_reference TEXT UNIQUE,         -- denormalized external order ID
     customer_email TEXT,                  -- denormalized for quick lookup
     item_details JSONB,                   -- JSON object for returned item
     status TEXT                           -- e.g., 'REQUESTED', 'APPROVED', 'REJECTED'
@@ -69,6 +74,7 @@ CREATE TABLE returns (
 
 -- Indexes for fast lookups
 CREATE INDEX idx_returns_order_id ON returns(order_id);
+CREATE INDEX idx_returns_order_reference ON returns(order_reference);
 CREATE INDEX idx_returns_customer_email ON returns(customer_email);
 
 -- -----------------------------

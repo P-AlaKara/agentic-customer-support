@@ -361,16 +361,16 @@ class OrdersDB:
         self.db = db
     
     def get_order(self, order_id: str) -> Optional[Dict[str, Any]]:
-        """Get order by ID"""
+        """Get order by external order reference (e.g., ORD12345)."""
         try:
             with self.db.get_cursor() as cursor:
                 cursor.execute(
-                    "SELECT * FROM orders WHERE order_id = %s",
+                    "SELECT * FROM orders WHERE order_reference = %s",
                     (order_id,)
                 )
                 return cursor.fetchone()
         except Exception as e:
-            logger.error(f"Error fetching order: {e}")
+            logger.error(f"Error fetching order by reference: {e}")
             return None
     
     def get_orders_by_email(self, email: str) -> List[Dict[str, Any]]:
@@ -378,7 +378,7 @@ class OrdersDB:
         try:
             with self.db.get_cursor() as cursor:
                 cursor.execute(
-                    "SELECT * FROM orders WHERE customer_email = %s ORDER BY order_id DESC",
+                    "SELECT * FROM orders WHERE customer_email = %s ORDER BY order_reference DESC NULLS LAST, order_id DESC",
                     (email,)
                 )
                 return cursor.fetchall()
@@ -400,16 +400,16 @@ class OrdersDB:
             return None
 
     def get_return_by_order_id(self, order_id: str) -> Optional[Dict[str, Any]]:
-        """Get latest return record by order ID."""
+        """Get latest return record by external order reference."""
         try:
             with self.db.get_cursor() as cursor:
                 cursor.execute(
-                    "SELECT * FROM returns WHERE order_id = %s ORDER BY return_id DESC LIMIT 1",
+                    "SELECT * FROM returns WHERE order_reference = %s ORDER BY return_id DESC LIMIT 1",
                     (order_id,)
                 )
                 return cursor.fetchone()
         except Exception as e:
-            logger.error(f"Error fetching return by order_id: {e}")
+            logger.error(f"Error fetching return by order reference: {e}")
             return None
     
     def create_return(self, order_id: str, customer_email: str, item_details: Dict) -> Optional[str]:
@@ -418,7 +418,7 @@ class OrdersDB:
             with self.db.get_cursor() as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO returns (order_id, customer_email, item_details, status)
+                    INSERT INTO returns (order_reference, customer_email, item_details, status)
                     VALUES (%s, %s, %s, 'REQUESTED')
                     RETURNING return_id
                     """,

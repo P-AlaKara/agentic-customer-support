@@ -662,6 +662,7 @@ async def get_database_reports(
             query = """
                 SELECT
                     order_id,
+                    order_reference,
                     customer_email,
                     status,
                     items,
@@ -676,10 +677,10 @@ async def get_database_reports(
                 params.append(status)
 
             if search:
-                query += " AND (order_id::text ILIKE %s OR customer_email ILIKE %s)"
-                params.extend([f"%{search}%", f"%{search}%"])
+                query += " AND (order_reference ILIKE %s OR order_id::text ILIKE %s OR customer_email ILIKE %s)"
+                params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
 
-            query += " ORDER BY order_id DESC LIMIT %s"
+            query += " ORDER BY order_reference DESC NULLS LAST, order_id DESC LIMIT %s"
             params.append(limit)
 
             with db_conn.get_cursor() as cursor:
@@ -690,6 +691,7 @@ async def get_database_reports(
             for row in results:
                 row_dict = dict(row)
                 row_dict['order_id'] = str(row_dict['order_id'])
+                row_dict['order_reference'] = row_dict.get('order_reference')
                 data.append(row_dict)
 
             return {
@@ -704,12 +706,13 @@ async def get_database_reports(
                 SELECT
                     r.return_id,
                     r.order_id,
+                    r.order_reference,
                     r.customer_email,
                     r.status,
                     r.item_details,
                     o.status AS order_status
                 FROM returns r
-                LEFT JOIN orders o ON r.order_id = o.order_id
+                LEFT JOIN orders o ON r.order_reference = o.order_reference
                 WHERE 1=1
             """
             params = []
@@ -719,8 +722,8 @@ async def get_database_reports(
                 params.append(status)
 
             if search:
-                query += " AND (r.return_id::text ILIKE %s OR r.order_id::text ILIKE %s OR r.customer_email ILIKE %s)"
-                params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
+                query += " AND (r.return_id::text ILIKE %s OR r.order_reference ILIKE %s OR r.order_id::text ILIKE %s OR r.customer_email ILIKE %s)"
+                params.extend([f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"])
 
             query += " ORDER BY r.return_id DESC LIMIT %s"
             params.append(limit)
@@ -734,6 +737,7 @@ async def get_database_reports(
                 row_dict = dict(row)
                 row_dict['return_id'] = str(row_dict['return_id'])
                 row_dict['order_id'] = str(row_dict['order_id']) if row_dict.get('order_id') else None
+                row_dict['order_reference'] = row_dict.get('order_reference')
                 data.append(row_dict)
 
             return {
