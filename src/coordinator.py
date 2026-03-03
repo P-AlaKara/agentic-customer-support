@@ -24,6 +24,12 @@ from typing import Optional, Dict, Any
 from .event_bus import EventBus, Event
 from .context_store import ContextStore, ConversationStatus
 
+try:
+    from .utils.database import get_db_connection, OrdersDB
+except Exception:  # pragma: no cover
+    get_db_connection = None
+    OrdersDB = None
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -91,6 +97,13 @@ class CoordinatorAgent:
         """
         self.bus = event_bus
         self.store = context_store
+        self.orders_db = None
+
+        if get_db_connection and OrdersDB:
+            try:
+                self.orders_db = OrdersDB(get_db_connection())
+            except Exception as exc:
+                logger.warning(f"Coordinator order enrichment unavailable: {exc}")
         
         # Statistics
         self.stats = {
@@ -400,7 +413,38 @@ class CoordinatorAgent:
         
         # Publish task with FULL CONTEXT
         # The BPA will handle the query and respond directly to the user
-        self.bus.publish(task_name, context.to_dict())
+        enriched_context = self._enrich_context(context.to_dict())
+        self.bus.publish(task_name, enriched_context)
+
+    def _enrich_context(self, context_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Enrich outbound agent context with order and return details."""
+        entities = context_payload.get('entities', {}) or {}
+        order_id = entities.get('order_id')
+
+        context_payload['order_id'] = order_id
+        context_payload['order_details'] = None
+        context_payload['order_status'] = None
+        context_payload['return_details'] = None
+
+        if not order_id or not self.orders_db:
+            return context_payload
+
+        try:
+            order_details = self.orders_db.get_order(order_id)
+            context_payload['order_details'] = order_details
+
+            if order_details:
+                context_payload['order_status'] = order_details.get('status')
+
+            return_details = self.orders_db.get_return_by_order_id(order_id)
+            context_payload['return_details'] = return_details
+
+            if context_payload.get('current_intent') == 'process_return' and return_details:
+                context_payload['order_status'] = return_details.get('status')
+        except Exception as exc:
+            logger.warning(f"Failed to enrich context for order {order_id}: {exc}")
+
+        return context_payload
     
     # ========================================================================
     # ESCALATION HANDLING

@@ -398,6 +398,19 @@ class OrdersDB:
         except Exception as e:
             logger.error(f"Error fetching return: {e}")
             return None
+
+    def get_return_by_order_id(self, order_id: str) -> Optional[Dict[str, Any]]:
+        """Get latest return record by order ID."""
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    "SELECT * FROM returns WHERE order_id = %s ORDER BY return_id DESC LIMIT 1",
+                    (order_id,)
+                )
+                return cursor.fetchone()
+        except Exception as e:
+            logger.error(f"Error fetching return by order_id: {e}")
+            return None
     
     def create_return(self, order_id: str, customer_email: str, item_details: Dict) -> Optional[str]:
         """Create a new return request"""

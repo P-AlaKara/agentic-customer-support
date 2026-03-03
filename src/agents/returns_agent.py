@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 # Flexible imports
 try:
     from ..event_bus import EventBus, Event
-    from ..utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
+    from ..utils.database import get_db_connection, KnowledgeBaseDB
     from ..utils.gemini import get_gemini_client
     from ..utils.prompt_templates import RETURNS_RESPONSE_TEMPLATE
 except (ImportError, ValueError):
@@ -21,7 +21,7 @@ except (ImportError, ValueError):
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from event_bus import EventBus, Event
-    from utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
+    from utils.database import get_db_connection, KnowledgeBaseDB
     from utils.gemini import get_gemini_client
     from utils.prompt_templates import RETURNS_RESPONSE_TEMPLATE
 
@@ -75,11 +75,9 @@ class ReturnsAgent:
         # Initialize connections
         try:
             db_conn = get_db_connection()
-            self.orders_db = OrdersDB(db_conn)
             self.kb_db = KnowledgeBaseDB(db_conn)
         except Exception as e:
             logger.warning(f"Database initialization failed: {e}")
-            self.orders_db = None
             self.kb_db = None
         
         try:
@@ -122,6 +120,7 @@ class ReturnsAgent:
             session_id = context['session_id']
             customer_email = context.get('customer_email')
             entities = context.get('entities', {})
+            order_id = context.get('order_id') or entities.get('order_id')
             
             logger.info(f"[Returns Agent] Handling return for session {session_id}")
             self.stats['requests_handled'] += 1
@@ -129,19 +128,23 @@ class ReturnsAgent:
             # Get user's last message
             user_query = self._get_last_user_message(context)
             
-            # Step 1: Retrieve relevant knowledge
-            knowledge = self._retrieve_return_policies()
-            
-            # Step 2: Check for order information
-            order_info = self._get_order_info(customer_email, entities.get('order_id'))
-            
-            # Step 3: Generate response using Gemini
-            response = self._generate_response(
-                user_query=user_query,
-                context=context,
-                knowledge=knowledge,
-                order_info=order_info
-            )
+            order_info = context.get('order_details')
+            return_info = context.get('return_details')
+            order_status = context.get('order_status')
+
+            if not order_id:
+                response = "I can help with your return. Please share your order ID in the format ORD12345 so I can review the return status."
+            else:
+                knowledge = self._retrieve_return_policies()
+                response = self._generate_response(
+                    user_query=user_query,
+                    context=context,
+                    knowledge=knowledge,
+                    order_info=order_info,
+                    return_info=return_info,
+                    order_id=order_id,
+                    order_status=order_status
+                )
             
             # Step 4: Send response to user
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
@@ -200,45 +203,27 @@ class ReturnsAgent:
 - Items must be in original condition with tags attached
 - Refunds processed within 5-7 business days
 - Original shipping costs are non-refundable
-- Return shipping is free for defective items"""
+- Return shipping is free for defective items
+
+Return status guidance:
+- REQUESTED: return request is under review, allow 1-2 business days.
+- APPROVED: provide packaging and drop-off instructions.
+- RECEIVED: item received, refund is issued in 5-7 business days.
+- REJECTED: explain rejection reason and suggest next steps."""
             
         except Exception as e:
             logger.error(f"Error retrieving policies: {e}")
             return "Please contact support for return policy details."
-    
-    def _get_order_info(self, email: Optional[str], order_id: Optional[str]) -> Optional[Dict[str, Any]]:
-        """
-        Get order information from database.
-        
-        Args:
-            email: Customer email
-            order_id: Order ID (if available)
-        
-        Returns:
-            Order dict or None
-        """
-        if not self.orders_db:
-            return None
-        
-        try:
-            if order_id:
-                # Look up specific order
-                return self.orders_db.get_order(order_id)
-            elif email:
-                # Get customer's recent orders
-                orders = self.orders_db.get_orders_by_email(email)
-                return orders[0] if orders else None
-        except Exception as e:
-            logger.error(f"Error fetching order: {e}")
-        
-        return None
     
     def _generate_response(
         self,
         user_query: str,
         context: Dict[str, Any],
         knowledge: str,
-        order_info: Optional[Dict[str, Any]]
+        order_info: Optional[Dict[str, Any]],
+        return_info: Optional[Dict[str, Any]],
+        order_id: str,
+        order_status: Optional[str]
     ) -> str:
         """
         Generate response using Gemini.
@@ -258,8 +243,11 @@ class ReturnsAgent:
             'customer_email': context.get('customer_email'),
             'current_intent': context.get('current_intent'),
             'current_sentiment': context.get('current_sentiment'),
+            'order_id': order_id,
+            'order_status': order_status,
             'entities': context.get('entities', {}),
-            'order_info': order_info
+            'order_details': order_info,
+            'return_details': return_info
         }
         
         template = RETURNS_RESPONSE_TEMPLATE
@@ -273,14 +261,25 @@ class ReturnsAgent:
             )
         else:
             # Fallback response
-            return self._fallback_response(order_info)
+            return self._fallback_response(order_id, order_status, order_info)
     
-    def _fallback_response(self, order_info: Optional[Dict[str, Any]]) -> str:
+    def _fallback_response(self, order_id: str, order_status: Optional[str], order_info: Optional[Dict[str, Any]]) -> str:
         """Simple fallback when Gemini unavailable"""
-        if order_info:
-            return f"I can help you return items from order {order_info.get('order_id')}. Our return policy allows returns within 30 days. Please provide details about which item you'd like to return."
-        else:
-            return "I can help you with your return. Our policy allows returns within 30 days of purchase. Please provide your order number so I can look up your order details."
+        status = (order_status or '').upper()
+
+        if not order_info:
+            return f"I couldn't locate details for order {order_id}. Please confirm the order ID (format ORD12345) so I can help with your return."
+
+        if status == 'REQUESTED':
+            return f"Your return for order {order_id} is currently under review. Please allow 1-2 business days for an update."
+        if status == 'APPROVED':
+            return f"Your return for order {order_id} is approved. Please pack the item securely and use the return label sent to your email."
+        if status == 'RECEIVED':
+            return f"We've received your returned item for order {order_id}. Your refund should appear within 5-7 business days."
+        if status == 'REJECTED':
+            return f"Your return for order {order_id} was rejected based on inspection results. Please reply and we can walk through the next available options."
+
+        return f"I can help with return options for order {order_id}. Please tell me which item you'd like to return, and I'll guide you through the next steps."
     
     def get_stats(self) -> Dict[str, int]:
         """Get agent statistics"""

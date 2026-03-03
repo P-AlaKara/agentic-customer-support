@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional
 # Flexible imports
 try:
     from ..event_bus import EventBus, Event
-    from ..utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
+    from ..utils.database import get_db_connection, KnowledgeBaseDB
     from ..utils.gemini import get_gemini_client
     from ..utils.prompt_templates import SHIPPING_RESPONSE_TEMPLATE
 except (ImportError, ValueError):
@@ -23,7 +23,7 @@ except (ImportError, ValueError):
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from event_bus import EventBus, Event
-    from utils.database import get_db_connection, OrdersDB, KnowledgeBaseDB
+    from utils.database import get_db_connection, KnowledgeBaseDB
     from utils.gemini import get_gemini_client
     from utils.prompt_templates import SHIPPING_RESPONSE_TEMPLATE
 
@@ -77,11 +77,9 @@ class ShippingAgent:
         # Initialize connections
         try:
             db_conn = get_db_connection()
-            self.orders_db = OrdersDB(db_conn)
             self.kb_db = KnowledgeBaseDB(db_conn)
         except Exception as e:
             logger.warning(f"Database initialization failed: {e}")
-            self.orders_db = None
             self.kb_db = None
         
         try:
@@ -124,6 +122,7 @@ class ShippingAgent:
             session_id = context['session_id']
             customer_email = context.get('customer_email')
             entities = context.get('entities', {})
+            order_id = context.get('order_id') or entities.get('order_id')
             
             logger.info(f"[Shipping Agent] Handling tracking request for session {session_id}")
             self.stats['requests_handled'] += 1
@@ -131,19 +130,24 @@ class ShippingAgent:
             # Get user's last message
             user_query = self._get_last_user_message(context)
             
-            # Step 1: Look up order information
-            order_info = self._get_order_info(customer_email, entities.get('order_id'))
-            
-            # Step 2: Retrieve shipping policies/info from KB
-            knowledge = self._retrieve_shipping_info()
-            
-            # Step 3: Generate response using Gemini
-            response = self._generate_response(
-                user_query=user_query,
-                context=context,
-                knowledge=knowledge,
-                order_info=order_info
-            )
+            order_info = context.get('order_details')
+            order_status = context.get('order_status')
+
+            if not order_id:
+                response = "I can definitely help with tracking. Could you please share your order ID in the format ORD12345 so I can check the latest status?"
+            else:
+                # Step 1: Retrieve shipping policies/info from KB
+                knowledge = self._retrieve_shipping_info()
+
+                # Step 2: Generate response using Gemini
+                response = self._generate_response(
+                    user_query=user_query,
+                    context=context,
+                    knowledge=knowledge,
+                    order_info=order_info,
+                    order_id=order_id,
+                    order_status=order_status
+                )
             
             # Step 4: Send response to user
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
@@ -185,33 +189,6 @@ class ShippingAgent:
                 return msg.get('text', '')
         return "Where is my order?"
     
-    def _get_order_info(self, email: Optional[str], order_id: Optional[str]) -> Optional[Dict[str, Any]]:
-        """
-        Get order and tracking information from database.
-        
-        Args:
-            email: Customer email
-            order_id: Order ID (if available)
-        
-        Returns:
-            Order dict with tracking info or None
-        """
-        if not self.orders_db:
-            return None
-        
-        try:
-            if order_id:
-                # Look up specific order
-                return self.orders_db.get_order(order_id)
-            elif email:
-                # Get customer's most recent order
-                orders = self.orders_db.get_orders_by_email(email)
-                return orders[0] if orders else None
-        except Exception as e:
-            logger.error(f"Error fetching order: {e}")
-        
-        return None
-    
     def _retrieve_shipping_info(self) -> str:
         """
         Retrieve shipping policies from knowledge base using RAG.
@@ -233,7 +210,13 @@ class ShippingAgent:
 - Overnight Shipping: Next business day ($30)
 - Orders ship within 24 hours of placement
 - Tracking numbers emailed when order ships
-- International shipping: 10-14 business days"""
+- International shipping: 10-14 business days
+
+Status-specific guidance:
+- PROCESSING: order is being prepared and should ship within 24 hours.
+- SHIPPED: order has left warehouse, share expected delivery estimate.
+- DELIVERED: confirm delivery and offer additional help.
+- CANCELLED: explain cancellation and recommend checking payment/inventory notices."""
             
         except Exception as e:
             logger.error(f"Error retrieving shipping info: {e}")
@@ -244,7 +227,9 @@ class ShippingAgent:
         user_query: str,
         context: Dict[str, Any],
         knowledge: str,
-        order_info: Optional[Dict[str, Any]]
+        order_info: Optional[Dict[str, Any]],
+        order_id: str,
+        order_status: Optional[str]
     ) -> str:
         """
         Generate response using Gemini.
@@ -264,8 +249,10 @@ class ShippingAgent:
             'customer_email': context.get('customer_email'),
             'current_intent': context.get('current_intent'),
             'current_sentiment': context.get('current_sentiment'),
+            'order_id': order_id,
+            'order_status': order_status,
             'entities': context.get('entities', {}),
-            'order_info': order_info
+            'order_details': order_info
         }
         
         template = SHIPPING_RESPONSE_TEMPLATE
@@ -279,26 +266,27 @@ class ShippingAgent:
             )
         else:
             # Fallback response
-            return self._fallback_response(order_info)
-    
-    def _fallback_response(self, order_info: Optional[Dict[str, Any]]) -> str:
+            return self._fallback_response(order_id, order_info, order_status)
+
+    def _fallback_response(self, order_id: str, order_info: Optional[Dict[str, Any]], order_status: Optional[str]) -> str:
         """Simple fallback when Gemini unavailable"""
         if order_info:
-            order_id = order_info.get('order_id', 'Unknown')
-            status = order_info.get('status', 'Processing')
+            status = (order_status or order_info.get('status') or '').upper()
             
             # Build response based on status
             if status == 'DELIVERED':
                 return f"Great news! Your order {order_id} has been delivered. If you have any issues, please let us know."
-            elif status == 'IN_TRANSIT':
+            elif status in {'SHIPPED', 'IN_TRANSIT'}:
                 tracking = order_info.get('tracking_number', 'available in your email')
                 return f"Your order {order_id} is currently in transit. Tracking number: {tracking}. Expected delivery within 2-3 business days."
             elif status == 'PROCESSING':
                 return f"Your order {order_id} is being processed and will ship within 24 hours. You'll receive a tracking number via email once it ships."
+            elif status == 'CANCELLED':
+                return f"Your order {order_id} has been cancelled. This can happen due to payment authorization issues or stock availability. Please reply if you'd like help placing a new order."
             else:
                 return f"Your order {order_id} status is: {status}. Please check your email for tracking details."
         else:
-            return "I'd be happy to help you track your order. Please provide your order number and I'll look up the tracking information for you."
+            return f"I couldn't find details for order {order_id}. Please confirm the ID (format ORD12345) and I'll check again."
     
     def get_stats(self) -> Dict[str, int]:
         """Get agent statistics"""

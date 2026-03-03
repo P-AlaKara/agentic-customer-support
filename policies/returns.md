@@ -1,47 +1,35 @@
-# Returns and Refunds Policy
+# Returns Policy (Status-Aware)
 
-## Eligibility Window
-Customers may request a return within 30 days of the delivery date.
-Requests made after 30 days must be escalated to a human operator.
+## Baseline Return Rules
 
-## Condition of Items
-Returned items must be unused, unworn, and in their original packaging.
-Items that are damaged due to misuse are not eligible for refund.
-If the item arrived damaged or defective, the return is allowed.
-
-## Proof of Purchase
-A valid order ID or the email used to place the order is required.
-If neither is available, escalate to a human.
-
-## Non-Returnable Items
-The following cannot be returned:
-- Gift cards
-- Downloadable software
-- Personalized or custom-made items
-
-## Refund Method
-Refunds are issued to the original payment method.
-The refund is processed after the return is approved.
-
-## Refund Timeline
-After approval, refunds typically appear within 5 business days.
-Banks or card providers may require additional time.
-
-## Exchanges
-Direct exchanges are not supported.
-Customers should place a new order and request a return for the old item.
-
-## Return Shipping
+Returns are accepted within 30 days of delivery for eligible items.
+Items should be in original condition with all tags/accessories.
+Refunds are issued to the original payment method after inspection.
 If the return is due to our mistake or a defective product, we cover shipping.
 Otherwise, the customer is responsible for return shipping costs.
 
-## Status Meanings
-REQUESTED → customer asked for return.
-APPROVED → return accepted, refund pending.
-REJECTED → return denied based on policy.
+## Required Response Rules
 
-## Escalation Rules
-Escalate to a human if:
-- the customer disputes the decision,
-- threats of legal action appear,
-- the request is outside policy but the customer insists.
+- If `order_id` is missing, politely ask for it using format `ORD12345`.
+- Do not proceed with return-status handling until `order_id` is provided.
+- If `order_id` exists, use only provided order/return details and status.
+- Mention status explicitly.
+- Do not invent missing fields.
+
+## Status-Specific Instructions
+
+### REQUESTED
+- Inform the customer the return is under review.
+- Provide review timeframe expectations.
+
+### APPROVED
+- Confirm approval.
+- Provide packaging and drop-off/shipping instructions.
+
+### RECEIVED
+- Confirm item receipt.
+- Explain refund processing timeline.
+
+### REJECTED
+- Explain the rejection reason (if available in context).
+- Offer next steps (appeal/support contact/alternative resolution).
