@@ -5,8 +5,6 @@ Handles return and refund requests using:
 - Database queries (orders, returns tables)
 - Knowledge base (return policies via RAG)
 - Gemini API for natural language generation
-
-This is a complete BPA implementation showing the pattern for all future BPAs.
 """
 
 import logging
