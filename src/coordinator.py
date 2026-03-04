@@ -76,6 +76,7 @@ class CoordinatorAgent:
         r"\b(?:bye|goodbye|farewell|that's all|that is all|done|no thanks|nothing else|end (?:this )?(?:chat|conversation))\b",
         re.IGNORECASE
     )
+    ORDER_ID_PATTERN = re.compile(r"\b(ORD\d{5})\b", re.IGNORECASE)
     
     # Intent to agent task mapping
     INTENT_ROUTING = {
@@ -273,20 +274,14 @@ class CoordinatorAgent:
                 # Intent already established, route directly to BPA
                 logger.info(f"[GATE 1] ✓ Sentiment acceptable, using existing intent: {context.current_intent}")
                 logger.info(f"[GATE 1] → Routing directly to BPA")
-                
-                # Get full context for BPA
-                context_dict = context.to_dict()
-                
-                # Route to appropriate BPA
-                if context.current_intent in self.INTENT_ROUTING:
-                    task_event = self.INTENT_ROUTING[context.current_intent]
-                    logger.info(f"[GATE 2] → Publishing {task_event}")
-                    self.bus.publish(task_event, context_dict)
-                    self.stats['successful_routes'] += 1
-                else:
-                    # Unknown intent - escalate
-                    logger.warning(f"[GATE 2] Unknown intent: {context.current_intent}")
-                    self._escalate(session_id, 'UNKNOWN_INTENT', {})
+
+                # Extract order IDs from follow-up turns even when intent is
+                # already established and no new intent pass is performed.
+                self._merge_message_entities(context, last_message)
+
+                # Route through common helper so enrichment is consistently
+                # applied (order lookup, return lookup, top-level order_id).
+                self._route_to_agent(session_id, context.current_intent, context)
 
             _safe_log_agent_event(
                 agent_name='coordinator',
@@ -306,6 +301,19 @@ class CoordinatorAgent:
             return False
 
         return bool(self.CLOSING_RECLASSIFY_PATTERN.search(text))
+
+    def _merge_message_entities(self, context, text: str):
+        """Extract lightweight entities from a follow-up message and merge them into context."""
+        if not text:
+            return
+
+        extracted_entities: Dict[str, Any] = {}
+        order_match = self.ORDER_ID_PATTERN.search(text)
+        if order_match:
+            extracted_entities['order_id'] = order_match.group(1).upper()
+
+        if extracted_entities:
+            context.merge_entities(extracted_entities)
     
     # ========================================================================
     # GATE 2: INTENT CONFIDENCE CHECK
