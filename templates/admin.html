@@ -196,33 +196,45 @@
 
         .btn {
             padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
+            border: 1px solid transparent;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 600;
-            transition: all 0.2s;
+            letter-spacing: 0.2px;
+            transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn:focus-visible {
+            outline: 3px solid rgba(59, 130, 246, 0.35);
+            outline-offset: 2px;
         }
 
         .btn-primary {
-            background: #1d4ed8;
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
             color: white;
+            border-color: #1e3a8a;
         }
 
         .btn-primary:hover {
-            background: #1e40af;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 14px rgba(37, 99, 235, 0.25);
         }
 
         .btn-secondary {
-            background: #2f3336;
+            background: #1c232d;
             color: #e7e9ea;
+            border-color: #374151;
         }
 
         .btn-secondary:hover {
-            background: #3a3f44;
+            background: #263242;
+            border-color: #60a5fa;
+            color: #eff6ff;
         }
 
         /* Tables */
@@ -404,17 +416,35 @@
         }
 
         .agent-card {
-            background: #16181c;
+            --agent-primary: #3b82f6;
+            --agent-soft: rgba(59, 130, 246, 0.12);
+            background: linear-gradient(160deg, #16181c 0%, #111827 100%);
             border: 1px solid #2f3336;
-            border-radius: 8px;
+            border-radius: 14px;
             padding: 20px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .agent-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top right, var(--agent-soft), transparent 55%);
+            pointer-events: none;
+        }
+
+        .agent-card > * {
+            position: relative;
+            z-index: 1;
         }
 
         .agent-card:hover {
-            border-color: #1d4ed8;
-            transform: translateY(-2px);
+            border-color: var(--agent-primary);
+            box-shadow: 0 10px 18px rgba(15, 23, 42, 0.25);
+            transform: translateY(-3px);
         }
 
         .agent-header {
@@ -424,9 +454,28 @@
             margin-bottom: 16px;
         }
 
+        .agent-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .agent-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--agent-soft);
+            color: var(--agent-primary);
+            font-size: 15px;
+        }
+
         .agent-name {
             font-size: 16px;
             font-weight: 600;
+            letter-spacing: 0.2px;
         }
 
         .agent-status {
@@ -458,7 +507,7 @@
         .agent-stat-value {
             font-size: 20px;
             font-weight: 700;
-            color: #3b82f6;
+            color: var(--agent-primary);
         }
 
         .agent-stat-label {
@@ -466,6 +515,13 @@
             color: #71767b;
             text-transform: uppercase;
         }
+
+        .agent-card.variant-1 { --agent-primary: #3b82f6; --agent-soft: rgba(59, 130, 246, 0.14); }
+        .agent-card.variant-2 { --agent-primary: #8b5cf6; --agent-soft: rgba(139, 92, 246, 0.14); }
+        .agent-card.variant-3 { --agent-primary: #f97316; --agent-soft: rgba(249, 115, 22, 0.14); }
+        .agent-card.variant-4 { --agent-primary: #0ea5e9; --agent-soft: rgba(14, 165, 233, 0.14); }
+        .agent-card.variant-5 { --agent-primary: #10b981; --agent-soft: rgba(16, 185, 129, 0.14); }
+        .agent-card.variant-6 { --agent-primary: #ec4899; --agent-soft: rgba(236, 72, 153, 0.14); }
 
         /* Trace Timeline */
         .trace-timeline {
@@ -811,9 +867,18 @@
         }
 
         body.light-mode .agent-card {
-            background: #f8fafc;
-            border-color: #d7dee8;
+            background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+            border-color: #d1dae6;
             color: #0f172a;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        }
+
+        body.light-mode .agent-card:hover {
+            box-shadow: 0 14px 24px rgba(30, 64, 175, 0.13);
+        }
+
+        body.light-mode .agent-icon {
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
         }
 
         body.light-mode .sidebar-header p,
@@ -854,6 +919,15 @@
 
         body.light-mode .btn-secondary:hover {
             background: #f1f5f9;
+        }
+
+        body.light-mode .btn {
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+        }
+
+        body.light-mode .btn-primary {
+            border-color: #1d4ed8;
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
         }
 
         body.light-mode thead {
@@ -1241,6 +1315,25 @@
             return `${Math.round(Number(seconds) || 0)}s`;
         }
 
+        function getAgentPresentation(name, index = 0) {
+            const normalized = String(name || '').toLowerCase();
+            const iconRules = [
+                { match: ['coordinator'], icon: 'fa-diagram-project' },
+                { match: ['shipping'], icon: 'fa-truck-fast' },
+                { match: ['returns'], icon: 'fa-rotate-left' },
+                { match: ['intent'], icon: 'fa-lightbulb' },
+                { match: ['sentiment'], icon: 'fa-face-smile' },
+                { match: ['escalation', 'human'], icon: 'fa-user-shield' },
+                { match: ['transcription'], icon: 'fa-wave-square' },
+                { match: ['context'], icon: 'fa-database' }
+            ];
+            const icon = iconRules.find(rule => rule.match.some(key => normalized.includes(key)))?.icon || 'fa-robot';
+            return {
+                icon,
+                variantClass: `variant-${(index % 6) + 1}`
+            };
+        }
+
 
         // Navigation
         function showSection(sectionName, clickedElement = null) {
@@ -1313,10 +1406,15 @@
                 document.getElementById('statsGrid').innerHTML = statsHtml;
 
                 // Agent Grid
-                const agentsHtml = Object.entries(data).slice(0, 6).map(([name, stats]) => `
-                    <div class="agent-card">
+                const agentsHtml = Object.entries(data).slice(0, 6).map(([name, stats], index) => {
+                    const presentation = getAgentPresentation(name, index);
+                    return `
+                    <div class="agent-card ${presentation.variantClass}">
                         <div class="agent-header">
-                            <div class="agent-name">${name.charAt(0).toUpperCase() + name.slice(1)}</div>
+                            <div class="agent-title">
+                                <div class="agent-icon"><i class="fas ${presentation.icon}"></i></div>
+                                <div class="agent-name">${name.charAt(0).toUpperCase() + name.slice(1)}</div>
+                            </div>
                             <div class="agent-status"></div>
                         </div>
                         <div class="agent-stats">
@@ -1328,7 +1426,8 @@
                             `).join('')}
                         </div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
                 document.getElementById('agentGrid').innerHTML = agentsHtml;
             } catch (error) {
                 console.error('Error loading overview:', error);
@@ -1630,14 +1729,18 @@
                 const response = await fetch(`${API_URL}/admin/agents`);
                 const data = await response.json();
 
-                const html = (data.agents || []).map(agent => {
+                const html = (data.agents || []).map((agent, index) => {
                     const normalizedName = agent.name.replace(' Agent', '').toLowerCase();
                     const statsEntries = Object.entries(agent.stats || {});
+                    const presentation = getAgentPresentation(agent.name, index);
 
                     return `
-                        <div class="agent-card" onclick="showAgentDetail('${normalizedName}', '${agent.name}')">
+                        <div class="agent-card ${presentation.variantClass}" onclick="showAgentDetail('${normalizedName}', '${agent.name}')">
                             <div class="agent-header">
-                                <div class="agent-name">${agent.name}</div>
+                                <div class="agent-title">
+                                    <div class="agent-icon"><i class="fas ${presentation.icon}"></i></div>
+                                    <div class="agent-name">${agent.name}</div>
+                                </div>
                                 <div class="agent-status"></div>
                             </div>
                             <div class="agent-stats">
