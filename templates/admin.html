@@ -1397,21 +1397,23 @@
                 
                 let columns, rows;
                 if (type === 'orders') {
-                    columns = ['Order ID', 'Customer', 'Status', 'Items'];
+                    columns = ['Order ID', 'Order Reference', 'Customer', 'Status', 'Items'];
                     rows = data.data.map(row => `
                         <tr class="clickable">
                             <td><code>${row.order_id}</code></td>
+                            <td><code>${row.order_reference || 'N/A'}</code></td>
                             <td>${row.customer_email || 'N/A'}</td>
                             <td><span class="badge badge-${row.status === 'DELIVERED' ? 'success' : 'warning'}">${row.status || 'UNKNOWN'}</span></td>
                             <td>${row.item_count ?? (Array.isArray(row.items) ? row.items.length : 0)}</td>
                         </tr>
                     `).join('');
                 } else if (type === 'returns') {
-                    columns = ['Return ID', 'Order ID', 'Customer', 'Status', 'Item'];
+                    columns = ['Return ID', 'Order ID', 'Order Reference', 'Customer', 'Status', 'Item'];
                     rows = data.data.map(row => `
                         <tr class="clickable">
                             <td><code>${row.return_id}</code></td>
                             <td><code>${row.order_id || 'N/A'}</code></td>
+                            <td><code>${row.order_reference || 'N/A'}</code></td>
                             <td>${row.customer_email || 'N/A'}</td>
                             <td><span class="badge badge-${row.status === 'APPROVED' ? 'success' : (row.status === 'REJECTED' ? 'error' : 'warning')}">${row.status || 'UNKNOWN'}</span></td>
                             <td>${row.item_details?.name || row.item_details?.sku || 'N/A'}</td>

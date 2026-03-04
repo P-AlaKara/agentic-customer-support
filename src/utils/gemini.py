@@ -117,7 +117,11 @@ CONTEXT:
 - Customer Email: {context.get('customer_email', 'Unknown')}
 - Intent: {context.get('current_intent', 'Unknown')}
 - Sentiment: {context.get('current_sentiment', 'Neutral')}
+- Order ID: {context.get('order_id', 'Unknown')}
+- Order Status: {context.get('order_status', 'Unknown')}
 - Entities: {context.get('entities', {})}
+- Order Details: {context.get('order_details', {})}
+- Return Details: {context.get('return_details', {})}
 """
         
         if knowledge:

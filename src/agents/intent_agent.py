@@ -58,7 +58,9 @@ class IntentAgent:
     Classifies user messages into actionable intents using keyword matching
     and pattern recognition.
     """
-    
+
+    ORDER_ID_PATTERN = re.compile(r"\b(ORD\d{5})\b", re.IGNORECASE)
+
     # Intent keyword mappings
     INTENT_KEYWORDS = {
         'track_order': {
@@ -375,10 +377,10 @@ class IntentAgent:
         """
         entities = {'action': intent}
         
-        # Extract order numbers (pattern: digits, letters, dashes)
-        order_match = re.search(r'\b(order|#)\s*[:#]?\s*([A-Z0-9-]{5,})\b', text, re.IGNORECASE)
+        # Extract order IDs (exact format: ORD + 5 digits)
+        order_match = self.ORDER_ID_PATTERN.search(text)
         if order_match:
-            entities['order_id'] = order_match.group(2)
+            entities['order_id'] = order_match.group(1).upper()
         
         # Extract email addresses
         email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
