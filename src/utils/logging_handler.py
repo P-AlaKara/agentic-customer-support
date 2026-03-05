@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import RLock
 from typing import Any, Deque, Dict, List, Optional
 
@@ -22,7 +22,7 @@ class InMemoryLogHandler(logging.Handler):
         try:
             module_name = (record.name or "SYSTEM").split(".")[-1].upper()
             log_entry = {
-                "timestamp": datetime.utcfromtimestamp(record.created).isoformat(),
+                "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
                 "level": record.levelname,
                 "agent": module_name,
                 "logger": record.name,

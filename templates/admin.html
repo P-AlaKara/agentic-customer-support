@@ -1312,16 +1312,23 @@
             return String(statusValue || '').includes('RESOLVED') ? 'success' : 'warning';
         }
 
+        function parseAsUtcDate(value) {
+            if (!value) return null;
+            const raw = String(value);
+            const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+            const normalized = hasTimezone ? raw : `${raw}Z`;
+            const parsed = new Date(normalized);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+
         function formatDateTime(value, fallback = 'N/A') {
-            if (!value) return fallback;
-            const parsed = new Date(value);
-            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleString('en-US', { timeZone: EAT_TIMEZONE });
+            const parsed = parseAsUtcDate(value);
+            return parsed ? parsed.toLocaleString('en-US', { timeZone: EAT_TIMEZONE }) : fallback;
         }
 
         function formatTime(value, fallback = 'Unknown time') {
-            if (!value) return fallback;
-            const parsed = new Date(value);
-            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleTimeString('en-US', { timeZone: EAT_TIMEZONE });
+            const parsed = parseAsUtcDate(value);
+            return parsed ? parsed.toLocaleTimeString('en-US', { timeZone: EAT_TIMEZONE }) : fallback;
         }
 
         function formatDuration(seconds) {
@@ -1779,7 +1786,7 @@
 
         function renderAgentEventStream() {
             const body = document.getElementById('agentModalBody');
-            const filteredEvents = agentModalEvents.filter(event => classifyEventDirection(event.event_type) === activeAgentModalTab);
+            const filteredEvents = agentModalEvents.filter(event => (event.direction || classifyEventDirection(event.event_type)) === activeAgentModalTab);
 
             if (filteredEvents.length === 0) {
                 body.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><p>No live ${activeAgentModalTab} events yet</p></div>`;
@@ -1958,7 +1965,7 @@
                     <div class="trace-event">
                         <div class="trace-event-header">
                             <div class="trace-event-name">${trace.event_type}</div>
-                            <div class="trace-event-time">${formatTime(trace.timestamp)}.${new Date(trace.timestamp).getMilliseconds()}</div>
+                            <div class="trace-event-time">${formatTime(trace.timestamp)}.${String(parseAsUtcDate(trace.timestamp)?.getMilliseconds?.() ?? '0').padStart(3, '0')}</div>
                         </div>
                         <div class="trace-event-payload"><pre>${JSON.stringify(trace.payload, null, 2)}</pre></div>
                     </div>

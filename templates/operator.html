@@ -384,20 +384,27 @@ function escapeHtml(input) {
         .replace(/'/g, '&#039;');
 }
 
+function parseAsUtcDate(value) {
+    if (!value) return null;
+    const raw = String(value);
+    const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+    const normalized = hasTimezone ? raw : `${raw}Z`;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function formatDateTime(value, fallback = 'Unknown') {
-    if (!value) return fallback;
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime())
-        ? fallback
-        : parsed.toLocaleString('en-US', { timeZone: EAT_TIMEZONE });
+    const parsed = parseAsUtcDate(value);
+    return parsed
+        ? parsed.toLocaleString('en-US', { timeZone: EAT_TIMEZONE })
+        : fallback;
 }
 
 function formatTimeOnly(value, fallback = 'Unknown time') {
-    if (!value) return fallback;
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime())
-        ? fallback
-        : parsed.toLocaleTimeString('en-US', { timeZone: EAT_TIMEZONE });
+    const parsed = parseAsUtcDate(value);
+    return parsed
+        ? parsed.toLocaleTimeString('en-US', { timeZone: EAT_TIMEZONE })
+        : fallback;
 }
 
 function renderEmptyConversation() {

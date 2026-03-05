@@ -2,7 +2,7 @@ import os
 import uuid
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import RLock
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -97,6 +97,38 @@ AGENT_EVENT_RELATIONSHIPS = {
     "shipping": {
         "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
         "subscribed_events": ["TASK_HANDLE_ORDER_TRACKING"]
+    }
+}
+
+
+AGENT_PUBLISH_TRANSITIONS = {
+    "coordinator": {
+        "NEW_USER_MESSAGE": ["TASK_RECOGNIZE_SENTIMENT"],
+        "RESULT_SENTIMENT_RECOGNIZED": ["TASK_RECOGNIZE_INTENT", "TASK_HANDLE_RETURNS", "TASK_HANDLE_ORDER_TRACKING", "TASK_HANDLE_GREETING", "TASK_HANDLE_CLOSING", "TASK_ESCALATE"],
+        "RESULT_INTENT_RECOGNIZED": ["TASK_HANDLE_RETURNS", "TASK_HANDLE_ORDER_TRACKING", "TASK_HANDLE_GREETING", "TASK_HANDLE_CLOSING", "TASK_ESCALATE"],
+        "REQUEST_ESCALATION": ["TASK_ESCALATE"],
+        "AGENT_ERROR": ["TASK_ESCALATE"]
+    },
+    "sentiment": {
+        "TASK_RECOGNIZE_SENTIMENT": ["RESULT_SENTIMENT_RECOGNIZED", "AGENT_ERROR"]
+    },
+    "intent": {
+        "TASK_RECOGNIZE_INTENT": ["RESULT_INTENT_RECOGNIZED", "AGENT_ERROR"]
+    },
+    "returns": {
+        "TASK_HANDLE_RETURNS": ["RESULT_SEND_RESPONSE_TO_USER"]
+    },
+    "shipping": {
+        "TASK_HANDLE_ORDER_TRACKING": ["RESULT_SEND_RESPONSE_TO_USER"]
+    },
+    "escalation": {
+        "TASK_ESCALATE": ["RESULT_ESCALATION_COMPLETE", "NOTIFICATION_OPERATOR"],
+        "OPERATOR_AVAILABLE": ["RESULT_OPERATOR_ASSIGNED"],
+        "ESCALATION_RESOLVED": ["RESULT_ESCALATION_RESOLVED"]
+    },
+    "transcription": {
+        "RESULT_ESCALATION_COMPLETE": ["TRANSCRIPT_SAVED"],
+        "CONVERSATION_END": ["TRANSCRIPT_SAVED"]
     }
 }
 
@@ -990,19 +1022,39 @@ def _normalize_agent_name(agent_name: str) -> str:
 def log_agent_event(agent_name: str, event_type: str, input_data: dict, output_data: dict):
     """Log agent input/output for debugging in admin dashboard."""
     normalized_name = _normalize_agent_name(agent_name)
+    timestamp = datetime.now(timezone.utc).isoformat()
 
-    event_payload = {
-        "timestamp": datetime.utcnow().isoformat(),
+    subscribed_event_payload = {
+        "timestamp": timestamp,
         "event_type": event_type,
         "input": input_data,
-        "output": output_data
+        "output": output_data,
+        "direction": "subscribed"
     }
+
+    derived_published_events = []
+    publish_candidates = AGENT_PUBLISH_TRANSITIONS.get(normalized_name, {}).get(event_type, [])
+    known_published = set(AGENT_EVENT_RELATIONSHIPS.get(normalized_name, {}).get("published_events", []))
+
+    for published_event in publish_candidates:
+        if published_event not in known_published:
+            continue
+
+        derived_published_events.append({
+            "timestamp": timestamp,
+            "event_type": published_event,
+            "input": input_data,
+            "output": output_data,
+            "direction": "published",
+            "derived_from": event_type
+        })
 
     with agent_event_lock:
         if normalized_name not in agent_event_history:
             agent_event_history[normalized_name] = []
 
-        agent_event_history[normalized_name].append(event_payload)
+        agent_event_history[normalized_name].append(subscribed_event_payload)
+        agent_event_history[normalized_name].extend(derived_published_events)
 
         if len(agent_event_history[normalized_name]) > MAX_AGENT_EVENTS_PER_AGENT:
             agent_event_history[normalized_name] = agent_event_history[normalized_name][-MAX_AGENT_EVENTS_PER_AGENT:]
