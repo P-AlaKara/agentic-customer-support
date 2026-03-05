@@ -194,7 +194,7 @@ class CoordinatorAgent:
                 agent_name='coordinator',
                 event_type='NEW_USER_MESSAGE',
                 input_data={'session_id': session_id, 'text': text[:100]},
-                output_data={'next_event': 'TASK_RECOGNIZE_SENTIMENT'}
+                output_data={'published_event': 'TASK_RECOGNIZE_SENTIMENT'}
             )
             
         except Exception as e:
