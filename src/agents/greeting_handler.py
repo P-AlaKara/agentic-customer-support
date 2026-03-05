@@ -94,7 +94,7 @@ class GreetingAgent:
                 agent_name='greeting',
                 event_type='TASK_HANDLE_GREETING',
                 input_data={'session_id': session_id},
-                output_data={'response_preview': response[:160]}
+                output_data={'response_preview': response[:160], 'published_event': 'RESULT_SEND_RESPONSE_TO_USER'}
             )
             
         except Exception as e:
@@ -128,7 +128,7 @@ class GreetingAgent:
                 agent_name='greeting',
                 event_type='TASK_HANDLE_CLOSING',
                 input_data={'session_id': session_id},
-                output_data={'response_preview': response[:160], 'final': True}
+                output_data={'response_preview': response[:160], 'final': True, 'published_event': 'RESULT_SEND_RESPONSE_TO_USER'}
             )
 
         except Exception as e:

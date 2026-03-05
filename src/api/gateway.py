@@ -2,7 +2,7 @@ import os
 import uuid
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import RLock
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -46,6 +46,60 @@ except (ImportError, ValueError):
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 log_handler = setup_inmemory_logging(max_entries=100)
+
+
+AGENT_EVENT_RELATIONSHIPS = {
+    "coordinator": {
+        "published_events": [
+            "TASK_RECOGNIZE_SENTIMENT",
+            "TASK_RECOGNIZE_INTENT",
+            "TASK_HANDLE_RETURNS",
+            "TASK_HANDLE_ORDER_TRACKING",
+            "TASK_HANDLE_GREETING",
+            "TASK_HANDLE_CLOSING",
+            "TASK_ESCALATE"
+        ],
+        "subscribed_events": [
+            "NEW_USER_MESSAGE",
+            "RESULT_SENTIMENT_RECOGNIZED",
+            "RESULT_INTENT_RECOGNIZED",
+            "REQUEST_ESCALATION",
+            "AGENT_ERROR"
+        ]
+    },
+    "sentiment": {
+        "published_events": ["RESULT_SENTIMENT_RECOGNIZED", "AGENT_ERROR"],
+        "subscribed_events": ["TASK_RECOGNIZE_SENTIMENT"]
+    },
+    "intent": {
+        "published_events": ["RESULT_INTENT_RECOGNIZED", "AGENT_ERROR"],
+        "subscribed_events": ["TASK_RECOGNIZE_INTENT"]
+    },
+    "escalation": {
+        "published_events": ["RESULT_ESCALATION_COMPLETE", "NOTIFICATION_OPERATOR", "RESULT_OPERATOR_ASSIGNED", "RESULT_ESCALATION_RESOLVED"],
+        "subscribed_events": ["TASK_ESCALATE", "OPERATOR_AVAILABLE", "ESCALATION_RESOLVED"]
+    },
+    "transcription": {
+        "published_events": ["TRANSCRIPT_SAVED"],
+        "subscribed_events": [
+            "NEW_USER_MESSAGE",
+            "RESULT_SEND_RESPONSE_TO_USER",
+            "RESULT_SENTIMENT_RECOGNIZED",
+            "RESULT_INTENT_RECOGNIZED",
+            "RESULT_ESCALATION_COMPLETE",
+            "CONVERSATION_END"
+        ]
+    },
+    "returns": {
+        "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
+        "subscribed_events": ["TASK_HANDLE_RETURNS"]
+    },
+    "shipping": {
+        "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
+        "subscribed_events": ["TASK_HANDLE_ORDER_TRACKING"]
+    }
+}
+
 
 
 # ============================================================================
@@ -561,43 +615,50 @@ async def get_agents_status():
                 "name": "Coordinator",
                 "health": "healthy",
                 "stats": coordinator.get_stats(),
-                "event_count": len(agent_event_history.get('coordinator', []))
+                "event_count": len(agent_event_history.get('coordinator', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('coordinator', {})
             },
             {
                 "name": "Sentiment Agent",
                 "health": "healthy",
                 "stats": sentiment_agent.get_stats(),
-                "event_count": len(agent_event_history.get('sentiment', []))
+                "event_count": len(agent_event_history.get('sentiment', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('sentiment', {})
             },
             {
                 "name": "Intent Agent",
                 "health": "healthy",
                 "stats": intent_agent.get_stats(),
-                "event_count": len(agent_event_history.get('intent', []))
+                "event_count": len(agent_event_history.get('intent', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('intent', {})
             },
             {
                 "name": "Escalation Agent",
                 "health": "healthy",
                 "stats": escalation_agent.get_stats(),
-                "event_count": len(agent_event_history.get('escalation', []))
+                "event_count": len(agent_event_history.get('escalation', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('escalation', {})
             },
             {
                 "name": "Transcription Agent",
                 "health": "healthy",
                 "stats": transcription_agent.get_stats(),
-                "event_count": len(agent_event_history.get('transcription', []))
+                "event_count": len(agent_event_history.get('transcription', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('transcription', {})
             },
             {
                 "name": "Returns Agent",
                 "health": "healthy",
                 "stats": returns_agent.get_stats(),
-                "event_count": len(agent_event_history.get('returns', []))
+                "event_count": len(agent_event_history.get('returns', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('returns', {})
             },
             {
                 "name": "Shipping Agent",
                 "health": "healthy",
                 "stats": shipping_agent.get_stats(),
-                "event_count": len(agent_event_history.get('shipping', []))
+                "event_count": len(agent_event_history.get('shipping', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('shipping', {})
             }
         ]
         
@@ -930,19 +991,48 @@ def _normalize_agent_name(agent_name: str) -> str:
 def log_agent_event(agent_name: str, event_type: str, input_data: dict, output_data: dict):
     """Log agent input/output for debugging in admin dashboard."""
     normalized_name = _normalize_agent_name(agent_name)
+    timestamp = datetime.now(timezone.utc).isoformat()
 
-    event_payload = {
-        "timestamp": datetime.utcnow().isoformat(),
+    subscribed_event_payload = {
+        "timestamp": timestamp,
         "event_type": event_type,
         "input": input_data,
-        "output": output_data
+        "output": output_data,
+        "direction": "subscribed"
     }
+
+    derived_published_events = []
+    known_published = set(AGENT_EVENT_RELATIONSHIPS.get(normalized_name, {}).get("published_events", []))
+    output_payload = output_data if isinstance(output_data, dict) else {}
+
+    published_events = []
+    single = output_payload.get("published_event")
+    if single:
+        published_events.append(single)
+
+    multiple = output_payload.get("published_events")
+    if isinstance(multiple, list):
+        published_events.extend(multiple)
+
+    for published_event in published_events:
+        if published_event not in known_published:
+            continue
+
+        derived_published_events.append({
+            "timestamp": timestamp,
+            "event_type": published_event,
+            "input": input_data,
+            "output": output_data,
+            "direction": "published",
+            "derived_from": event_type
+        })
 
     with agent_event_lock:
         if normalized_name not in agent_event_history:
             agent_event_history[normalized_name] = []
 
-        agent_event_history[normalized_name].append(event_payload)
+        agent_event_history[normalized_name].append(subscribed_event_payload)
+        agent_event_history[normalized_name].extend(derived_published_events)
 
         if len(agent_event_history[normalized_name]) > MAX_AGENT_EVENTS_PER_AGENT:
             agent_event_history[normalized_name] = agent_event_history[normalized_name][-MAX_AGENT_EVENTS_PER_AGENT:]

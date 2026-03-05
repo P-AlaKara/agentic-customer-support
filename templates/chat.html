@@ -657,6 +657,7 @@
 
 <script>
     const API_URL = 'http://localhost:8000';
+    const EAT_TIMEZONE = 'Africa/Nairobi';
     let sessionId = localStorage.getItem('sessionId') || null;
     const customerEmail = 'customer@example.com';
     let seenMessageTimestamps = new Set();
@@ -679,7 +680,11 @@
     function addMessage(text, sender, status = null) {
         showMessages();
         const container = document.getElementById('chatMessages');
-        const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const now = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: EAT_TIMEZONE
+        });
 
         const row = document.createElement('div');
         row.className = `message ${sender}`;

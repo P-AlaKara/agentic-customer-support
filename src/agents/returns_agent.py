@@ -161,7 +161,7 @@ class ReturnsAgent:
                 agent_name='returns',
                 event_type='TASK_HANDLE_RETURNS',
                 input_data={'session_id': session_id, 'customer_email': customer_email, 'entities': entities},
-                output_data={'response_preview': response[:160], 'order_found': bool(order_info)}
+                output_data={'response_preview': response[:160], 'order_found': bool(order_info), 'published_event': 'RESULT_SEND_RESPONSE_TO_USER'}
             )
             
         except Exception as e:

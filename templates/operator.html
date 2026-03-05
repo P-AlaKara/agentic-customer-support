@@ -361,6 +361,7 @@
 
 <script>
 const API_URL = 'http://localhost:8000';
+const EAT_TIMEZONE = 'Africa/Nairobi';
 const OPERATOR_ID = 'op-001';
 const OPERATOR_NAME = 'Alice';
 const TRANSCRIPT_PREVIEW_LIMIT = 650;
@@ -381,6 +382,29 @@ function escapeHtml(input) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function parseAsUtcDate(value) {
+    if (!value) return null;
+    const raw = String(value);
+    const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+    const normalized = hasTimezone ? raw : `${raw}Z`;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDateTime(value, fallback = 'Unknown') {
+    const parsed = parseAsUtcDate(value);
+    return parsed
+        ? parsed.toLocaleString('en-US', { timeZone: EAT_TIMEZONE })
+        : fallback;
+}
+
+function formatTimeOnly(value, fallback = 'Unknown time') {
+    const parsed = parseAsUtcDate(value);
+    return parsed
+        ? parsed.toLocaleTimeString('en-US', { timeZone: EAT_TIMEZONE })
+        : fallback;
 }
 
 function renderEmptyConversation() {
@@ -421,7 +445,7 @@ async function loadQueue() {
         const queueHtml = data.queue.map(item => {
             const escapedSession = escapeHtml(item.session_id);
             const escapedReason = escapeHtml((item.reason || 'UNKNOWN').replace(/_/g, ' '));
-            const escalatedAt = item.escalated_at ? new Date(item.escalated_at).toLocaleString() : 'Unknown';
+            const escalatedAt = item.escalated_at ? formatDateTime(item.escalated_at) : 'Unknown';
             return `
                 <div class="queue-item ${selectedSession === item.session_id ? 'selected' : ''}" data-session-id="${escapedSession}">
                     <div class="queue-head">
@@ -465,7 +489,7 @@ function onBackdropClick(event) {
 
 function buildTranscriptText(messages) {
     return (messages || []).map(msg => {
-        const ts = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : 'Unknown time';
+        const ts = msg.timestamp ? formatTimeOnly(msg.timestamp) : 'Unknown time';
         return `[${ts}] ${msg.sender}: ${msg.text}`;
     }).join('\n');
 }
@@ -491,7 +515,7 @@ function openPreviewModal(data) {
     transcriptExpanded = false;
     fullTranscript = buildTranscriptText(data.messages);
 
-    const startedAt = data.started_at ? new Date(data.started_at).toLocaleString() : 'Unknown';
+    const startedAt = data.started_at ? formatDateTime(data.started_at) : 'Unknown';
     const entities = data.entities && Object.keys(data.entities).length > 0
         ? JSON.stringify(data.entities, null, 2)
         : 'No entities extracted';
@@ -569,7 +593,7 @@ async function renderConversation(sessionId) {
                 <div class="message ${isOperator ? 'operator' : ''}">
                     <div class="message-head">
                         <span><strong>${escapeHtml(msg.sender)}</strong></span>
-                        <span>${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : 'Unknown time'}</span>
+                        <span>${msg.timestamp ? formatDateTime(msg.timestamp) : 'Unknown time'}</span>
                     </div>
                     <div class="message-text">${escapeHtml(msg.text)}</div>
                 </div>

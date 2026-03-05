@@ -180,7 +180,7 @@ class EscalationAgent:
                 agent_name='escalation',
                 event_type='TASK_ESCALATE',
                 input_data={'session_id': session_id, 'reason': reason, 'priority': priority},
-                output_data={'status': 'QUEUED', 'queue_position': escalation['queue_position']}
+                output_data={'status': 'QUEUED', 'queue_position': escalation['queue_position'], 'published_events': ['RESULT_ESCALATION_COMPLETE', 'NOTIFICATION_OPERATOR'] }
             )
             
         except Exception as e:
@@ -222,7 +222,7 @@ class EscalationAgent:
                 agent_name='escalation',
                 event_type='OPERATOR_AVAILABLE',
                 input_data={'operator_id': operator_id, 'operator_name': operator_name},
-                output_data={'assigned': True, 'session_id': escalation['session_id'], 'reason': escalation['reason']}
+                output_data={'assigned': True, 'session_id': escalation['session_id'], 'reason': escalation['reason'], 'published_event': 'RESULT_OPERATOR_ASSIGNED'}
             )
             
         except Exception as e:
@@ -308,7 +308,7 @@ class EscalationAgent:
                 agent_name='escalation',
                 event_type='ESCALATION_RESOLVED',
                 input_data={'session_id': session_id, 'operator_id': operator_id},
-                output_data={'resolved': True}
+                output_data={'resolved': True, 'published_event': 'RESULT_ESCALATION_RESOLVED'}
             )
             
         except Exception as e:

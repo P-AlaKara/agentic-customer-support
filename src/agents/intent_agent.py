@@ -252,7 +252,7 @@ class IntentAgent:
                 agent_name='intent',
                 event_type='TASK_RECOGNIZE_INTENT',
                 input_data={'session_id': session_id, 'text': text[:100]},
-                output_data={'intent': intent, 'confidence': confidence, 'entities': entities}
+                output_data={'intent': intent, 'confidence': confidence, 'entities': entities, 'published_event': 'RESULT_INTENT_RECOGNIZED'}
             )
             
         except Exception as e:
