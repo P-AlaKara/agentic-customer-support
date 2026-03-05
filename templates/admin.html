@@ -695,6 +695,51 @@
             color: #9ca3af;
         }
 
+
+        .tab-strip {
+            display: inline-flex;
+            border: 1px solid #2f3336;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 14px;
+            background: #0f1419;
+        }
+
+        .tab-btn {
+            border: 0;
+            background: transparent;
+            color: #9ca3af;
+            padding: 9px 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background: #1d4ed8;
+            color: #fff;
+        }
+
+        .event-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .event-item {
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 12px;
+            background: #0f1419;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .event-item code {
+            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+            color: #d1d5db;
+        }
+
         /* Loading */
         .loading {
             text-align: center;
@@ -1170,17 +1215,24 @@
     <div id="agentModalOverlay" class="modal-overlay" onclick="closeAgentModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h3 id="agentModalTitle">Agent Event History</h3>
+                <h3 id="agentModalTitle">Agent Event Relationships</h3>
                 <button class="btn btn-secondary" onclick="closeAgentModal()"><i class="fas fa-times"></i> Close</button>
             </div>
-            <div class="modal-body" id="agentModalBody">
-                <div class="loading">Loading events...</div>
+            <div class="modal-body">
+                <div class="tab-strip" role="tablist" aria-label="Agent events tabs">
+                    <button class="tab-btn active" id="publishedEventsTab" onclick="setAgentModalTab('published')" role="tab" aria-selected="true">Published Events</button>
+                    <button class="tab-btn" id="subscribedEventsTab" onclick="setAgentModalTab('subscribed')" role="tab" aria-selected="false">Subscribed Events</button>
+                </div>
+                <div id="agentModalBody">
+                    <div class="loading">Loading events...</div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         const API_URL = 'http://localhost:8000';
+        const EAT_TIMEZONE = 'Africa/Nairobi';
         let allLogs = [];
         let availableLogAgents = [];
 
@@ -1227,13 +1279,13 @@
         function formatDateTime(value, fallback = 'N/A') {
             if (!value) return fallback;
             const parsed = new Date(value);
-            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleString();
+            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleString('en-US', { timeZone: EAT_TIMEZONE });
         }
 
         function formatTime(value, fallback = 'Unknown time') {
             if (!value) return fallback;
             const parsed = new Date(value);
-            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleTimeString();
+            return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleTimeString('en-US', { timeZone: EAT_TIMEZONE });
         }
 
         function formatDuration(seconds) {
@@ -1587,7 +1639,7 @@
         function displayLogs() {
             const html = allLogs.map(log => `
                 <div class="log-entry">
-                    <div class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</div>
+                    <div class="log-timestamp">${formatDateTime(log.timestamp)}</div>
                     <div class="log-level ${log.level}">${log.level}</div>
                     <div class="log-agent">${log.agent || log.logger || 'SYSTEM'}</div>
                     <div class="log-message">${log.message}</div>
@@ -1662,41 +1714,59 @@
             }
         }
 
+        let activeAgentModalTab = 'published';
+
+        function setAgentModalTab(tabName) {
+            activeAgentModalTab = tabName;
+            const isPublished = tabName === 'published';
+            document.getElementById('publishedEventsTab').classList.toggle('active', isPublished);
+            document.getElementById('subscribedEventsTab').classList.toggle('active', !isPublished);
+            document.getElementById('publishedEventsTab').setAttribute('aria-selected', String(isPublished));
+            document.getElementById('subscribedEventsTab').setAttribute('aria-selected', String(!isPublished));
+
+            const events = document.getElementById('agentModalBody').dataset[isPublished ? 'publishedEvents' : 'subscribedEvents'];
+            renderAgentEventList(events ? JSON.parse(events) : [], isPublished ? 'published' : 'subscribed');
+        }
+
+        function renderAgentEventList(events, type) {
+            const body = document.getElementById('agentModalBody');
+            if (!events || events.length === 0) {
+                body.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><p>No ${type} events defined for this agent</p></div>`;
+                return;
+            }
+
+            body.innerHTML = `<div class="event-list">${events.map((eventName, index) => `
+                <div class="event-item">
+                    <code>${escapeHtml(eventName)}</code>
+                    <span class="badge badge-neutral">${index + 1}</span>
+                </div>
+            `).join('')}</div>`;
+        }
+
         async function showAgentDetail(agentName, displayName = null) {
             const normalizedAgent = agentName.toLowerCase();
             const overlay = document.getElementById('agentModalOverlay');
             const body = document.getElementById('agentModalBody');
-            document.getElementById('agentModalTitle').textContent = `${displayName || agentName} - Recent Events`;
+            document.getElementById('agentModalTitle').textContent = `${displayName || agentName} - Event Relationships`;
             overlay.style.display = 'flex';
             body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading events...</p></div>';
 
             try {
-                const response = await fetch(`${API_URL}/admin/agent/${normalizedAgent}/events?limit=20`);
+                const response = await fetch(`${API_URL}/admin/agents`);
                 const data = await response.json();
+                const agent = (data.agents || []).find(item => item.name.replace(' Agent', '').toLowerCase() === normalizedAgent);
 
-                if (!data.events || data.events.length === 0) {
-                    body.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No recent events for this agent</p></div>';
+                if (!agent) {
+                    body.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>Agent details not available</p></div>';
                     return;
                 }
 
-                body.innerHTML = data.events.map(event => `
-                    <div class="event-card">
-                        <div class="event-header">
-                            <span class="badge badge-info">${event.event_type}</span>
-                            <span>${new Date(event.timestamp).toLocaleString()}</span>
-                        </div>
-                        <div class="event-payloads">
-                            <div>
-                                <strong>Input</strong>
-                                <pre>${JSON.stringify(event.input, null, 2)}</pre>
-                            </div>
-                            <div>
-                                <strong>Output</strong>
-                                <pre>${JSON.stringify(event.output, null, 2)}</pre>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+                const publishedEvents = agent.published_events || [];
+                const subscribedEvents = agent.subscribed_events || [];
+                body.dataset.publishedEvents = JSON.stringify(publishedEvents);
+                body.dataset.subscribedEvents = JSON.stringify(subscribedEvents);
+                activeAgentModalTab = 'published';
+                setAgentModalTab('published');
             } catch (error) {
                 body.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading agent events</p></div>';
             }
@@ -1748,7 +1818,7 @@
                                 <tr>
                                     <td><code style="font-size: 11px;">${session.session_id}</code></td>
                                     <td>${session.customer_email || 'Unknown'}</td>
-                                    <td>${new Date(session.start_time).toLocaleString()}</td>
+                                    <td>${formatDateTime(session.start_time)}</td>
                                     <td>${session.current_intent ? `<span class="badge badge-neutral">${session.current_intent}</span>` : '<span style="color: #71767b;">-</span>'}</td>
                                     <td>${session.current_sentiment ? `<span class="badge badge-info">${session.current_sentiment}</span>` : '<span style="color: #71767b;">-</span>'}</td>
                                     <td><span class="badge badge-${
@@ -1791,7 +1861,7 @@
                     <div class="trace-event">
                         <div class="trace-event-header">
                             <div class="trace-event-name">${trace.event_type}</div>
-                            <div class="trace-event-time">${new Date(trace.timestamp).toLocaleTimeString()}.${new Date(trace.timestamp).getMilliseconds()}</div>
+                            <div class="trace-event-time">${formatTime(trace.timestamp)}.${new Date(trace.timestamp).getMilliseconds()}</div>
                         </div>
                         <div class="trace-event-payload"><pre>${JSON.stringify(trace.payload, null, 2)}</pre></div>
                     </div>
