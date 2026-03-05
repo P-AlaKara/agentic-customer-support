@@ -180,7 +180,7 @@ class SentimentAgent:
                 agent_name='sentiment',
                 event_type='TASK_RECOGNIZE_SENTIMENT',
                 input_data={'session_id': session_id, 'text': text[:100]},
-                output_data={'sentiment': sentiment, 'confidence': confidence}
+                output_data={'sentiment': sentiment, 'confidence': confidence, 'published_event': 'RESULT_SENTIMENT_RECOGNIZED'}
             )
             
         except Exception as e:

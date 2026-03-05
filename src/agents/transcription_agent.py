@@ -407,7 +407,7 @@ class TranscriptionAgent:
                 agent_name='transcription',
                 event_type='CONVERSATION_END',
                 input_data={'session_id': session_id, 'reason': reason},
-                output_data={'final_status': transcript['final_status'], 'message_count': len(transcript['messages'])}
+                output_data={'final_status': transcript['final_status'], 'message_count': len(transcript['messages']), 'published_event': 'TRANSCRIPT_SAVED'}
             )
             
         except Exception as e:

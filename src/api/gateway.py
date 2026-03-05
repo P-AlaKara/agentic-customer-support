@@ -101,37 +101,6 @@ AGENT_EVENT_RELATIONSHIPS = {
 }
 
 
-AGENT_PUBLISH_TRANSITIONS = {
-    "coordinator": {
-        "NEW_USER_MESSAGE": ["TASK_RECOGNIZE_SENTIMENT"],
-        "RESULT_SENTIMENT_RECOGNIZED": ["TASK_RECOGNIZE_INTENT", "TASK_HANDLE_RETURNS", "TASK_HANDLE_ORDER_TRACKING", "TASK_HANDLE_GREETING", "TASK_HANDLE_CLOSING", "TASK_ESCALATE"],
-        "RESULT_INTENT_RECOGNIZED": ["TASK_HANDLE_RETURNS", "TASK_HANDLE_ORDER_TRACKING", "TASK_HANDLE_GREETING", "TASK_HANDLE_CLOSING", "TASK_ESCALATE"],
-        "REQUEST_ESCALATION": ["TASK_ESCALATE"],
-        "AGENT_ERROR": ["TASK_ESCALATE"]
-    },
-    "sentiment": {
-        "TASK_RECOGNIZE_SENTIMENT": ["RESULT_SENTIMENT_RECOGNIZED", "AGENT_ERROR"]
-    },
-    "intent": {
-        "TASK_RECOGNIZE_INTENT": ["RESULT_INTENT_RECOGNIZED", "AGENT_ERROR"]
-    },
-    "returns": {
-        "TASK_HANDLE_RETURNS": ["RESULT_SEND_RESPONSE_TO_USER"]
-    },
-    "shipping": {
-        "TASK_HANDLE_ORDER_TRACKING": ["RESULT_SEND_RESPONSE_TO_USER"]
-    },
-    "escalation": {
-        "TASK_ESCALATE": ["RESULT_ESCALATION_COMPLETE", "NOTIFICATION_OPERATOR"],
-        "OPERATOR_AVAILABLE": ["RESULT_OPERATOR_ASSIGNED"],
-        "ESCALATION_RESOLVED": ["RESULT_ESCALATION_RESOLVED"]
-    },
-    "transcription": {
-        "RESULT_ESCALATION_COMPLETE": ["TRANSCRIPT_SAVED"],
-        "CONVERSATION_END": ["TRANSCRIPT_SAVED"]
-    }
-}
-
 
 # ============================================================================
 # Pydantic Models
@@ -1033,10 +1002,19 @@ def log_agent_event(agent_name: str, event_type: str, input_data: dict, output_d
     }
 
     derived_published_events = []
-    publish_candidates = AGENT_PUBLISH_TRANSITIONS.get(normalized_name, {}).get(event_type, [])
     known_published = set(AGENT_EVENT_RELATIONSHIPS.get(normalized_name, {}).get("published_events", []))
+    output_payload = output_data if isinstance(output_data, dict) else {}
 
-    for published_event in publish_candidates:
+    published_events = []
+    single = output_payload.get("published_event")
+    if single:
+        published_events.append(single)
+
+    multiple = output_payload.get("published_events")
+    if isinstance(multiple, list):
+        published_events.extend(multiple)
+
+    for published_event in published_events:
         if published_event not in known_published:
             continue
 

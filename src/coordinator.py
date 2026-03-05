@@ -283,11 +283,23 @@ class CoordinatorAgent:
                 # applied (order lookup, return lookup, top-level order_id).
                 self._route_to_agent(session_id, context.current_intent, context)
 
+            next_event = None
+            if sentiment in self.SENTIMENT_ESCALATION_LABELS:
+                next_event = 'TASK_ESCALATE'
+            elif should_reclassify:
+                next_event = 'TASK_RECOGNIZE_INTENT'
+            else:
+                next_event = self.INTENT_ROUTING.get(context.current_intent)
+
             _safe_log_agent_event(
                 agent_name='coordinator',
                 event_type='RESULT_SENTIMENT_RECOGNIZED',
                 input_data={'session_id': session_id, 'sentiment': sentiment, 'confidence': confidence},
-                output_data={'current_intent': context.current_intent, 'escalated': sentiment in self.SENTIMENT_ESCALATION_LABELS}
+                output_data={
+                    'current_intent': context.current_intent,
+                    'escalated': sentiment in self.SENTIMENT_ESCALATION_LABELS,
+                    'published_event': next_event
+                }
             )
             
         except Exception as e:
@@ -359,7 +371,14 @@ class CoordinatorAgent:
             # Explicit close intent should always end gracefully.
             if intent == 'close_conversation':
                 logger.info(f"[GATE 2] ✓ Explicit close intent detected for {session_id}")
+                routed_event = self.INTENT_ROUTING.get(intent)
                 self._route_to_agent(session_id, intent, context)
+                _safe_log_agent_event(
+                    agent_name='coordinator',
+                    event_type='RESULT_INTENT_RECOGNIZED',
+                    input_data={'session_id': session_id, 'intent': intent, 'confidence': confidence},
+                    output_data={'routed': True, 'entities': entities, 'published_event': routed_event}
+                )
                 return
             
             # Gate 2 Decision: Check confidence threshold
@@ -369,6 +388,12 @@ class CoordinatorAgent:
                     session_id=session_id,
                     reason="LOW_INTENT_CONFIDENCE",
                     details={'intent': intent, 'confidence': confidence}
+                )
+                _safe_log_agent_event(
+                    agent_name='coordinator',
+                    event_type='RESULT_INTENT_RECOGNIZED',
+                    input_data={'session_id': session_id, 'intent': intent, 'confidence': confidence},
+                    output_data={'routed': False, 'entities': entities, 'published_event': 'TASK_ESCALATE'}
                 )
                 return
             
@@ -380,7 +405,11 @@ class CoordinatorAgent:
                 agent_name='coordinator',
                 event_type='RESULT_INTENT_RECOGNIZED',
                 input_data={'session_id': session_id, 'intent': intent, 'confidence': confidence},
-                output_data={'routed': confidence >= self.INTENT_CONFIDENCE_THRESHOLD, 'entities': entities}
+                output_data={
+                    'routed': confidence >= self.INTENT_CONFIDENCE_THRESHOLD,
+                    'entities': entities,
+                    'published_event': self.INTENT_ROUTING.get(intent)
+                }
             )
             
         except Exception as e:
@@ -482,7 +511,7 @@ class CoordinatorAgent:
             agent_name='coordinator',
             event_type='REQUEST_ESCALATION',
             input_data={'session_id': session_id, 'reason': reason},
-            output_data={'details': details}
+            output_data={'details': details, 'published_event': 'TASK_ESCALATE'}
         )
     
     def _escalate(self, session_id: str, reason: str, details: Optional[Dict[str, Any]] = None):
@@ -556,7 +585,7 @@ class CoordinatorAgent:
             agent_name='coordinator',
             event_type='AGENT_ERROR',
             input_data={'session_id': session_id, 'agent_name': agent_name},
-            output_data={'error': error}
+            output_data={'error': error, 'published_event': 'TASK_ESCALATE'}
         )
     
     # ========================================================================
