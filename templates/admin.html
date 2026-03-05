@@ -924,6 +924,42 @@
             color: #1f2937;
         }
 
+
+        body.light-mode .modal-overlay {
+            background: rgba(37, 99, 235, 0.14);
+        }
+
+        body.light-mode .modal {
+            background: #ffffff;
+            border-color: #bfdbfe;
+        }
+
+        body.light-mode .modal-header {
+            border-color: #dbeafe;
+        }
+
+        body.light-mode .tab-strip {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+        body.light-mode .tab-btn {
+            color: #1d4ed8;
+        }
+
+        body.light-mode .event-card {
+            background: #ffffff;
+            border-color: #bfdbfe;
+        }
+
+        body.light-mode .event-payloads pre {
+            background: #eff6ff;
+            color: #1e3a8a;
+            border: 1px solid #dbeafe;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
         body.light-mode ::-webkit-scrollbar-thumb {
             background: #cbd5e1;
         }
@@ -1215,7 +1251,7 @@
     <div id="agentModalOverlay" class="modal-overlay" onclick="closeAgentModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h3 id="agentModalTitle">Agent Event Relationships</h3>
+                <h3 id="agentModalTitle">Live Agent Event Monitor</h3>
                 <button class="btn btn-secondary" onclick="closeAgentModal()"><i class="fas fa-times"></i> Close</button>
             </div>
             <div class="modal-body">
@@ -1224,7 +1260,7 @@
                     <button class="tab-btn" id="subscribedEventsTab" onclick="setAgentModalTab('subscribed')" role="tab" aria-selected="false">Subscribed Events</button>
                 </div>
                 <div id="agentModalBody">
-                    <div class="loading">Loading events...</div>
+                    <div class="loading">Loading live events...</div>
                 </div>
             </div>
         </div>
@@ -1715,6 +1751,21 @@
         }
 
         let activeAgentModalTab = 'published';
+        let activeAgentModalName = null;
+        let activeAgentModalDisplayName = null;
+        let agentModalPollTimer = null;
+        let agentModalEvents = [];
+        let agentPublishedEvents = new Set();
+        let agentSubscribedEvents = new Set();
+
+        function classifyEventDirection(eventType) {
+            if (agentPublishedEvents.has(eventType)) return 'published';
+            if (agentSubscribedEvents.has(eventType)) return 'subscribed';
+            if (String(eventType || '').startsWith('RESULT_') || String(eventType || '').startsWith('NOTIFICATION_') || String(eventType || '').startsWith('TRANSCRIPT_')) {
+                return 'published';
+            }
+            return 'subscribed';
+        }
 
         function setAgentModalTab(tabName) {
             activeAgentModalTab = tabName;
@@ -1723,58 +1774,104 @@
             document.getElementById('subscribedEventsTab').classList.toggle('active', !isPublished);
             document.getElementById('publishedEventsTab').setAttribute('aria-selected', String(isPublished));
             document.getElementById('subscribedEventsTab').setAttribute('aria-selected', String(!isPublished));
-
-            const events = document.getElementById('agentModalBody').dataset[isPublished ? 'publishedEvents' : 'subscribedEvents'];
-            renderAgentEventList(events ? JSON.parse(events) : [], isPublished ? 'published' : 'subscribed');
+            renderAgentEventStream();
         }
 
-        function renderAgentEventList(events, type) {
+        function renderAgentEventStream() {
             const body = document.getElementById('agentModalBody');
-            if (!events || events.length === 0) {
-                body.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><p>No ${type} events defined for this agent</p></div>`;
+            const filteredEvents = agentModalEvents.filter(event => classifyEventDirection(event.event_type) === activeAgentModalTab);
+
+            if (filteredEvents.length === 0) {
+                body.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><p>No live ${activeAgentModalTab} events yet</p></div>`;
                 return;
             }
 
-            body.innerHTML = `<div class="event-list">${events.map((eventName, index) => `
-                <div class="event-item">
-                    <code>${escapeHtml(eventName)}</code>
-                    <span class="badge badge-neutral">${index + 1}</span>
+            body.innerHTML = filteredEvents.map(event => `
+                <div class="event-card">
+                    <div class="event-header">
+                        <span class="badge badge-info">${escapeHtml(event.event_type || 'UNKNOWN_EVENT')}</span>
+                        <span>${formatDateTime(event.timestamp)}</span>
+                    </div>
+                    <div class="event-payloads">
+                        <div>
+                            <strong>Input Payload</strong>
+                            <pre>${escapeHtml(JSON.stringify(event.input || {}, null, 2))}</pre>
+                        </div>
+                        <div>
+                            <strong>Output Payload</strong>
+                            <pre>${escapeHtml(JSON.stringify(event.output || {}, null, 2))}</pre>
+                        </div>
+                    </div>
                 </div>
-            `).join('')}</div>`;
+            `).join('');
         }
 
-        async function showAgentDetail(agentName, displayName = null) {
-            const normalizedAgent = agentName.toLowerCase();
-            const overlay = document.getElementById('agentModalOverlay');
+        async function refreshAgentEventStream(showLoading = false) {
             const body = document.getElementById('agentModalBody');
-            document.getElementById('agentModalTitle').textContent = `${displayName || agentName} - Event Relationships`;
-            overlay.style.display = 'flex';
-            body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading events...</p></div>';
+            if (!activeAgentModalName) return;
+
+            if (showLoading) {
+                body.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading live events...</p></div>';
+            }
 
             try {
-                const response = await fetch(`${API_URL}/admin/agents`);
+                const response = await fetch(`${API_URL}/admin/agent/${activeAgentModalName}/events?limit=40`);
                 const data = await response.json();
-                const agent = (data.agents || []).find(item => item.name.replace(' Agent', '').toLowerCase() === normalizedAgent);
-
-                if (!agent) {
-                    body.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>Agent details not available</p></div>';
-                    return;
-                }
-
-                const publishedEvents = agent.published_events || [];
-                const subscribedEvents = agent.subscribed_events || [];
-                body.dataset.publishedEvents = JSON.stringify(publishedEvents);
-                body.dataset.subscribedEvents = JSON.stringify(subscribedEvents);
-                activeAgentModalTab = 'published';
-                setAgentModalTab('published');
+                agentModalEvents = data.events || [];
+                renderAgentEventStream();
             } catch (error) {
                 body.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading agent events</p></div>';
             }
         }
 
+        async function showAgentDetail(agentName, displayName = null) {
+            activeAgentModalName = agentName.toLowerCase();
+            activeAgentModalDisplayName = displayName || agentName;
+            const overlay = document.getElementById('agentModalOverlay');
+            document.getElementById('agentModalTitle').textContent = `${activeAgentModalDisplayName} - Live Event Monitor`;
+            overlay.style.display = 'flex';
+
+            if (agentModalPollTimer) {
+                clearInterval(agentModalPollTimer);
+                agentModalPollTimer = null;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/agents`);
+                const data = await response.json();
+                const agent = (data.agents || []).find(item => item.name.replace(' Agent', '').toLowerCase() === activeAgentModalName);
+                agentPublishedEvents = new Set(agent?.published_events || []);
+                agentSubscribedEvents = new Set(agent?.subscribed_events || []);
+            } catch (error) {
+                agentPublishedEvents = new Set();
+                agentSubscribedEvents = new Set();
+            }
+
+            activeAgentModalTab = 'published';
+            document.getElementById('publishedEventsTab').classList.add('active');
+            document.getElementById('subscribedEventsTab').classList.remove('active');
+            document.getElementById('publishedEventsTab').setAttribute('aria-selected', 'true');
+            document.getElementById('subscribedEventsTab').setAttribute('aria-selected', 'false');
+
+            await refreshAgentEventStream(true);
+            agentModalPollTimer = setInterval(() => {
+                if (document.getElementById('agentModalOverlay').style.display === 'flex') {
+                    refreshAgentEventStream(false);
+                }
+            }, 3000);
+        }
+
         function closeAgentModal(event) {
             if (!event || event.target.id === 'agentModalOverlay') {
                 document.getElementById('agentModalOverlay').style.display = 'none';
+                if (agentModalPollTimer) {
+                    clearInterval(agentModalPollTimer);
+                    agentModalPollTimer = null;
+                }
+                activeAgentModalName = null;
+                agentModalEvents = [];
+                agentPublishedEvents = new Set();
+                agentSubscribedEvents = new Set();
             }
         }
 
