@@ -1,14 +1,3 @@
-"""
-API Gateway - FastAPI
-
-Provides REST endpoints for:
-1. Customer Chat Interface (POST /chat)
-2. Operator Interface (GET /operator/queue, POST /operator/assign)
-3. Admin Monitoring (GET /admin/stats, GET /admin/logs)
-
-Run with: uvicorn src.api.gateway:app --reload
-"""
-
 import os
 import uuid
 import logging
