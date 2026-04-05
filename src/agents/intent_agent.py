@@ -8,6 +8,7 @@ Supported Intents:
 - track_order: User wants to check order status/shipping
 - process_return: User wants to return/refund an item
 - account_issues: User needs help with account/login/profile
+- onboarding: User needs help getting started as a new customer
 - general_inquiry: Catch-all for unclear requests
 
 Design Decisions:
@@ -78,6 +79,11 @@ class IntentAgent:
             'secondary': ['email', 'profile', 'username', 'change', 'update', 'reset'],
             'entities': ['credentials', 'access', 'settings']
         },
+        'onboarding': {
+            'primary': ['onboarding', 'onboard', 'get started', 'getting started', 'new account', 'create account', 'sign up', 'register', 'first login', 'welcome tour'],
+            'secondary': ['first time', 'setup', 'walkthrough', 'tutorial', 'introduction', 'start here'],
+            'entities': ['tour', 'guide', 'profile', 'preferences']
+        },
         'greeting': {
             'primary': ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening'],
             'secondary': ['how are you', 'thanks', 'thank you', 'help'],
@@ -122,6 +128,16 @@ class IntentAgent:
             'account locked',
             'can\'t access'
         ],
+        'onboarding': [
+            'how do i get started',
+            'getting started',
+            'i am new here',
+            'new customer setup',
+            'help me create an account',
+            'create my account',
+            'first login help',
+            'show me the welcome tour'
+        ],
         'greeting': [
             'hi',
             'hello',
@@ -161,6 +177,11 @@ class IntentAgent:
             r'\bcan\'?t\s+(log\s+in|access|sign\s+in)',
             r'\b(forgot|lost|reset)\s+(my\s+)?password',
             r'\bhow\s+(do\s+i|can\s+i|to)\s+(change|update|reset)\s+(my\s+)?(password|email)',
+        ],
+        'onboarding': [
+            r'\bhow\s+(do\s+i|can\s+i)\s+(get\s+started|start)',
+            r'\b(help\s+me\s+)?(create|set\s*up)\s+(an\s+)?account',
+            r'\b(first\s+login|welcome\s+tour|new\s+user\s+guide)',
         ]
     }
     
@@ -181,6 +202,7 @@ class IntentAgent:
             'track_order': 0,
             'process_return': 0,
             'account_issues': 0,
+            'onboarding': 0,
             'close_conversation': 0,
             'general_inquiry': 0,
             'high_confidence': 0,
@@ -404,7 +426,17 @@ class IntentAgent:
                 entities['issue_type'] = 'email'
             elif 'login' in text or 'log in' in text or 'sign in' in text:
                 entities['issue_type'] = 'login'
-        
+
+        elif intent == 'onboarding':
+            if any(phrase in text for phrase in ['create account', 'sign up', 'register', 'new account']):
+                entities['onboarding_stage'] = 'account_creation'
+            elif any(phrase in text for phrase in ['first login', 'log in', 'sign in']):
+                entities['onboarding_stage'] = 'first_login'
+            elif any(phrase in text for phrase in ['welcome tour', 'tour', 'walkthrough', 'tutorial']):
+                entities['onboarding_stage'] = 'welcome_tour'
+            elif 'get started' in text or 'getting started' in text:
+                entities['onboarding_stage'] = 'getting_started'
+
         return entities
     
     def _classify_with_ml(self, text: str, history: List[str]) -> Dict[str, Any]:
