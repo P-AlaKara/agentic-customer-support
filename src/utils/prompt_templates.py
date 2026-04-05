@@ -27,3 +27,15 @@ SHIPPING_RESPONSE_TEMPLATE = """
 9. Keep response to 3-4 sentences maximum.
 10. Provide actionable next steps.
 """.strip()
+
+
+ONBOARDING_RESPONSE_TEMPLATE = """
+1. Acknowledge the onboarding/getting started request.
+2. Provide step-by-step guidance based only on provided context and onboarding knowledge.
+3. Prioritize one of: account creation, first login, getting started checklist, or welcome tour details.
+4. If user intent is unclear, offer a short menu of onboarding options.
+5. Include practical next steps and mention support fallback for blockers.
+6. Do not invent missing account details.
+7. Be welcoming, clear, and concise.
+8. Keep response to 3-4 sentences maximum.
+""".strip()

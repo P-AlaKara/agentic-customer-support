@@ -23,7 +23,7 @@ try:
     from ..coordinator import CoordinatorAgent
     from ..agents import (
         SentimentAgent, IntentAgent, EscalationAgent, 
-        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent
+        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent, OnboardingAgent
     )
 except (ImportError, ValueError):
     import sys
@@ -34,7 +34,7 @@ except (ImportError, ValueError):
     from src.coordinator import CoordinatorAgent
     from src.agents import (
         SentimentAgent, IntentAgent, EscalationAgent,
-        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent
+        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent, OnboardingAgent
     )
 
 
@@ -57,6 +57,7 @@ AGENT_EVENT_RELATIONSHIPS = {
             "TASK_HANDLE_ORDER_TRACKING",
             "TASK_HANDLE_GREETING",
             "TASK_HANDLE_CLOSING",
+            "TASK_HANDLE_ONBOARDING",
             "TASK_ESCALATE"
         ],
         "subscribed_events": [
@@ -97,6 +98,10 @@ AGENT_EVENT_RELATIONSHIPS = {
     "shipping": {
         "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
         "subscribed_events": ["TASK_HANDLE_ORDER_TRACKING"]
+    },
+    "onboarding": {
+        "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
+        "subscribed_events": ["TASK_HANDLE_ONBOARDING"]
     }
 }
 
@@ -187,6 +192,7 @@ intent_agent = IntentAgent(bus)
 escalation_agent = EscalationAgent(bus)
 returns_agent = ReturnsAgent(bus)
 shipping_agent = ShippingAgent(bus)
+onboarding_agent = OnboardingAgent(bus)
 greeting_handler = GreetingAgent(bus)
 
 # Response collector for /chat endpoint

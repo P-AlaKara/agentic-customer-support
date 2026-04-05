@@ -85,6 +85,7 @@ class CoordinatorAgent:
         'greeting': 'TASK_HANDLE_GREETING',               # General conversation starter
         'close_conversation': 'TASK_HANDLE_CLOSING',      # Graceful explicit close
         'account_issues': 'TASK_ESCALATE',                # Escalate to human for now
+        'onboarding': 'TASK_HANDLE_ONBOARDING',            # Onboarding Agent
         'general_inquiry': 'TASK_ESCALATE',               # Escalate to human for now
     }
     

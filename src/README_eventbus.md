@@ -47,6 +47,7 @@ class MyAgent:
 ### Business Process Agents
 - `TASK_HANDLE_RETURNS` - Published by Coordinator
 - `TASK_HANDLE_ORDER_TRACKING` - Published by Coordinator
+- `TASK_HANDLE_ONBOARDING` - Published by Coordinator
 - `TASK_HANDLE_GENERAL_INQUIRY` - Published by Coordinator
 
 ### Escalation
