@@ -23,7 +23,8 @@ try:
     from ..coordinator import CoordinatorAgent
     from ..agents import (
         SentimentAgent, IntentAgent, EscalationAgent, 
-        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent
+        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent, OnboardingAgent,
+        STTService, TTSService, VoiceInputRouter
     )
 except (ImportError, ValueError):
     import sys
@@ -34,7 +35,8 @@ except (ImportError, ValueError):
     from src.coordinator import CoordinatorAgent
     from src.agents import (
         SentimentAgent, IntentAgent, EscalationAgent,
-        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent
+        TranscriptionAgent, ReturnsAgent, ShippingAgent, GreetingAgent, OnboardingAgent,
+        STTService, TTSService, VoiceInputRouter
     )
 
 
@@ -57,6 +59,7 @@ AGENT_EVENT_RELATIONSHIPS = {
             "TASK_HANDLE_ORDER_TRACKING",
             "TASK_HANDLE_GREETING",
             "TASK_HANDLE_CLOSING",
+            "TASK_HANDLE_ONBOARDING",
             "TASK_ESCALATE"
         ],
         "subscribed_events": [
@@ -97,6 +100,22 @@ AGENT_EVENT_RELATIONSHIPS = {
     "shipping": {
         "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
         "subscribed_events": ["TASK_HANDLE_ORDER_TRACKING"]
+    },
+    "onboarding": {
+        "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
+        "subscribed_events": ["TASK_HANDLE_ONBOARDING"]
+    },
+    "stt_service": {
+        "published_events": ["VOICE_TRANSCRIPTION_COMPLETED", "VOICE_TRANSCRIPTION_FAILED"],
+        "subscribed_events": ["VOICE_INPUT_RECEIVED"]
+    },
+    "voice_router": {
+        "published_events": ["NEW_USER_MESSAGE", "RESULT_SEND_RESPONSE_TO_USER"],
+        "subscribed_events": ["VOICE_INPUT_RECEIVED", "VOICE_TRANSCRIPTION_COMPLETED", "VOICE_TRANSCRIPTION_FAILED"]
+    },
+    "tts_service": {
+        "published_events": ["VOICE_SYNTHESIS_COMPLETED"],
+        "subscribed_events": ["VOICE_INPUT_RECEIVED", "RESULT_SEND_RESPONSE_TO_USER"]
     }
 }
 
@@ -119,6 +138,24 @@ class ChatResponse(BaseModel):
     status: str  # "processing", "responded", "escalated"
     final: bool = False
     timestamp: str
+
+
+class VoiceChatRequest(BaseModel):
+    """Incoming voice payload for STT pipeline."""
+    audio_base64: Optional[str] = Field(None, description="Base64-encoded audio payload")
+    mime_type: Optional[str] = Field('audio/webm', description="Audio MIME type")
+    transcript_preview: Optional[str] = Field(None, description="Optional live transcript preview from browser")
+    session_id: Optional[str] = Field(None, description="Session ID (auto-generated if not provided)")
+    customer_email: Optional[str] = Field(None, description="Customer email (optional)")
+
+
+class VoiceChatResponse(ChatResponse):
+    """Voice response with synthesized audio metadata."""
+    transcript: Optional[str] = None
+    voice_enabled: bool = True
+    audio_base64: Optional[str] = None
+    audio_format: Optional[str] = None
+    voice_name: Optional[str] = None
 
 class OperatorAssignment(BaseModel):
     """Operator assignment request"""
@@ -187,15 +224,22 @@ intent_agent = IntentAgent(bus)
 escalation_agent = EscalationAgent(bus)
 returns_agent = ReturnsAgent(bus)
 shipping_agent = ShippingAgent(bus)
+onboarding_agent = OnboardingAgent(bus)
 greeting_handler = GreetingAgent(bus)
+stt_service = STTService(bus)
+voice_input_router = VoiceInputRouter(bus)
+tts_service = TTSService(bus)
 
 # Response collector for /chat endpoint
 class ResponseCollector:
     """Collects agent responses for the /chat endpoint"""
     def __init__(self):
         self.responses = {}  # session_id -> response
+        self.voice_outputs = {}  # session_id -> synthesized audio
         bus.subscribe('RESULT_SEND_RESPONSE_TO_USER', self.collect)
         bus.subscribe('RESULT_ESCALATION_COMPLETE', self.collect_escalation)
+        bus.subscribe('VOICE_SYNTHESIS_COMPLETED', self.collect_voice_output)
+        bus.subscribe('VOICE_TRANSCRIPTION_COMPLETED', self.collect_transcript)
     
     def collect(self, event):
         """Collect agent response"""
@@ -218,6 +262,31 @@ class ResponseCollector:
             'status': 'escalated',
             'final': False
         }
+
+    def collect_voice_output(self, event):
+        """Collect synthesized voice payload for session."""
+        payload = event.payload
+        self.voice_outputs[payload['session_id']] = {
+            'audio_base64': payload.get('audio_base64'),
+            'audio_format': payload.get('format'),
+            'voice_name': payload.get('voice'),
+            'source': payload.get('source'),
+            'error': payload.get('error')
+        }
+
+    def collect_transcript(self, event):
+        payload = event.payload
+        entry = self.responses.get(payload['session_id'])
+        if entry is not None:
+            entry['transcript'] = payload.get('text')
+        else:
+            self.responses[payload['session_id']] = {
+                'text': None,
+                'agent': 'STT_SERVICE',
+                'status': 'processing',
+                'final': False,
+                'transcript': payload.get('text')
+            }
     
     def get_response(self, session_id: str, timeout: float = 5.0) -> Optional[Dict]:
         """Wait for and retrieve response"""
@@ -226,6 +295,16 @@ class ResponseCollector:
         while time.time() - start < timeout:
             if session_id in self.responses:
                 return self.responses.pop(session_id)
+            time.sleep(0.1)
+        return None
+
+    def get_voice_output(self, session_id: str, timeout: float = 6.0) -> Optional[Dict]:
+        """Wait for synthesized voice output."""
+        import time
+        start = time.time()
+        while time.time() - start < timeout:
+            if session_id in self.voice_outputs:
+                return self.voice_outputs.pop(session_id)
             time.sleep(0.1)
         return None
 
@@ -300,6 +379,55 @@ async def chat(message: ChatMessage):
     except Exception as e:
         logger.error(f"[API] Error in /chat: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/voice/chat", response_model=VoiceChatResponse)
+async def voice_chat(message: VoiceChatRequest):
+    """
+    Voice chat endpoint:
+    VOICE_INPUT_RECEIVED -> VOICE_TRANSCRIPTION_COMPLETED -> NEW_USER_MESSAGE -> normal flow.
+    TTS runs from RESULT_SEND_RESPONSE_TO_USER and returns synthesized audio payload.
+    """
+    try:
+        session_id = message.session_id or str(uuid.uuid4())
+
+        bus.publish('VOICE_INPUT_RECEIVED', {
+            'session_id': session_id,
+            'audio_base64': message.audio_base64,
+            'mime_type': message.mime_type,
+            'transcript_preview': message.transcript_preview,
+            'customer_email': message.customer_email
+        })
+
+        response_data = response_collector.get_response(session_id, timeout=12.0)
+        if not response_data:
+            return VoiceChatResponse(
+                session_id=session_id,
+                response="I'm still processing your voice message. Please try again in a moment.",
+                status="processing",
+                final=False,
+                transcript=message.transcript_preview,
+                timestamp=datetime.utcnow().isoformat(),
+                voice_enabled=True
+            )
+
+        voice_data = response_collector.get_voice_output(session_id, timeout=4.0) or {}
+
+        return VoiceChatResponse(
+            session_id=session_id,
+            response=response_data.get('text') or '',
+            status=response_data.get('status', 'responded'),
+            final=response_data.get('final', False),
+            transcript=response_data.get('transcript') or message.transcript_preview,
+            audio_base64=voice_data.get('audio_base64'),
+            audio_format=voice_data.get('audio_format'),
+            voice_name=voice_data.get('voice_name'),
+            voice_enabled=True,
+            timestamp=datetime.utcnow().isoformat()
+        )
+    except Exception as e:
+        logger.error(f"[API] Error in /voice/chat: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Voice pipeline error: {str(e)}")
 
 
 @app.get("/chat/{session_id}")
@@ -659,6 +787,34 @@ async def get_agents_status():
                 "stats": shipping_agent.get_stats(),
                 "event_count": len(agent_event_history.get('shipping', [])),
                 **AGENT_EVENT_RELATIONSHIPS.get('shipping', {})
+            },
+            {
+                "name": "Onboarding Agent",
+                "health": "healthy",
+                "stats": onboarding_agent.get_stats(),
+                "event_count": len(agent_event_history.get('onboarding', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('onboarding', {})
+            },
+            {
+                "name": "STT Service",
+                "health": "healthy",
+                "stats": stt_service.get_stats(),
+                "event_count": len(agent_event_history.get('stt_service', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('stt_service', {})
+            },
+            {
+                "name": "Voice Router",
+                "health": "healthy",
+                "stats": voice_input_router.get_stats(),
+                "event_count": len(agent_event_history.get('voice_router', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('voice_router', {})
+            },
+            {
+                "name": "TTS Service",
+                "health": "healthy",
+                "stats": tts_service.get_stats(),
+                "event_count": len(agent_event_history.get('tts_service', [])),
+                **AGENT_EVENT_RELATIONSHIPS.get('tts_service', {})
             }
         ]
         
@@ -683,7 +839,11 @@ async def health_check():
             "transcription": "active",
             "returns": "active",
             "shipping": "active",
-            "greeting": "active"
+            "onboarding": "active",
+            "greeting": "active",
+            "stt_service": "active",
+            "voice_router": "active",
+            "tts_service": "active"
         }
     }
 
@@ -1200,6 +1360,7 @@ async def root():
         "endpoints": {
             "user": {
                 "chat": "POST /chat",
+                "voice_chat": "POST /voice/chat",
                 "session": "GET /chat/{session_id}"
             },
             "operator": {

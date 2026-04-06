@@ -5,5 +5,12 @@ setup(
     name="customer-support-agents",
     version="0.1.0",
     packages=find_packages(),
-    install_requires=[],
+    install_requires=[
+        "fastapi",
+        "uvicorn",
+        "pydantic",
+        "python-dotenv",
+        "faster-whisper",
+        "edge-tts",
+    ],
 )

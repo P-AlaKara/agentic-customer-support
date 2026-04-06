@@ -545,12 +545,44 @@
             height: 14px;
         }
 
+        .mic-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .mic-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .mic-btn.recording {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #b91c1c;
+            box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+        }
+        .mic-btn svg { width: 16px; height: 16px; }
+
         .input-hint {
             font-size: 11px;
             color: var(--text-muted);
             margin-top: 8px;
             padding-left: 2px;
         }
+
+        .voice-feedback {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            min-height: 18px;
+        }
+
+        .voice-feedback.active { color: var(--accent); }
     </style>
 </head>
 <body>
@@ -642,6 +674,13 @@
                     onkeypress="handleKeyPress(event)"
                     autocomplete="off"
                 >
+                <button class="mic-btn" id="micButton" onclick="toggleRecording()" title="Voice input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+                        <path d="M5 10a7 7 0 0 0 14 0"></path>
+                        <line x1="12" y1="19" x2="12" y2="22"></line>
+                    </svg>
+                </button>
                 <button class="send-btn" onclick="sendMessage()" id="sendButton">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -650,6 +689,7 @@
                 </button>
             </div>
             <div class="input-hint">Press Enter to send</div>
+            <div class="voice-feedback" id="voiceFeedback">Voice: ready. Tap mic to speak.</div>
         </div>
 
     </div>
@@ -662,6 +702,11 @@
     const customerEmail = 'customer@example.com';
     let seenMessageTimestamps = new Set();
     let messagesShown = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let recognition = null;
+    let liveTranscript = '';
 
     function updateSessionInfo() {
         const el = document.getElementById('sessionInfo');
@@ -706,6 +751,12 @@
     function setTyping(on) {
         document.getElementById('typingRow').classList.toggle('active', on);
         document.getElementById('sendButton').disabled = on;
+    }
+
+    function setVoiceFeedback(text, active = false) {
+        const el = document.getElementById('voiceFeedback');
+        el.textContent = text;
+        el.classList.toggle('active', active);
     }
 
     function sendSuggestion(text) {
@@ -764,6 +815,162 @@
         } catch (e) {
             setTyping(false);
             addMessage('Sorry, something went wrong. Please try again.', 'agent');
+        }
+    }
+
+    function supportsSpeechRecognition() {
+        return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+    }
+
+    function startLiveTranscriptPreview() {
+        if (!supportsSpeechRecognition()) return;
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SR();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-KE';
+
+        recognition.onresult = (event) => {
+            let interim = '';
+            let final = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) final += transcript + ' ';
+                else interim += transcript;
+            }
+            liveTranscript = (final + interim).trim();
+            if (liveTranscript) setVoiceFeedback(`Listening… ${liveTranscript}`, true);
+        };
+
+        recognition.onerror = () => {};
+        recognition.start();
+    }
+
+    function stopLiveTranscriptPreview() {
+        if (recognition) {
+            try { recognition.stop(); } catch (e) {}
+            recognition = null;
+        }
+    }
+
+    async function toggleRecording() {
+        if (isRecording) {
+            stopRecording();
+            return;
+        }
+        await startRecording();
+    }
+
+    async function startRecording() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setVoiceFeedback('Voice capture is not supported in this browser.', false);
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            liveTranscript = '';
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(track => track.stop());
+                stopLiveTranscriptPreview();
+                setVoiceFeedback('Processing speech…', true);
+                await sendVoiceMessage();
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            document.getElementById('micButton').classList.add('recording');
+            setVoiceFeedback('Listening… speak now.', true);
+            startLiveTranscriptPreview();
+        } catch (err) {
+            setVoiceFeedback('Microphone access was denied or unavailable.', false);
+        }
+    }
+
+    function stopRecording() {
+        if (!mediaRecorder || !isRecording) return;
+        isRecording = false;
+        document.getElementById('micButton').classList.remove('recording');
+        mediaRecorder.stop();
+    }
+
+    async function sendVoiceMessage() {
+        if (!audioChunks.length && !liveTranscript.trim()) {
+            setVoiceFeedback('No speech detected. Please try again.', false);
+            return;
+        }
+
+        setTyping(true);
+        const audioBlob = audioChunks.length ? new Blob(audioChunks, { type: mediaRecorder?.mimeType || 'audio/webm' }) : null;
+        let audioBase64 = null;
+        let mimeType = 'audio/webm';
+
+        if (audioBlob) {
+            mimeType = audioBlob.type || 'audio/webm';
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            bytes.forEach((b) => binary += String.fromCharCode(b));
+            audioBase64 = btoa(binary);
+        }
+
+        try {
+            const r = await fetch(`${API_URL}/voice/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    audio_base64: audioBase64,
+                    mime_type: mimeType,
+                    transcript_preview: liveTranscript || null,
+                    session_id: sessionId,
+                    customer_email: customerEmail
+                })
+            });
+            if (!r.ok) throw new Error();
+            const data = await r.json();
+
+            if (!sessionId) {
+                sessionId = data.session_id;
+                localStorage.setItem('sessionId', sessionId);
+                updateSessionInfo();
+                seenMessageTimestamps.clear();
+            }
+
+            const transcriptText = data.transcript || liveTranscript || '[Voice message]';
+            addMessage(transcriptText, 'user');
+            addMessage(data.response, 'agent', data.status);
+
+            if (data.audio_base64) {
+                const format = data.audio_format || 'mp3';
+                const audio = new Audio(`data:audio/${format};base64,${data.audio_base64}`);
+                audio.play().catch(() => {});
+                setVoiceFeedback(`Done. Played voice response (${data.voice_name || 'Kenyan voice'}).`, false);
+            } else if ('speechSynthesis' in window && data.response) {
+                const utterance = new SpeechSynthesisUtterance(data.response);
+                utterance.lang = 'en-KE';
+                speechSynthesis.speak(utterance);
+                setVoiceFeedback('Done. Used browser voice fallback.', false);
+            } else {
+                setVoiceFeedback('Done. Voice output unavailable, text shown.', false);
+            }
+
+            setTyping(false);
+            await syncSeenMessages();
+        } catch (e) {
+            setTyping(false);
+            setVoiceFeedback('Voice processing failed. Please try again or type.', false);
+            addMessage('Sorry, voice processing failed. Please try again.', 'agent');
+        } finally {
+            audioChunks = [];
+            liveTranscript = '';
         }
     }
 

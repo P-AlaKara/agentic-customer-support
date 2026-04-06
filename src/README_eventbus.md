@@ -47,7 +47,15 @@ class MyAgent:
 ### Business Process Agents
 - `TASK_HANDLE_RETURNS` - Published by Coordinator
 - `TASK_HANDLE_ORDER_TRACKING` - Published by Coordinator
+- `TASK_HANDLE_ONBOARDING` - Published by Coordinator
 - `TASK_HANDLE_GENERAL_INQUIRY` - Published by Coordinator
+
+### Voice Interaction (Prototype)
+- `VOICE_INPUT_RECEIVED` - Published by API Gateway voice endpoint
+- `VOICE_TRANSCRIPTION_COMPLETED` - Published by STT service
+- `VOICE_TRANSCRIPTION_FAILED` - Published by STT service
+- `VOICE_SYNTHESIS_COMPLETED` - Published by TTS service
+- `NEW_USER_MESSAGE` - Published by Voice router after transcription, then normal flow
 
 ### Escalation
 - `TASK_ESCALATE` - Published by Coordinator when gates fail

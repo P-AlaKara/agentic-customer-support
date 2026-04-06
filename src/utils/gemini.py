@@ -156,6 +156,7 @@ Generate the response:"""
             'process_return': "I can help you with your return request. Please provide your order number and I'll check the status for you.",
             'track_order': "I can help you track your order. Please provide your order number and I'll look up the shipping status.",
             'account_issues': "I can assist you with your account. Please let me know what specific issue you're experiencing.",
+            'onboarding': "Welcome! I can help you create your account, complete first login, and get started quickly. Tell me where you'd like to begin.",
             'general_inquiry': "I'm here to help! Please provide more details about what you need assistance with."
         }
         
