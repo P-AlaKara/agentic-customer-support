@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Command Center</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -964,6 +965,319 @@
             background: #cbd5e1;
         }
 
+        /* ================================================================
+           Analytics Dashboard
+           ================================================================ */
+        .analytics-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .analytics-preset {
+            font-size: 13px;
+            padding: 8px 14px;
+        }
+
+        .analytics-preset.active {
+            background: #1d4ed8;
+            color: white;
+            border-color: #1d4ed8;
+        }
+
+        .analytics-timestamp {
+            font-size: 12px;
+            color: #71767b;
+            margin-left: auto;
+        }
+
+        .analytics-custom-range {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .analytics-custom-range input {
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            color: #e7e9ea;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .analytics-custom-range span {
+            color: #71767b;
+            font-size: 13px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: linear-gradient(135deg, #16181c 0%, #1a1d24 100%);
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            animation: kpiFadeIn 0.5s ease forwards;
+            opacity: 0;
+        }
+
+        @keyframes kpiFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+
+        .kpi-card-0::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .kpi-card-1::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .kpi-card-2::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .kpi-card-3::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+        .kpi-icon {
+            font-size: 20px;
+            color: #71767b;
+            margin-bottom: 12px;
+        }
+
+        .kpi-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #e7e9ea;
+            line-height: 1.2;
+        }
+
+        .kpi-label {
+            font-size: 14px;
+            color: #71767b;
+            margin-top: 4px;
+        }
+
+        .kpi-trend {
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .kpi-trend.positive { color: #10b981; }
+        .kpi-trend.negative { color: #ef4444; }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-card {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 20px;
+            animation: kpiFadeIn 0.5s ease forwards;
+            opacity: 0;
+            animation-delay: 0.3s;
+        }
+
+        .chart-card .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .chart-card canvas {
+            width: 100% !important;
+            max-height: 300px;
+        }
+
+        .chart-card-wide {
+            grid-column: 1 / -1;
+        }
+
+        .insights-panel {
+            margin-bottom: 24px;
+            animation: kpiFadeIn 0.5s ease forwards;
+            animation-delay: 0.2s;
+            opacity: 0;
+        }
+
+        .insight-item {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid;
+        }
+
+        .insight-item:last-child { margin-bottom: 0; }
+
+        .insight-warning {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.06);
+        }
+
+        .insight-success {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.06);
+        }
+
+        .insight-info {
+            border-left-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.06);
+        }
+
+        .insight-icon { font-size: 18px; padding-top: 2px; }
+        .insight-warning .insight-icon { color: #f59e0b; }
+        .insight-success .insight-icon { color: #10b981; }
+        .insight-info .insight-icon { color: #3b82f6; }
+
+        .insight-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .insight-detail {
+            font-size: 13px;
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+
+        .insight-rec {
+            font-size: 12px;
+            color: #71767b;
+            font-style: italic;
+        }
+
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: 56px repeat(7, 1fr);
+            gap: 3px;
+            font-size: 12px;
+        }
+
+        .heatmap-corner { }
+
+        .heatmap-day-label,
+        .heatmap-hour-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #71767b;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .heatmap-hour-label {
+            justify-content: flex-end;
+            padding-right: 8px;
+        }
+
+        .heatmap-cell {
+            aspect-ratio: 1.4;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+            cursor: default;
+            transition: transform 0.15s ease;
+            min-height: 32px;
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.08);
+            z-index: 1;
+        }
+
+        .word-cloud-section { margin-bottom: 4px; }
+
+        .word-cloud-section h4 {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .word-cloud-words {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 10px;
+            align-items: baseline;
+            padding: 8px 0;
+            line-height: 1.8;
+        }
+
+        .word-cloud-word {
+            display: inline-block;
+            cursor: default;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+            font-weight: 600;
+        }
+
+        .word-cloud-word:hover {
+            transform: scale(1.15);
+            opacity: 1 !important;
+        }
+
+        body.light-mode .kpi-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-color: #d7dee8;
+        }
+
+        body.light-mode .kpi-value { color: #111827; }
+        body.light-mode .kpi-label { color: #64748b; }
+
+        body.light-mode .chart-card {
+            background: #ffffff;
+            border-color: #d7dee8;
+        }
+
+        body.light-mode .analytics-custom-range input {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            color: #111827;
+        }
+
+        body.light-mode .analytics-preset.active {
+            background: #2563eb;
+        }
+
+        body.light-mode .heatmap-cell {
+            color: rgba(0,0,0,0.6);
+        }
+
+        body.light-mode .insight-title,
+        body.light-mode .chart-card .card-title {
+            color: #111827;
+        }
+
+        @media (max-width: 1200px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .chart-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .analytics-toolbar { flex-direction: column; align-items: stretch; }
+            .analytics-timestamp { margin-left: 0; }
+        }
+
     </style>
 </head>
 <body>
@@ -1006,6 +1320,10 @@
                 <div class="nav-item" onclick="showSection('tracer', this)">
                     <i class="fas fa-route"></i>
                     <span>Conversation Tracer</span>
+                </div>
+                <div class="nav-item" onclick="showSection('analytics', this)">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Analytics</span>
                 </div>
             </nav>
         </div>
@@ -1243,6 +1561,94 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Analytics Section -->
+            <div id="analytics-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Analytics Dashboard</h2>
+                    <p>Business intelligence and customer support insights</p>
+                </div>
+                <div class="content-body">
+                    <div class="analytics-toolbar">
+                        <button class="btn btn-secondary analytics-preset active" onclick="setAnalyticsDateRange(7, this)">Last 7 Days</button>
+                        <button class="btn btn-secondary analytics-preset" onclick="setAnalyticsDateRange(30, this)">Last 30 Days</button>
+                        <button class="btn btn-secondary analytics-preset" onclick="setAnalyticsDateRange(90, this)">Last 90 Days</button>
+                        <div class="analytics-custom-range">
+                            <input type="date" id="analyticsDateFrom">
+                            <span>to</span>
+                            <input type="date" id="analyticsDateTo">
+                        </div>
+                        <button class="btn btn-primary" onclick="loadAnalytics()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                        <span id="analyticsLastUpdated" class="analytics-timestamp"></span>
+                    </div>
+
+                    <div class="kpi-grid" id="kpiGrid">
+                        <div class="loading"><div class="spinner"></div><p>Select a date range to load analytics</p></div>
+                    </div>
+
+                    <div class="card insights-panel" id="insightsPanel" style="display: none;">
+                        <div class="card-header">
+                            <div class="card-title"><i class="fas fa-lightbulb"></i> Key Insights</div>
+                        </div>
+                        <div id="insightsContent"></div>
+                    </div>
+
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-chart-line"></i> Conversations Over Time</div>
+                            <canvas id="conversationsChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-chart-pie"></i> Resolution Rate</div>
+                            <canvas id="resolutionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-exclamation-circle"></i> Top Customer Pain Points</div>
+                            <canvas id="painPointsChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-heart"></i> Sentiment Trend</div>
+                            <canvas id="sentimentChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-grid">
+                        <div class="chart-card chart-card-wide">
+                            <div class="card-title"><i class="fas fa-robot"></i> Agent Performance</div>
+                            <div class="table-container" id="agentPerfTable">
+                                <div class="empty-state"><p>Load analytics to view agent performance</p></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-tags"></i> Intent Breakdown</div>
+                            <canvas id="intentChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-th"></i> Busy Hours</div>
+                            <div id="heatmapContainer">
+                                <div class="empty-state"><p>Load analytics to view heatmap</p></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-grid">
+                        <div class="chart-card chart-card-wide">
+                            <div class="card-title"><i class="fas fa-cloud"></i> Customer Keywords</div>
+                            <div id="wordCloudContainer" class="word-cloud">
+                                <div class="empty-state"><p>Load analytics to view word cloud</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1370,6 +1776,9 @@
                     break;
                 case 'agents':
                     loadAgentDetails();
+                    break;
+                case 'analytics':
+                    loadAnalytics();
                     break;
             }
         }
@@ -1988,6 +2397,447 @@
 
         function closeTraceDetail() {
             document.getElementById('traceDetail').style.display = 'none';
+        }
+
+        // ============================================================
+        // Analytics Dashboard
+        // ============================================================
+        let analyticsCharts = {};
+        let analyticsData = {};
+
+        function getThemeColors() {
+            const isLight = document.body.classList.contains('light-mode');
+            return {
+                text: isLight ? '#111827' : '#e7e9ea',
+                subtext: isLight ? '#64748b' : '#71767b',
+                grid: isLight ? '#e5e7eb' : '#2f3336'
+            };
+        }
+
+        function setAnalyticsDateRange(days, btn) {
+            const to = new Date();
+            const from = new Date();
+            from.setDate(from.getDate() - days);
+            document.getElementById('analyticsDateFrom').value = from.toISOString().split('T')[0];
+            document.getElementById('analyticsDateTo').value = to.toISOString().split('T')[0];
+            document.querySelectorAll('.analytics-preset').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            loadAnalytics();
+        }
+
+        function getAnalyticsParams() {
+            const params = new URLSearchParams();
+            const from = document.getElementById('analyticsDateFrom').value;
+            const to = document.getElementById('analyticsDateTo').value;
+            if (from) params.append('date_from', from);
+            if (to) params.append('date_to', to);
+            return params;
+        }
+
+        function destroyChart(key) {
+            if (analyticsCharts[key]) {
+                analyticsCharts[key].destroy();
+                delete analyticsCharts[key];
+            }
+        }
+
+        function animateValue(el, target, duration, isPercent, decimals) {
+            duration = duration || 1000;
+            decimals = decimals || 0;
+            const startTime = performance.now();
+            function update(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = target * eased;
+                if (isPercent) {
+                    el.textContent = current.toFixed(decimals) + '%';
+                } else {
+                    el.textContent = decimals > 0 ? current.toFixed(decimals) : Math.round(current).toLocaleString();
+                }
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+
+        async function loadAnalytics() {
+            const params = getAnalyticsParams();
+            document.getElementById('kpiGrid').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading analytics...</p></div>';
+
+            try {
+                const [conversations, painPoints, agentPerf, businessMetrics, textInsights] = await Promise.all([
+                    fetch(`${API_URL}/admin/analytics/conversations?${params}`).then(r => r.json()).catch(() => null),
+                    fetch(`${API_URL}/admin/analytics/pain-points?${params}`).then(r => r.json()).catch(() => null),
+                    fetch(`${API_URL}/admin/analytics/agent-performance?${params}`).then(r => r.json()).catch(() => null),
+                    fetch(`${API_URL}/admin/analytics/business-metrics?${params}`).then(r => r.json()).catch(() => null),
+                    fetch(`${API_URL}/admin/analytics/text-insights?${params}`).then(r => r.json()).catch(() => null)
+                ]);
+
+                analyticsData = { conversations, painPoints, agentPerf, businessMetrics, textInsights };
+
+                renderKPICards(conversations, businessMetrics);
+                renderInsights(businessMetrics ? businessMetrics.insights : []);
+                renderConversationsChart(conversations);
+                renderResolutionDonut(conversations);
+                renderPainPointsChart(painPoints);
+                renderSentimentChart(businessMetrics);
+                renderAgentTable(agentPerf);
+                renderIntentPie(painPoints);
+                renderHeatmap(businessMetrics);
+                renderWordClouds(textInsights);
+
+                document.getElementById('analyticsLastUpdated').textContent =
+                    'Last updated: ' + new Date().toLocaleTimeString();
+            } catch (err) {
+                console.error('Analytics load error:', err);
+                document.getElementById('kpiGrid').innerHTML =
+                    '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading analytics data</p></div>';
+            }
+        }
+
+        function renderKPICards(conv, biz) {
+            if (!conv) {
+                document.getElementById('kpiGrid').innerHTML = '<div class="empty-state"><p>No conversation data available</p></div>';
+                return;
+            }
+            const cmp = conv.period_comparison || {};
+            const cards = [
+                { label: 'Total Conversations', value: conv.total_conversations || 0, change: cmp.conversations_change || 0, format: 'number', icon: 'comments', goodDir: 'neutral' },
+                { label: 'Resolution Rate', value: conv.resolution_rate || 0, change: cmp.resolution_change || 0, format: 'percent', icon: 'check-circle', goodDir: 'up' },
+                { label: 'Avg Handle Time', value: conv.avg_duration_seconds || 0, change: cmp.duration_change || 0, format: 'duration', icon: 'clock', goodDir: 'down' },
+                { label: 'Escalation Rate', value: conv.escalation_rate || 0, change: cmp.escalation_change || 0, format: 'percent', icon: 'exclamation-triangle', goodDir: 'down' }
+            ];
+
+            const html = cards.map(function(card, i) {
+                var displayVal;
+                if (card.format === 'duration') {
+                    var secs = Math.round(card.value);
+                    displayVal = secs >= 60 ? Math.floor(secs / 60) + 'm ' + (secs % 60) + 's' : secs + 's';
+                } else if (card.format === 'percent') {
+                    displayVal = card.value.toFixed(1) + '%';
+                } else {
+                    displayVal = card.value.toLocaleString();
+                }
+                var cv = card.change;
+                var isGood = card.goodDir === 'up' ? cv >= 0 : card.goodDir === 'down' ? cv <= 0 : true;
+                var arrow = cv > 0 ? '\u25B2' : cv < 0 ? '\u25BC' : '\u2014';
+                var trendClass = isGood ? 'positive' : 'negative';
+                var changeText = card.format === 'duration'
+                    ? arrow + ' ' + Math.abs(Math.round(cv)) + 's vs prior period'
+                    : arrow + ' ' + Math.abs(cv).toFixed(1) + '% vs prior period';
+
+                return '<div class="kpi-card kpi-card-' + i + '" style="animation-delay:' + (i * 100) + 'ms">' +
+                    '<div class="kpi-icon"><i class="fas fa-' + card.icon + '"></i></div>' +
+                    '<div class="kpi-value" data-target="' + card.value + '" data-format="' + card.format + '">' + displayVal + '</div>' +
+                    '<div class="kpi-label">' + card.label + '</div>' +
+                    '<div class="kpi-trend ' + trendClass + '">' + changeText + '</div>' +
+                    '</div>';
+            }).join('');
+
+            document.getElementById('kpiGrid').innerHTML = html;
+
+            document.querySelectorAll('.kpi-value').forEach(function(el) {
+                var target = parseFloat(el.dataset.target);
+                var fmt = el.dataset.format;
+                if (fmt === 'duration') return;
+                animateValue(el, target, 1000, fmt === 'percent', fmt === 'percent' ? 1 : 0);
+            });
+        }
+
+        function renderInsights(insights) {
+            var panel = document.getElementById('insightsPanel');
+            if (!insights || insights.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            panel.style.display = 'block';
+            var iconMap = { warning: 'exclamation-triangle', success: 'check-circle', info: 'chart-line' };
+            document.getElementById('insightsContent').innerHTML = insights.map(function(ins) {
+                var icon = ins.icon || iconMap[ins.type] || 'info-circle';
+                return '<div class="insight-item insight-' + ins.type + '">' +
+                    '<div class="insight-icon"><i class="fas fa-' + icon + '"></i></div>' +
+                    '<div class="insight-body">' +
+                    '<div class="insight-title">' + escapeHtml(ins.title) + '</div>' +
+                    '<div class="insight-detail">' + escapeHtml(ins.detail) + '</div>' +
+                    '<div class="insight-rec">' + escapeHtml(ins.recommendation) + '</div>' +
+                    '</div></div>';
+            }).join('');
+        }
+
+        function renderConversationsChart(data) {
+            if (!data || !data.conversations_over_time || !data.conversations_over_time.length) return;
+            destroyChart('conversations');
+            var theme = getThemeColors();
+            var ctx = document.getElementById('conversationsChart').getContext('2d');
+            var labels = data.conversations_over_time.map(function(d) { return d.date; });
+
+            analyticsCharts.conversations = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total', data: data.conversations_over_time.map(function(d) { return d.total; }),
+                            borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)',
+                            fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, pointHoverRadius: 6
+                        },
+                        {
+                            label: 'Resolved', data: data.conversations_over_time.map(function(d) { return d.resolved; }),
+                            borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
+                            fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, pointHoverRadius: 6
+                        },
+                        {
+                            label: 'Escalated', data: data.conversations_over_time.map(function(d) { return d.escalated; }),
+                            borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)',
+                            fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, pointHoverRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: theme.text, usePointStyle: true, padding: 16 } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: theme.subtext, maxRotation: 45 }, grid: { color: theme.grid } },
+                        y: { ticks: { color: theme.subtext }, grid: { color: theme.grid }, beginAtZero: true }
+                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false }
+                }
+            });
+        }
+
+        function renderResolutionDonut(data) {
+            if (!data) return;
+            destroyChart('resolution');
+            var theme = getThemeColors();
+            var ctx = document.getElementById('resolutionChart').getContext('2d');
+            var breakdown = data.status_breakdown || {};
+            var labels = Object.keys(breakdown);
+            var values = Object.values(breakdown);
+            if (!labels.length) return;
+
+            var colors = labels.map(function(l) {
+                var u = l.toUpperCase();
+                if (u.indexOf('RESOLVED') >= 0 && u.indexOf('OPERATOR') < 0) return '#10b981';
+                if (u.indexOf('OPERATOR') >= 0 || u.indexOf('HUMAN') >= 0) return '#3b82f6';
+                if (u.indexOf('ESCALATED') >= 0) return '#f59e0b';
+                return '#6b7280';
+            });
+
+            var resRate = data.resolution_rate;
+            analyticsCharts.resolution = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels.map(function(l) { return l.replace(/_/g, ' '); }),
+                    datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '68%',
+                    plugins: {
+                        legend: { position: 'right', labels: { color: theme.text, usePointStyle: true, padding: 14, font: { size: 12 } } }
+                    }
+                },
+                plugins: [{
+                    id: 'centerText',
+                    afterDraw: function(chart) {
+                        var area = chart.chartArea;
+                        if (!area) return;
+                        var c = chart.ctx;
+                        var cx = (area.left + area.right) / 2;
+                        var cy = (area.top + area.bottom) / 2;
+                        c.save();
+                        c.textAlign = 'center';
+                        c.textBaseline = 'middle';
+                        c.font = 'bold 26px -apple-system, BlinkMacSystemFont, sans-serif';
+                        c.fillStyle = theme.text;
+                        c.fillText((resRate || 0).toFixed(1) + '%', cx, cy);
+                        c.restore();
+                    }
+                }]
+            });
+        }
+
+        function renderPainPointsChart(data) {
+            if (!data || !data.intent_distribution || !data.intent_distribution.length) return;
+            destroyChart('painPoints');
+            var theme = getThemeColors();
+            var ctx = document.getElementById('painPointsChart').getContext('2d');
+            var items = data.intent_distribution.slice(0, 8);
+
+            analyticsCharts.painPoints = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: items.map(function(d) { return d.label.replace(/_/g, ' '); }),
+                    datasets: [{
+                        data: items.map(function(d) { return d.count; }),
+                        backgroundColor: ['#3b82f6','#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899','#f43f5e','#f97316'],
+                        borderRadius: 4, barThickness: 22
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(ctx) { return ctx.raw + ' conversations'; } } }
+                    },
+                    scales: {
+                        x: { ticks: { color: theme.subtext }, grid: { color: theme.grid }, beginAtZero: true },
+                        y: { ticks: { color: theme.text, font: { size: 12 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderSentimentChart(data) {
+            if (!data || !data.sentiment_over_time || !data.sentiment_over_time.length) return;
+            destroyChart('sentiment');
+            var theme = getThemeColors();
+            var ctx = document.getElementById('sentimentChart').getContext('2d');
+            var series = data.sentiment_over_time;
+
+            analyticsCharts.sentiment = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: series.map(function(d) { return d.date; }),
+                    datasets: [
+                        { label: 'Positive', data: series.map(function(d) { return d.positive; }), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 2 },
+                        { label: 'Neutral', data: series.map(function(d) { return d.neutral; }), borderColor: '#6b7280', backgroundColor: 'rgba(107,114,128,0.12)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 2 },
+                        { label: 'Negative', data: series.map(function(d) { return d.negative; }), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 2 },
+                        { label: 'Angry', data: series.map(function(d) { return d.angry; }), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.12)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 2 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: theme.text, usePointStyle: true, padding: 14 } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: theme.subtext, maxRotation: 45 }, grid: { color: theme.grid }, stacked: true },
+                        y: { ticks: { color: theme.subtext }, grid: { color: theme.grid }, stacked: true, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function renderAgentTable(data) {
+            var container = document.getElementById('agentPerfTable');
+            if (!data || !data.agents || !data.agents.length) {
+                container.innerHTML = '<div class="empty-state"><p>No agent performance data available</p></div>';
+                return;
+            }
+            var rows = data.agents.map(function(a) {
+                var rateClass = a.success_rate >= 90 ? 'badge-success' : a.success_rate >= 80 ? 'badge-warning' : 'badge-error';
+                var trendArrow = a.trend > 0 ? '\u25B2' : a.trend < 0 ? '\u25BC' : '\u2014';
+                var trendClass = a.trend >= 0 ? 'positive' : 'negative';
+                return '<tr>' +
+                    '<td><strong>' + escapeHtml(a.name) + '</strong></td>' +
+                    '<td><span class="badge ' + rateClass + '">' + a.success_rate.toFixed(1) + '%</span></td>' +
+                    '<td>' + a.avg_confidence.toFixed(2) + '</td>' +
+                    '<td>' + a.total_actions.toLocaleString() + '</td>' +
+                    '<td>' + a.successful.toLocaleString() + '</td>' +
+                    '<td><span class="stat-change ' + trendClass + '">' + trendArrow + ' ' + Math.abs(a.trend).toFixed(1) + '%</span></td>' +
+                    '</tr>';
+            }).join('');
+
+            container.innerHTML = '<table>' +
+                '<thead><tr><th>Agent</th><th>Success Rate</th><th>Avg Confidence</th><th>Total Actions</th><th>Successful</th><th>Trend</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody></table>';
+        }
+
+        function renderIntentPie(data) {
+            if (!data || !data.intent_distribution || !data.intent_distribution.length) return;
+            destroyChart('intent');
+            var theme = getThemeColors();
+            var ctx = document.getElementById('intentChart').getContext('2d');
+            var items = data.intent_distribution.slice(0, 6);
+            var palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+
+            analyticsCharts.intent = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: items.map(function(d) { return d.label.replace(/_/g, ' '); }),
+                    datasets: [{ data: items.map(function(d) { return d.count; }), backgroundColor: palette.slice(0, items.length), borderWidth: 0, hoverOffset: 8 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: theme.text, usePointStyle: true, padding: 12, font: { size: 12 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var total = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                                    var pct = ((ctx.raw / total) * 100).toFixed(1);
+                                    return ctx.label + ': ' + ctx.raw + ' (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderHeatmap(data) {
+            var container = document.getElementById('heatmapContainer');
+            if (!data || !data.busiest_hours || !data.busiest_hours.length) {
+                container.innerHTML = '<div class="empty-state"><p>No heatmap data available</p></div>';
+                return;
+            }
+            var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            var hourBlocks = ['00\u201303','04\u201307','08\u201311','12\u201315','16\u201319','20\u201323'];
+            var matrix = {};
+            var maxCount = 1;
+            data.busiest_hours.forEach(function(row) {
+                var hb = Math.floor(row.hour / 4);
+                var key = row.day_of_week + '-' + hb;
+                matrix[key] = (matrix[key] || 0) + row.count;
+                if (matrix[key] > maxCount) maxCount = matrix[key];
+            });
+
+            var html = '<div class="heatmap-grid"><div class="heatmap-corner"></div>';
+            dayNames.forEach(function(d) { html += '<div class="heatmap-day-label">' + d + '</div>'; });
+
+            for (var hb = 0; hb < hourBlocks.length; hb++) {
+                html += '<div class="heatmap-hour-label">' + hourBlocks[hb] + '</div>';
+                for (var d = 0; d < 7; d++) {
+                    var count = matrix[d + '-' + hb] || 0;
+                    var intensity = count / maxCount;
+                    var opacity = (0.08 + intensity * 0.92).toFixed(2);
+                    var bg = 'rgba(59,130,246,' + opacity + ')';
+                    var title = dayNames[d] + ' ' + hourBlocks[hb] + ': ' + count + ' conversations';
+                    html += '<div class="heatmap-cell" style="background:' + bg + '" title="' + title + '">' + (count || '') + '</div>';
+                }
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderWordClouds(data) {
+            var container = document.getElementById('wordCloudContainer');
+            if (!data) {
+                container.innerHTML = '<div class="empty-state"><p>No text data available</p></div>';
+                return;
+            }
+
+            function buildCloud(words, color) {
+                if (!words || !words.length) return '<p style="color:#71767b; padding:10px 0;">No data available</p>';
+                var maxCount = Math.max.apply(null, words.map(function(w) { return w.count; }));
+                if (maxCount < 1) maxCount = 1;
+                return words.map(function(w) {
+                    var size = 12 + (w.count / maxCount) * 30;
+                    var opacity = (0.45 + (w.count / maxCount) * 0.55).toFixed(2);
+                    return '<span class="word-cloud-word" style="font-size:' + size + 'px;opacity:' + opacity + ';color:' + color + '" title="' + escapeHtml(w.word) + ': ' + w.count + ' mentions">' + escapeHtml(w.word) + '</span>';
+                }).join(' ');
+            }
+
+            var html = '';
+            html += '<div class="word-cloud-section"><h4 style="color:#ef4444;">Negative / Angry Messages</h4>';
+            html += '<div class="word-cloud-words">' + buildCloud(data.negative_word_cloud, '#ef4444') + '</div></div>';
+            html += '<div class="word-cloud-section" style="margin-top:16px;"><h4 style="color:#10b981;">Positive Messages</h4>';
+            html += '<div class="word-cloud-words">' + buildCloud(data.positive_word_cloud, '#10b981') + '</div></div>';
+            container.innerHTML = html;
         }
 
         // Initialize

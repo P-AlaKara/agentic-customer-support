@@ -1,9 +1,11 @@
 import os
+import re
 import uuid
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from threading import RLock
+from collections import Counter
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -1351,6 +1353,699 @@ async def get_agent_events(agent_name: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================================
+# Analytics Endpoints
+# ============================================================================
+
+STOP_WORDS = frozenset({
+    'the','a','an','and','or','but','in','on','at','to','for','of','with','by',
+    'from','is','was','are','were','be','been','being','have','has','had','do',
+    'does','did','will','would','could','should','may','might','can','shall',
+    'this','that','these','those','i','you','he','she','it','we','they','me',
+    'him','her','us','them','my','your','his','its','our','their','what','which',
+    'who','whom','when','where','why','how','not','no','nor','as','if','then',
+    'than','too','very','just','about','so','up','out','all','each','every',
+    'both','few','more','most','other','some','such','only','own','same','also',
+    'into','over','after','before','between','under','again','further','once',
+    'here','there','am','get','got','go','going','went','come','came','make',
+    'made','take','took','know','say','said','like','want','need','please',
+    'thank','thanks','hi','hello','hey','ok','okay','yes','yeah','sure','well',
+    'really','much','still','back','right','now','even','way','because','through',
+    'while','though','however','since','during','without','within','anything',
+    'something','nothing','everything','anyone','someone','everyone','one','two',
+    'new','old','first','last','long','great','little','big','high','small',
+    'large','good','bad','don','doesn','didn','won','wasn','aren','hasn',
+    'haven','wouldn','couldn','shouldn','isn','let','think','see','tell','give',
+    'find','look','call','try','ask','work','seem','feel','leave','put','keep',
+    'thing','help','time','any','day','t','s','d','m','re','ve','ll','able'
+})
+
+
+def _parse_date_range(date_from, date_to, default_days=30):
+    now = datetime.utcnow()
+    try:
+        d_from = datetime.strptime(date_from, '%Y-%m-%d') if date_from else now - timedelta(days=default_days)
+    except (ValueError, TypeError):
+        d_from = now - timedelta(days=default_days)
+    try:
+        d_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1) if date_to else now + timedelta(days=1)
+    except (ValueError, TypeError):
+        d_to = now + timedelta(days=1)
+    period_length = max((d_to - d_from).days, 1)
+    prev_from = d_from - timedelta(days=period_length)
+    prev_to = d_from
+    return d_from, d_to, prev_from, prev_to
+
+
+def _safe_pct(numerator, denominator):
+    if not denominator:
+        return 0.0
+    return round(numerator / denominator * 100, 1)
+
+
+def _generate_insights(current, previous):
+    insights = []
+
+    cur_esc = current.get('escalation_rate', 0)
+    prev_esc = previous.get('escalation_rate', 0)
+    if prev_esc and cur_esc > prev_esc * 1.1:
+        diff = round(cur_esc - prev_esc, 1)
+        insights.append({
+            "type": "warning", "icon": "exclamation-triangle",
+            "title": f"Escalation rate increased {diff}%",
+            "detail": "More conversations are being escalated to human operators",
+            "recommendation": "Review escalation triggers and agent training data"
+        })
+    elif prev_esc and cur_esc < prev_esc * 0.9:
+        diff = round(prev_esc - cur_esc, 1)
+        insights.append({
+            "type": "success", "icon": "check-circle",
+            "title": f"Escalation rate decreased {diff}%",
+            "detail": "Agents are resolving more issues independently",
+            "recommendation": "Document current practices as baseline"
+        })
+
+    neg_pct = current.get('negative_pct', 0)
+    if neg_pct > 30:
+        insights.append({
+            "type": "warning", "icon": "frown",
+            "title": f"High negative sentiment ({round(neg_pct, 1)}%)",
+            "detail": "Customer satisfaction may be declining",
+            "recommendation": "Review recent negative conversations for systemic issues"
+        })
+    elif neg_pct < 15 and current.get('total_conversations', 0) > 0:
+        insights.append({
+            "type": "success", "icon": "smile",
+            "title": f"Low negative sentiment ({round(neg_pct, 1)}%)",
+            "detail": "Customer satisfaction is strong",
+            "recommendation": "Maintain current service quality standards"
+        })
+
+    peak_vol = current.get('peak_volume', 0)
+    avg_vol = current.get('avg_volume', 0)
+    if avg_vol and peak_vol > avg_vol * 1.5:
+        peak_hour = current.get('peak_hour', 0)
+        hour_end = (peak_hour + 3) % 24
+        insights.append({
+            "type": "info", "icon": "clock",
+            "title": f"Peak hours: {peak_hour}:00\u2013{hour_end}:00",
+            "detail": f"Volume is {round((peak_vol / avg_vol - 1) * 100)}% above average during peak",
+            "recommendation": "Consider adding staff coverage or promoting off-peak support"
+        })
+
+    res_rate = current.get('resolution_rate', 0)
+    if res_rate > 90:
+        insights.append({
+            "type": "success", "icon": "chart-line",
+            "title": f"Strong resolution rate ({round(res_rate, 1)}%)",
+            "detail": "System handles most issues without human intervention",
+            "recommendation": "Set this as the performance baseline"
+        })
+    elif res_rate < 70 and current.get('total_conversations', 0) > 0:
+        insights.append({
+            "type": "warning", "icon": "chart-line",
+            "title": f"Low resolution rate ({round(res_rate, 1)}%)",
+            "detail": "Many conversations require escalation",
+            "recommendation": "Review knowledge base coverage and agent training"
+        })
+
+    cur_dur = current.get('avg_duration', 0)
+    prev_dur = previous.get('avg_duration', 0)
+    if prev_dur and cur_dur > prev_dur * 1.2:
+        insights.append({
+            "type": "info", "icon": "hourglass-half",
+            "title": "Handle time increasing",
+            "detail": f"Average duration up from {round(prev_dur)}s to {round(cur_dur)}s",
+            "recommendation": "Investigate if conversations are becoming more complex"
+        })
+
+    return insights
+
+
+@app.get("/admin/analytics/conversations")
+async def get_conversation_analytics(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    interval: str = "day"
+):
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        d_from, d_to, prev_from, prev_to = _parse_date_range(date_from, date_to)
+        valid_intervals = {"day", "week", "month"}
+        trunc = interval if interval in valid_intervals else "day"
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
+                    AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s
+            """, ('%RESOLVED%', '%ESCALATED%', d_from, d_to))
+            summary = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
+                    AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s
+            """, ('%RESOLVED%', '%ESCALATED%', prev_from, prev_to))
+            prev_summary = cursor.fetchone()
+
+            trunc_expr = f"DATE_TRUNC('{trunc}', start_time)"
+            cursor.execute(f"""
+                SELECT
+                    {trunc_expr} as date,
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s
+                GROUP BY {trunc_expr}
+                ORDER BY date
+            """, ('%RESOLVED%', '%ESCALATED%', d_from, d_to))
+            over_time = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT AVG(msg_count) as avg_messages FROM (
+                    SELECT cc.conversation_id, COUNT(cm.message_id) as msg_count
+                    FROM completed_conversations cc
+                    LEFT JOIN completed_messages cm ON cc.conversation_id = cm.conversation_id
+                    WHERE cc.start_time >= %s AND cc.start_time < %s
+                    GROUP BY cc.conversation_id
+                ) sub
+            """, (d_from, d_to))
+            msg_stats = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT COALESCE(final_status, 'UNKNOWN') as status, COUNT(*) as count
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s
+                GROUP BY final_status
+                ORDER BY count DESC
+            """, (d_from, d_to))
+            status_rows = cursor.fetchall()
+
+        total = summary['total'] or 0
+        resolved = summary['resolved'] or 0
+        escalated = summary['escalated'] or 0
+        prev_total = prev_summary['total'] or 0
+        prev_resolved = prev_summary['resolved'] or 0
+
+        resolution_rate = _safe_pct(resolved, total)
+        escalation_rate = _safe_pct(escalated, total)
+        prev_resolution_rate = _safe_pct(prev_resolved, prev_total)
+        prev_escalation_rate = _safe_pct(prev_summary['escalated'] or 0, prev_total)
+
+        return {
+            "total_conversations": total,
+            "avg_duration_seconds": round(summary['avg_duration'] or 0, 1),
+            "resolution_rate": resolution_rate,
+            "escalation_rate": escalation_rate,
+            "avg_messages_per_conversation": round(msg_stats['avg_messages'] or 0, 1),
+            "status_breakdown": {row['status']: row['count'] for row in status_rows},
+            "conversations_over_time": [
+                {
+                    "date": row['date'].strftime('%Y-%m-%d') if row['date'] else None,
+                    "total": row['total'],
+                    "resolved": row['resolved'],
+                    "escalated": row['escalated']
+                }
+                for row in over_time
+            ],
+            "period_comparison": {
+                "conversations_change": round(((total - prev_total) / prev_total * 100) if prev_total else 0, 1),
+                "resolution_change": round(resolution_rate - prev_resolution_rate, 1),
+                "duration_change": round((summary['avg_duration'] or 0) - (prev_summary['avg_duration'] or 0), 1),
+                "escalation_change": round(escalation_rate - prev_escalation_rate, 1)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error in conversation analytics: {e}", exc_info=True)
+        return {
+            "total_conversations": 0, "avg_duration_seconds": 0, "resolution_rate": 0,
+            "escalation_rate": 0, "avg_messages_per_conversation": 0, "status_breakdown": {},
+            "conversations_over_time": [], "period_comparison": {
+                "conversations_change": 0, "resolution_change": 0,
+                "duration_change": 0, "escalation_change": 0
+            }
+        }
+
+
+@app.get("/admin/analytics/pain-points")
+async def get_customer_pain_points(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit: int = 10
+):
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        d_from, d_to, _, _ = _parse_date_range(date_from, date_to)
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute("""
+                SELECT intent_label as label, COUNT(*) as count
+                FROM completed_messages
+                WHERE intent_label IS NOT NULL AND timestamp >= %s AND timestamp < %s
+                GROUP BY intent_label ORDER BY count DESC LIMIT %s
+            """, (d_from, d_to, limit))
+            intent_dist = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT sentiment_label as label, COUNT(*) as count
+                FROM completed_messages
+                WHERE sentiment_label IS NOT NULL AND timestamp >= %s AND timestamp < %s
+                GROUP BY sentiment_label ORDER BY count DESC
+            """, (d_from, d_to))
+            sentiment_dist = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT
+                    COALESCE(cm.intent_label, 'unknown') as reason,
+                    COUNT(DISTINCT cc.conversation_id) as count
+                FROM completed_conversations cc
+                JOIN completed_messages cm ON cc.conversation_id = cm.conversation_id
+                WHERE cc.final_status ILIKE %s
+                  AND cc.start_time >= %s AND cc.start_time < %s
+                  AND cm.intent_label IS NOT NULL
+                GROUP BY cm.intent_label ORDER BY count DESC LIMIT %s
+            """, ('%ESCALATED%', d_from, d_to, limit))
+            escalation_reasons = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT entities
+                FROM completed_messages
+                WHERE entities IS NOT NULL AND entities != 'null'::jsonb
+                  AND timestamp >= %s AND timestamp < %s
+            """, (d_from, d_to))
+            entity_rows = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT EXTRACT(HOUR FROM timestamp)::int as hour, COUNT(*) as count
+                FROM completed_messages
+                WHERE sentiment_label IN ('NEGATIVE','ANGRY','negative','angry')
+                  AND sender = 'USER' AND timestamp >= %s AND timestamp < %s
+                GROUP BY hour ORDER BY hour
+            """, (d_from, d_to))
+            peak_hours = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT EXTRACT(DOW FROM timestamp)::int as day, COUNT(*) as count
+                FROM completed_messages
+                WHERE sentiment_label IN ('NEGATIVE','ANGRY','negative','angry')
+                  AND sender = 'USER' AND timestamp >= %s AND timestamp < %s
+                GROUP BY day ORDER BY day
+            """, (d_from, d_to))
+            peak_days = cursor.fetchall()
+
+        entity_counter = Counter()
+        for row in entity_rows:
+            entities = row['entities']
+            if isinstance(entities, dict):
+                for key, val in entities.items():
+                    if isinstance(val, str) and val:
+                        entity_counter[f"{key}: {val}"] += 1
+                    elif isinstance(val, list):
+                        for item in val:
+                            entity_counter[f"{key}: {item}"] += 1
+            elif isinstance(entities, list):
+                for ent in entities:
+                    if isinstance(ent, dict):
+                        entity_counter[ent.get('label') or ent.get('type') or str(ent)] += 1
+                    else:
+                        entity_counter[str(ent)] += 1
+
+        return {
+            "intent_distribution": [dict(r) for r in intent_dist],
+            "sentiment_distribution": [dict(r) for r in sentiment_dist],
+            "top_escalation_reasons": [dict(r) for r in escalation_reasons],
+            "entity_frequency": [{"entity": k, "count": v} for k, v in entity_counter.most_common(limit)],
+            "peak_complaint_hours": [dict(r) for r in peak_hours],
+            "peak_complaint_days": [dict(r) for r in peak_days]
+        }
+    except Exception as e:
+        logger.error(f"[API] Error in pain points analytics: {e}", exc_info=True)
+        return {
+            "intent_distribution": [], "sentiment_distribution": [],
+            "top_escalation_reasons": [], "entity_frequency": [],
+            "peak_complaint_hours": [], "peak_complaint_days": []
+        }
+
+
+@app.get("/admin/analytics/agent-performance")
+async def get_agent_performance(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
+):
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        d_from, d_to, prev_from, prev_to = _parse_date_range(date_from, date_to)
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    agent_action->>'agent' as agent_name,
+                    COUNT(*) as total_actions,
+                    COUNT(*) FILTER (WHERE agent_action->>'status' = 'success') as successful,
+                    AVG(CASE WHEN agent_action->>'confidence' ~ '^[0-9.]+$'
+                        THEN (agent_action->>'confidence')::float ELSE NULL END) as avg_confidence
+                FROM completed_messages
+                WHERE agent_action IS NOT NULL
+                  AND agent_action->>'agent' IS NOT NULL
+                  AND timestamp >= %s AND timestamp < %s
+                GROUP BY agent_action->>'agent'
+                ORDER BY total_actions DESC
+            """, (d_from, d_to))
+            current_agents = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT
+                    agent_action->>'agent' as agent_name,
+                    COUNT(*) as total_actions,
+                    COUNT(*) FILTER (WHERE agent_action->>'status' = 'success') as successful
+                FROM completed_messages
+                WHERE agent_action IS NOT NULL
+                  AND agent_action->>'agent' IS NOT NULL
+                  AND timestamp >= %s AND timestamp < %s
+                GROUP BY agent_action->>'agent'
+            """, (prev_from, prev_to))
+            prev_agents = {r['agent_name']: r for r in cursor.fetchall()}
+
+            cursor.execute("""
+                SELECT
+                    cm.intent_label as trigger_intent,
+                    COUNT(DISTINCT cc.conversation_id) as escalation_count
+                FROM completed_conversations cc
+                JOIN completed_messages cm ON cc.conversation_id = cm.conversation_id
+                WHERE cc.final_status ILIKE %s
+                  AND cc.start_time >= %s AND cc.start_time < %s
+                  AND cm.intent_label IS NOT NULL
+                GROUP BY cm.intent_label ORDER BY escalation_count DESC
+            """, ('%ESCALATED%', d_from, d_to))
+            escalation_triggers = cursor.fetchall()
+
+        agents = []
+        for row in current_agents:
+            name = row['agent_name']
+            total = row['total_actions'] or 0
+            successful = row['successful'] or 0
+            success_rate = _safe_pct(successful, total)
+            prev = prev_agents.get(name, {})
+            prev_total = prev.get('total_actions') or 0
+            prev_successful = prev.get('successful') or 0
+            prev_rate = _safe_pct(prev_successful, prev_total)
+
+            agents.append({
+                "name": name,
+                "total_actions": total,
+                "successful": successful,
+                "success_rate": success_rate,
+                "avg_confidence": round(row['avg_confidence'] or 0, 2),
+                "trend": round(success_rate - prev_rate, 1)
+            })
+
+        return {
+            "agents": agents,
+            "escalation_triggers": [dict(r) for r in escalation_triggers]
+        }
+    except Exception as e:
+        logger.error(f"[API] Error in agent performance analytics: {e}", exc_info=True)
+        return {"agents": [], "escalation_triggers": []}
+
+
+@app.get("/admin/analytics/business-metrics")
+async def get_business_metrics(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
+):
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        d_from, d_to, prev_from, prev_to = _parse_date_range(date_from, date_to)
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'positive') as positive,
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'neutral') as neutral,
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'negative') as negative,
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'angry') as angry,
+                    COUNT(*) FILTER (WHERE sentiment_label IS NOT NULL) as total
+                FROM completed_messages
+                WHERE sender = 'USER' AND timestamp >= %s AND timestamp < %s
+            """, (d_from, d_to))
+            sentiment = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s AND operator_id IS NULL) as first_contact,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s
+            """, ('%RESOLVED%', '%ESCALATED%', d_from, d_to))
+            fcr = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_handle_time
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s AND end_time IS NOT NULL
+            """, (d_from, d_to))
+            aht = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT
+                    EXTRACT(DOW FROM start_time)::int as day_of_week,
+                    EXTRACT(HOUR FROM start_time)::int as hour,
+                    COUNT(*) as count
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s
+                GROUP BY day_of_week, hour
+                ORDER BY day_of_week, hour
+            """, (d_from, d_to))
+            heatmap_data = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT
+                    DATE_TRUNC('day', timestamp) as date,
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'positive') as positive,
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'neutral') as neutral,
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'negative') as negative,
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'angry') as angry
+                FROM completed_messages
+                WHERE sender = 'USER' AND sentiment_label IS NOT NULL
+                  AND timestamp >= %s AND timestamp < %s
+                GROUP BY DATE_TRUNC('day', timestamp)
+                ORDER BY date
+            """, (d_from, d_to))
+            sentiment_trend = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE status = 'APPROVED') as approved,
+                    COUNT(*) FILTER (WHERE status = 'REJECTED') as rejected,
+                    COUNT(*) FILTER (WHERE status = 'REQUESTED') as requested
+                FROM returns
+            """)
+            return_stats = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
+                    AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration,
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s AND operator_id IS NULL) as first_contact
+                FROM completed_conversations
+                WHERE start_time >= %s AND start_time < %s
+            """, ('%RESOLVED%', '%ESCALATED%', '%RESOLVED%', prev_from, prev_to))
+            prev_metrics = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE sentiment_label ILIKE 'negative' OR sentiment_label ILIKE 'angry') as negative_total,
+                    COUNT(*) FILTER (WHERE sentiment_label IS NOT NULL) as total
+                FROM completed_messages
+                WHERE sender = 'USER' AND timestamp >= %s AND timestamp < %s
+            """, (prev_from, prev_to))
+            prev_sentiment = cursor.fetchone()
+
+        s_total = sentiment['total'] or 0
+        cur_neg_pct = _safe_pct((sentiment['negative'] or 0) + (sentiment['angry'] or 0), s_total)
+        fcr_total = fcr['total'] or 0
+        fcr_rate = _safe_pct(fcr['first_contact'] or 0, fcr_total)
+        prev_fcr_rate = _safe_pct(prev_metrics['first_contact'] or 0, prev_metrics['total'] or 0)
+        cur_esc_rate = _safe_pct(fcr['escalated'] or 0, fcr_total)
+
+        hour_volumes = {}
+        for row in heatmap_data:
+            h = row['hour']
+            hour_volumes[h] = hour_volumes.get(h, 0) + row['count']
+
+        peak_hour = max(hour_volumes, key=hour_volumes.get) if hour_volumes else 12
+        peak_volume = hour_volumes.get(peak_hour, 0)
+        avg_volume = sum(hour_volumes.values()) / max(len(hour_volumes), 1)
+
+        current_insight_data = {
+            'escalation_rate': cur_esc_rate,
+            'resolution_rate': _safe_pct(fcr['first_contact'] or 0, fcr_total) if fcr_total else 0,
+            'negative_pct': cur_neg_pct,
+            'total_conversations': fcr_total,
+            'avg_duration': aht['avg_handle_time'] or 0,
+            'peak_volume': peak_volume,
+            'avg_volume': avg_volume,
+            'peak_hour': peak_hour
+        }
+        previous_insight_data = {
+            'escalation_rate': _safe_pct(prev_metrics['escalated'] or 0, prev_metrics['total'] or 0),
+            'resolution_rate': prev_fcr_rate,
+            'avg_duration': prev_metrics['avg_duration'] or 0
+        }
+        insights = _generate_insights(current_insight_data, previous_insight_data)
+
+        return {
+            "satisfaction_proxy": {
+                "positive_pct": _safe_pct(sentiment['positive'] or 0, s_total),
+                "neutral_pct": _safe_pct(sentiment['neutral'] or 0, s_total),
+                "negative_pct": _safe_pct(sentiment['negative'] or 0, s_total),
+                "angry_pct": _safe_pct(sentiment['angry'] or 0, s_total)
+            },
+            "first_contact_resolution_rate": fcr_rate,
+            "fcr_change": round(fcr_rate - prev_fcr_rate, 1),
+            "avg_handle_time_seconds": round(aht['avg_handle_time'] or 0, 1),
+            "busiest_hours": [dict(r) for r in heatmap_data],
+            "sentiment_over_time": [
+                {
+                    "date": row['date'].strftime('%Y-%m-%d') if row['date'] else None,
+                    "positive": row['positive'] or 0,
+                    "neutral": row['neutral'] or 0,
+                    "negative": row['negative'] or 0,
+                    "angry": row['angry'] or 0
+                }
+                for row in sentiment_trend
+            ],
+            "return_stats": {
+                "total": return_stats['total'] or 0,
+                "approved": return_stats['approved'] or 0,
+                "rejected": return_stats['rejected'] or 0,
+                "requested": return_stats['requested'] or 0
+            },
+            "insights": insights
+        }
+    except Exception as e:
+        logger.error(f"[API] Error in business metrics: {e}", exc_info=True)
+        return {
+            "satisfaction_proxy": {"positive_pct": 0, "neutral_pct": 0, "negative_pct": 0, "angry_pct": 0},
+            "first_contact_resolution_rate": 0, "fcr_change": 0,
+            "avg_handle_time_seconds": 0, "busiest_hours": [],
+            "sentiment_over_time": [],
+            "return_stats": {"total": 0, "approved": 0, "rejected": 0, "requested": 0},
+            "insights": []
+        }
+
+
+@app.get("/admin/analytics/text-insights")
+async def get_text_insights(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
+):
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        d_from, d_to, _, _ = _parse_date_range(date_from, date_to)
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute("""
+                SELECT text_content
+                FROM completed_messages
+                WHERE sentiment_label IN ('NEGATIVE','ANGRY','negative','angry')
+                  AND sender = 'USER' AND text_content IS NOT NULL
+                  AND timestamp >= %s AND timestamp < %s
+            """, (d_from, d_to))
+            negative_texts = [r['text_content'] for r in cursor.fetchall()]
+
+            cursor.execute("""
+                SELECT text_content
+                FROM completed_messages
+                WHERE sentiment_label IN ('POSITIVE','positive')
+                  AND sender = 'USER' AND text_content IS NOT NULL
+                  AND timestamp >= %s AND timestamp < %s
+            """, (d_from, d_to))
+            positive_texts = [r['text_content'] for r in cursor.fetchall()]
+
+            cursor.execute("""
+                SELECT cm.text_content
+                FROM completed_conversations cc
+                JOIN completed_messages cm ON cc.conversation_id = cm.conversation_id
+                WHERE cc.final_status ILIKE %s
+                  AND cm.sender = 'USER'
+                  AND cc.start_time >= %s AND cc.start_time < %s
+                ORDER BY cm.timestamp DESC
+            """, ('%ESCALATED%', d_from, d_to))
+            escalation_texts = [r['text_content'] for r in cursor.fetchall() if r['text_content']]
+
+            cursor.execute("""
+                SELECT entities
+                FROM completed_messages
+                WHERE entities IS NOT NULL AND entities != 'null'::jsonb
+                  AND timestamp >= %s AND timestamp < %s
+            """, (d_from, d_to))
+            entity_rows = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT AVG(LENGTH(text_content)) as avg_length
+                FROM completed_messages
+                WHERE sender = 'USER' AND text_content IS NOT NULL
+                  AND timestamp >= %s AND timestamp < %s
+            """, (d_from, d_to))
+            avg_len = cursor.fetchone()
+
+        def _extract_words(texts, word_limit=50):
+            words = []
+            for text in texts:
+                cleaned = re.sub(r'[^a-zA-Z\s]', '', text.lower())
+                words.extend(w for w in cleaned.split() if len(w) > 2 and w not in STOP_WORDS)
+            return [{"word": w, "count": c} for w, c in Counter(words).most_common(word_limit)]
+
+        product_counter = Counter()
+        for row in entity_rows:
+            entities = row['entities']
+            if isinstance(entities, dict):
+                for key in ('order_id', 'order_reference', 'product', 'product_name', 'sku'):
+                    val = entities.get(key)
+                    if val:
+                        product_counter[str(val)] += 1
+            elif isinstance(entities, list):
+                for ent in entities:
+                    if isinstance(ent, dict) and ent.get('type') in ('product', 'order', 'order_id'):
+                        product_counter[str(ent.get('value', ent.get('label', '')))] += 1
+
+        return {
+            "negative_word_cloud": _extract_words(negative_texts, 50),
+            "positive_word_cloud": _extract_words(positive_texts, 50),
+            "escalation_phrases": _extract_words(escalation_texts, 30),
+            "product_mentions": [{"product": k, "count": v} for k, v in product_counter.most_common(20)],
+            "avg_message_length": round(avg_len['avg_length'] or 0, 1)
+        }
+    except Exception as e:
+        logger.error(f"[API] Error in text insights: {e}", exc_info=True)
+        return {
+            "negative_word_cloud": [], "positive_word_cloud": [],
+            "escalation_phrases": [], "product_mentions": [], "avg_message_length": 0
+        }
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API info"""
@@ -1371,7 +2066,12 @@ async def root():
             },
             "admin": {
                 "stats": "GET /admin/stats",
-                "health": "GET /admin/health"
+                "health": "GET /admin/health",
+                "analytics_conversations": "GET /admin/analytics/conversations",
+                "analytics_pain_points": "GET /admin/analytics/pain-points",
+                "analytics_agent_performance": "GET /admin/analytics/agent-performance",
+                "analytics_business_metrics": "GET /admin/analytics/business-metrics",
+                "analytics_text_insights": "GET /admin/analytics/text-insights"
             }
         }
     }
