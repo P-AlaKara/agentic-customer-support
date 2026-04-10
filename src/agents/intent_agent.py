@@ -65,8 +65,8 @@ class IntentAgent:
     # Intent keyword mappings
     INTENT_KEYWORDS = {
         'track_order': {
-            'primary': ['track', 'tracking', 'shipped', 'shipping', 'delivery', 'deliver'],
-            'secondary': ['where is', 'status', 'arrive', 'arriving', 'eta', 'when will'],
+            'primary': ['track', 'tracking', 'shipped', 'shipping', 'delivery', 'deliver', 'status'],
+            'secondary': ['where is', 'arrive', 'arriving', 'eta', 'when will'],
             'entities': ['order', 'package', 'shipment']
         },
         'process_return': {
@@ -100,6 +100,7 @@ class IntentAgent:
     INTENT_PHRASES = {
         'track_order': [
             'where is my order',
+            'status of my order',
             'track my order',
             'order status',
             'shipping status',
