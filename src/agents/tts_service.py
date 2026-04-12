@@ -97,20 +97,26 @@ class TTSService:
         except Exception as exc:
             raise RuntimeError("edge-tts is not installed") from exc
 
-        async def _run_tts_to_file(out_path: str):
-            communicate = edge_tts.Communicate(text=text, voice=self.voice, rate=self.rate, pitch=self.pitch)
-            await communicate.save(out_path)
-
         suffix = '.mp3' if self.audio_format.lower() == 'mp3' else '.wav'
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp_path = tmp.name
 
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(_run_tts_to_file(tmp_path))
-            finally:
-                loop.close()
+            from concurrent.futures import ThreadPoolExecutor
+
+            def _worker():
+                loop = asyncio.new_event_loop()
+                try:
+                    comm = edge_tts.Communicate(
+                        text=text, voice=self.voice,
+                        rate=self.rate, pitch=self.pitch
+                    )
+                    loop.run_until_complete(comm.save(tmp_path))
+                finally:
+                    loop.close()
+
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pool.submit(_worker).result(timeout=15)
 
             with open(tmp_path, 'rb') as f:
                 return base64.b64encode(f.read()).decode('utf-8')

@@ -946,24 +946,28 @@
 
             const transcriptText = data.transcript || liveTranscript || '[Voice message]';
             addMessage(transcriptText, 'user');
+            setTyping(false);
             addMessage(data.response, 'agent', data.status);
 
             if (data.audio_base64) {
                 const format = data.audio_format || 'mp3';
-                const audio = new Audio(`data:audio/${format};base64,${data.audio_base64}`);
+                const audioUrl = `data:audio/${format};base64,${data.audio_base64}`;
+                const audio = new Audio();
+                audio.preload = 'auto';
+                audio.src = audioUrl;
                 audio.play().catch(() => {});
-                setVoiceFeedback(`Done. Played voice response (${data.voice_name || 'Kenyan voice'}).`, false);
+                setVoiceFeedback(`Playing voice response (${data.voice_name || 'Kenyan voice'})…`, true);
+                audio.onended = () => setVoiceFeedback('Voice: ready. Tap mic to speak.', false);
             } else if ('speechSynthesis' in window && data.response) {
                 const utterance = new SpeechSynthesisUtterance(data.response);
                 utterance.lang = 'en-KE';
                 speechSynthesis.speak(utterance);
-                setVoiceFeedback('Done. Used browser voice fallback.', false);
+                setVoiceFeedback('Used browser voice fallback.', false);
             } else {
-                setVoiceFeedback('Done. Voice output unavailable, text shown.', false);
+                setVoiceFeedback('Voice output unavailable, text shown.', false);
             }
 
-            setTyping(false);
-            await syncSeenMessages();
+            syncSeenMessages();
         } catch (e) {
             setTyping(false);
             setVoiceFeedback('Voice processing failed. Please try again or type.', false);

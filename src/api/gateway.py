@@ -1,7 +1,9 @@
+import asyncio
 import os
 import re
 import uuid
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from threading import RLock
@@ -228,9 +230,9 @@ returns_agent = ReturnsAgent(bus)
 shipping_agent = ShippingAgent(bus)
 onboarding_agent = OnboardingAgent(bus)
 greeting_handler = GreetingAgent(bus)
+tts_service = TTSService(bus)
 stt_service = STTService(bus)
 voice_input_router = VoiceInputRouter(bus)
-tts_service = TTSService(bus)
 
 # Response collector for /chat endpoint
 class ResponseCollector:
@@ -291,26 +293,32 @@ class ResponseCollector:
             }
     
     def get_response(self, session_id: str, timeout: float = 5.0) -> Optional[Dict]:
-        """Wait for and retrieve response"""
+        """Wait for and retrieve response."""
         import time
+        if session_id in self.responses:
+            return self.responses.pop(session_id)
         start = time.time()
         while time.time() - start < timeout:
+            time.sleep(0.02)
             if session_id in self.responses:
                 return self.responses.pop(session_id)
-            time.sleep(0.1)
         return None
 
-    def get_voice_output(self, session_id: str, timeout: float = 6.0) -> Optional[Dict]:
+    def get_voice_output(self, session_id: str, timeout: float = 3.0) -> Optional[Dict]:
         """Wait for synthesized voice output."""
         import time
+        if session_id in self.voice_outputs:
+            return self.voice_outputs.pop(session_id)
         start = time.time()
         while time.time() - start < timeout:
+            time.sleep(0.02)
             if session_id in self.voice_outputs:
                 return self.voice_outputs.pop(session_id)
-            time.sleep(0.1)
         return None
 
 response_collector = ResponseCollector()
+
+_worker_pool = ThreadPoolExecutor(max_workers=4)
 
 logger.info("✅ API Gateway initialized with all agents")
 
@@ -326,27 +334,30 @@ async def chat(message: ChatMessage):
     
     Flow:
     1. Create/retrieve session
-    2. Publish message to event bus
+    2. Publish message to event bus (off the event loop)
     3. Wait for agent response (or escalation)
     4. Return response to user
     """
     try:
-        # Generate session ID if not provided
         session_id = message.session_id or str(uuid.uuid4())
         
         logger.info(f"[API] Received message for session {session_id}")
         
-        # If a session is currently controlled by an operator, we still ingest
-        # the user message, but bypass automated response waiting.
         existing_context = store.get(session_id)
         is_operator_controlled = bool(existing_context and existing_context.metadata.get('controlled_by') == 'OPERATOR')
 
-        # Publish message to event bus
-        bus.publish('NEW_USER_MESSAGE', {
-            'session_id': session_id,
-            'text': message.message,
-            'customer_email': message.customer_email
-        })
+        def _process():
+            bus.publish('NEW_USER_MESSAGE', {
+                'session_id': session_id,
+                'text': message.message,
+                'customer_email': message.customer_email
+            })
+            if is_operator_controlled:
+                return None
+            return response_collector.get_response(session_id, timeout=5.0)
+
+        loop = asyncio.get_running_loop()
+        response_data = await loop.run_in_executor(_worker_pool, _process)
 
         if is_operator_controlled:
             return ChatResponse(
@@ -357,9 +368,6 @@ async def chat(message: ChatMessage):
                 timestamp=datetime.utcnow().isoformat()
             )
         
-        # Wait for response (with timeout)
-        response_data = response_collector.get_response(session_id, timeout=5.0)
-        
         if response_data:
             return ChatResponse(
                 session_id=session_id,
@@ -369,7 +377,6 @@ async def chat(message: ChatMessage):
                 timestamp=datetime.utcnow().isoformat()
             )
         else:
-            # Timeout - still processing
             return ChatResponse(
                 session_id=session_id,
                 response="Your message is being processed. Please wait a moment...",
@@ -389,19 +396,30 @@ async def voice_chat(message: VoiceChatRequest):
     Voice chat endpoint:
     VOICE_INPUT_RECEIVED -> VOICE_TRANSCRIPTION_COMPLETED -> NEW_USER_MESSAGE -> normal flow.
     TTS runs from RESULT_SEND_RESPONSE_TO_USER and returns synthesized audio payload.
+
+    All blocking work (STT, sentiment, intent, BPA, TTS) runs off the event loop
+    via a thread pool so the server stays responsive to concurrent requests.
     """
     try:
         session_id = message.session_id or str(uuid.uuid4())
 
-        bus.publish('VOICE_INPUT_RECEIVED', {
-            'session_id': session_id,
-            'audio_base64': message.audio_base64,
-            'mime_type': message.mime_type,
-            'transcript_preview': message.transcript_preview,
-            'customer_email': message.customer_email
-        })
+        def _process_voice():
+            bus.publish('VOICE_INPUT_RECEIVED', {
+                'session_id': session_id,
+                'audio_base64': message.audio_base64,
+                'mime_type': message.mime_type,
+                'transcript_preview': message.transcript_preview,
+                'customer_email': message.customer_email
+            })
+            resp = response_collector.get_response(session_id, timeout=12.0)
+            voice = response_collector.get_voice_output(session_id, timeout=4.0) or {}
+            return resp, voice
 
-        response_data = response_collector.get_response(session_id, timeout=12.0)
+        loop = asyncio.get_running_loop()
+        response_data, voice_data = await loop.run_in_executor(
+            _worker_pool, _process_voice
+        )
+
         if not response_data:
             return VoiceChatResponse(
                 session_id=session_id,
@@ -412,8 +430,6 @@ async def voice_chat(message: VoiceChatRequest):
                 timestamp=datetime.utcnow().isoformat(),
                 voice_enabled=True
             )
-
-        voice_data = response_collector.get_voice_output(session_id, timeout=4.0) or {}
 
         return VoiceChatResponse(
             session_id=session_id,
