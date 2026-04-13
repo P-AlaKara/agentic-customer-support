@@ -965,6 +965,78 @@
             background: #cbd5e1;
         }
 
+        /* Star rating display */
+        .star-display { color: #f59e0b; letter-spacing: 1px; font-size: 13px; }
+        .star-display .empty { color: #3f3f46; }
+
+        /* Policy editor */
+        .policy-card {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        body.light-mode .policy-card {
+            background: #ffffff;
+            border-color: #d7dee8;
+        }
+        .policy-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid #2f3336;
+        }
+        body.light-mode .policy-card-header {
+            border-color: #d7dee8;
+        }
+        .policy-card-header h4 {
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .policy-card-header .policy-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            color: #71767b;
+        }
+        .policy-editor {
+            width: 100%;
+            min-height: 280px;
+            padding: 16px 20px;
+            border: none;
+            background: #0f1419;
+            color: #e7e9ea;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            resize: vertical;
+            outline: none;
+        }
+        body.light-mode .policy-editor {
+            background: #f8fafc;
+            color: #111827;
+        }
+        .policy-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 12px 20px;
+            border-top: 1px solid #2f3336;
+        }
+        body.light-mode .policy-actions {
+            border-color: #d7dee8;
+        }
+        .policy-status {
+            font-size: 12px;
+            color: #71767b;
+            margin-left: auto;
+        }
+        .policy-status.indexing { color: #f59e0b; }
+        .policy-status.done { color: #10b981; }
+
         /* ================================================================
            Analytics Dashboard
            ================================================================ */
@@ -1278,6 +1350,457 @@
             .analytics-timestamp { margin-left: 0; }
         }
 
+        /* ================================================================
+           Conversation Tracer - Swimlane Timeline
+           ================================================================ */
+        .tracer-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .tracer-toolbar input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            color: #e7e9ea;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .tracer-toolbar input[type="text"]:focus {
+            outline: none;
+            border-color: #1d4ed8;
+        }
+
+        .tracer-toggle-group {
+            display: inline-flex;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .tracer-toggle-btn {
+            border: 0;
+            background: transparent;
+            color: #9ca3af;
+            padding: 9px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .tracer-toggle-btn.active {
+            background: #1d4ed8;
+            color: #fff;
+        }
+
+        .tracer-summary {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 16px 20px;
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 10px;
+            align-items: center;
+        }
+
+        .tracer-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .tracer-chip i {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .tracer-chip .chip-value {
+            color: #3b82f6;
+        }
+
+        .tracer-agent-chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tracer-agent-chip {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #fff;
+            border: 2px solid #0f1419;
+        }
+
+        .swimlane-container {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .swimlane-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .swimlane-header .card-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .swimlane-lane {
+            display: flex;
+            align-items: center;
+            min-height: 42px;
+            border-bottom: 1px solid #1c1f23;
+        }
+
+        .swimlane-lane:last-child {
+            border-bottom: none;
+        }
+
+        .swimlane-label {
+            width: 170px;
+            min-width: 170px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-right: 16px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .swimlane-label-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .swimlane-track {
+            flex: 1;
+            position: relative;
+            height: 42px;
+            min-width: 500px;
+        }
+
+        .swimlane-node {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            z-index: 2;
+            border: 2px solid transparent;
+        }
+
+        .swimlane-node:hover {
+            transform: translate(-50%, -50%) scale(1.4);
+            z-index: 5;
+        }
+
+        .swimlane-node.active {
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.4);
+            transform: translate(-50%, -50%) scale(1.3);
+            z-index: 5;
+        }
+
+        .swimlane-node.node-task {
+            border-radius: 50%;
+        }
+
+        .swimlane-node.node-result {
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .swimlane-node.node-error {
+            border-radius: 50%;
+            animation: pulseError 1.5s ease infinite;
+        }
+
+        .swimlane-node.node-user {
+            border-radius: 3px;
+        }
+
+        @keyframes pulseError {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+            50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+        }
+
+        .swimlane-tooltip {
+            position: fixed;
+            background: #0f1419;
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #e7e9ea;
+            z-index: 1000;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        .swimlane-tooltip .tt-event {
+            font-weight: 600;
+            color: #3b82f6;
+        }
+
+        .swimlane-tooltip .tt-time {
+            color: #71767b;
+            margin-top: 2px;
+        }
+
+        .swimlane-axis {
+            position: relative;
+            margin-left: 170px;
+            height: 24px;
+            border-top: 1px solid #2f3336;
+            min-width: 500px;
+        }
+
+        .swimlane-tick {
+            position: absolute;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #71767b;
+            top: 4px;
+        }
+
+        .swimlane-pagination {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0 14px;
+            border-bottom: 1px solid #2f3336;
+            margin-bottom: 12px;
+        }
+
+        .swim-page-btn {
+            width: 34px;
+            height: 34px;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            background: #0f1419;
+            color: #e7e9ea;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+
+        .swim-page-btn:hover:not(:disabled) {
+            border-color: #1d4ed8;
+            color: #3b82f6;
+        }
+
+        .swim-page-btn:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+
+        .swim-page-btn.swim-page-all {
+            width: auto;
+            padding: 0 14px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .swim-page-btn.swim-page-all.active {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            color: #fff;
+        }
+
+        .swim-page-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .swim-page-label {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .swim-page-msg {
+            font-size: 12px;
+            color: #71767b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 500px;
+        }
+
+        body.light-mode .swim-page-btn {
+            background: #fff;
+            border-color: #cbd5e1;
+            color: #111827;
+        }
+
+        body.light-mode .swimlane-pagination {
+            border-color: #d7dee8;
+        }
+
+        .trace-detail-panel {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            animation: kpiFadeIn 0.3s ease forwards;
+        }
+
+        .trace-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid #2f3336;
+        }
+
+        .trace-detail-header h4 {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .trace-detail-body {
+            padding: 20px;
+        }
+
+        .trace-detail-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .trace-detail-meta .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .trace-detail-meta .meta-label {
+            font-size: 11px;
+            color: #71767b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .trace-detail-meta .meta-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .trace-detail-payload {
+            background: #0a0c0f;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            color: #9ca3af;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* Light-mode overrides for tracer */
+        body.light-mode .tracer-toolbar input[type="text"] {
+            background: #fff;
+            border-color: #cbd5e1;
+            color: #111827;
+        }
+
+        body.light-mode .tracer-toggle-group {
+            border-color: #cbd5e1;
+        }
+
+        body.light-mode .tracer-toggle-btn {
+            color: #64748b;
+        }
+
+        body.light-mode .tracer-summary,
+        body.light-mode .swimlane-container,
+        body.light-mode .trace-detail-panel {
+            background: #ffffff;
+            border-color: #d7dee8;
+        }
+
+        body.light-mode .tracer-chip {
+            background: #f8fafc;
+            border-color: #d7dee8;
+            color: #111827;
+        }
+
+        body.light-mode .swimlane-lane {
+            border-color: #e2e8f0;
+        }
+
+        body.light-mode .swimlane-axis {
+            border-color: #d7dee8;
+        }
+
+        body.light-mode .swimlane-tooltip {
+            background: #ffffff;
+            border-color: #3b82f6;
+            color: #111827;
+        }
+
+        body.light-mode .trace-detail-header {
+            border-color: #d7dee8;
+        }
+
+        body.light-mode .trace-detail-payload {
+            background: #f8fafc;
+            border-color: #d7dee8;
+            color: #334155;
+        }
+
     </style>
 </head>
 <body>
@@ -1324,6 +1847,10 @@
                 <div class="nav-item" onclick="showSection('analytics', this)">
                     <i class="fas fa-chart-pie"></i>
                     <span>Analytics</span>
+                </div>
+                <div class="nav-item" onclick="showSection('policies', this)">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Policies</span>
                 </div>
             </nav>
         </div>
@@ -1425,29 +1952,53 @@
             <div id="transcripts-section" class="section" style="display: none;">
                 <div class="content-header">
                     <h2>Conversation Transcripts</h2>
-                    <p>View complete conversation history</p>
+                    <p>Browse, filter, and review completed conversations</p>
                 </div>
                 <div class="content-body">
                     <div class="card">
+                        <div class="card-header">
+                            <div class="card-title"><i class="fas fa-filter"></i> Filters</div>
+                            <button class="btn btn-primary" onclick="loadConversationList()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
                         <div class="filters">
                             <div class="filter-group">
-                                <label>Search Conversation</label>
-                                <input type="text" id="transcriptSearch" placeholder="Enter conversation ID">
+                                <label>Session ID</label>
+                                <input type="text" id="txSessionFilter" placeholder="Search by ID..." oninput="loadConversationList()">
                             </div>
                             <div class="filter-group">
-                                <label>&nbsp;</label>
-                                <button class="btn btn-primary" onclick="loadTranscript()">
-                                    <i class="fas fa-search"></i> Load Transcript
-                                </button>
+                                <label>Status</label>
+                                <select id="txStatusFilter" onchange="loadConversationList()">
+                                    <option value="">All</option>
+                                    <option value="RESOLVED_BY_AGENT">Resolved by Agent</option>
+                                    <option value="RESOLVED_BY_HUMAN">Resolved by Human</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Review Score</label>
+                                <select id="txScoreFilter" onchange="loadConversationList()">
+                                    <option value="">All</option>
+                                    <option value="5">5 Stars</option>
+                                    <option value="4">4 Stars</option>
+                                    <option value="3">3 Stars</option>
+                                    <option value="2">2 Stars</option>
+                                    <option value="1">1 Star</option>
+                                </select>
                             </div>
                         </div>
                     </div>
 
-                    <div id="transcriptContent">
-                        <div class="empty-state">
-                            <i class="fas fa-comments"></i>
-                            <p>Enter a conversation ID to view transcript</p>
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title"><i class="fas fa-list"></i> Conversations</div>
                         </div>
+                        <div class="table-container" id="txConversationTable">
+                            <div class="loading"><div class="spinner"></div><p>Loading conversations...</p></div>
+                        </div>
+                    </div>
+
+                    <div id="transcriptContent" style="display:none;">
                     </div>
                 </div>
             </div>
@@ -1527,36 +2078,67 @@
             <div id="tracer-section" class="section" style="display: none;">
                 <div class="content-header">
                     <h2>Conversation Tracer</h2>
-                    <p>Debug active conversation flow and events</p>
+                    <p>Visual agent interaction timeline per conversation</p>
                 </div>
                 <div class="content-body">
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fas fa-comment-dots"></i> Active Conversations
-                            </div>
-                            <button class="btn btn-primary" onclick="loadTracerList()">
-                                <i class="fas fa-sync"></i> Refresh
-                            </button>
+                    <!-- Toolbar -->
+                    <div class="tracer-toolbar">
+                        <input type="text" id="tracerSearch" placeholder="Search by session ID or email..." oninput="filterTracerList()">
+                        <div class="tracer-toggle-group">
+                            <button class="tracer-toggle-btn active" onclick="setTracerMode('active', this)">Active</button>
+                            <button class="tracer-toggle-btn" onclick="setTracerMode('completed', this)">Completed</button>
                         </div>
+                        <button class="btn btn-primary" onclick="loadTracerList()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+
+                    <!-- Conversation list -->
+                    <div class="card">
                         <div class="table-container" id="tracerList">
-                            <div class="loading">Click Refresh to load active sessions</div>
+                            <div class="loading">Click Refresh to load conversations</div>
                         </div>
                     </div>
 
-                    <div id="traceDetail" style="display: none;">
-                        <div class="card">
-                            <div class="card-header">
-                                <div class="card-title">
-                                    <i class="fas fa-route"></i> Event Trace
-                                </div>
-                                <button class="btn btn-secondary" onclick="closeTraceDetail()">
+                    <!-- Summary stats bar (hidden until trace loads) -->
+                    <div id="tracerSummary" class="tracer-summary" style="display:none;"></div>
+
+                    <!-- Swimlane timeline -->
+                    <div id="swimlaneCard" class="swimlane-container" style="display:none;">
+                        <div class="swimlane-header">
+                            <div class="card-title"><i class="fas fa-route"></i> Agent Interaction Timeline</div>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-secondary" id="tracerDownloadBtn" onclick="downloadTraceJSON()" title="Download trace as JSON">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                                <button class="btn btn-secondary" onclick="closeSwimlanTrace()">
                                     <i class="fas fa-times"></i> Close
                                 </button>
                             </div>
-                            <div class="trace-timeline" id="traceTimeline">
-                                <div class="loading">Loading trace...</div>
+                        </div>
+                        <!-- Round-trip pagination bar -->
+                        <div id="swimlanePagination" class="swimlane-pagination" style="display:none;">
+                            <button class="swim-page-btn" id="swimPrevBtn" onclick="swimlanePagePrev()"><i class="fas fa-chevron-left"></i></button>
+                            <div class="swim-page-info">
+                                <span class="swim-page-label" id="swimPageLabel">Round Trip 1 of 1</span>
+                                <span class="swim-page-msg" id="swimPageMsg"></span>
                             </div>
+                            <button class="swim-page-btn" id="swimNextBtn" onclick="swimlanePageNext()"><i class="fas fa-chevron-right"></i></button>
+                            <button class="swim-page-btn swim-page-all" id="swimAllBtn" onclick="swimlanePageAll()">All</button>
+                        </div>
+                        <div id="swimlaneLanes"></div>
+                        <div id="swimlaneAxis" class="swimlane-axis"></div>
+                    </div>
+
+                    <!-- Event detail panel (hidden until a node is clicked) -->
+                    <div id="traceDetailPanel" class="trace-detail-panel" style="display:none;">
+                        <div class="trace-detail-header">
+                            <h4 id="traceDetailTitle"><i class="fas fa-info-circle"></i> Event Detail</h4>
+                            <button class="btn btn-secondary" onclick="closeTraceDetail()"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="trace-detail-body">
+                            <div class="trace-detail-meta" id="traceDetailMeta"></div>
+                            <div class="trace-detail-payload" id="traceDetailPayload"></div>
                         </div>
                     </div>
                 </div>
@@ -1646,6 +2228,19 @@
                                 <div class="empty-state"><p>Load analytics to view word cloud</p></div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Policies Section -->
+            <div id="policies-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Policy Management</h2>
+                    <p>Edit knowledge base policies and trigger re-indexing</p>
+                </div>
+                <div class="content-body">
+                    <div id="policiesContainer">
+                        <div class="loading"><div class="spinner"></div><p>Loading policies...</p></div>
                     </div>
                 </div>
             </div>
@@ -1771,6 +2366,9 @@
                 case 'overview':
                     loadOverview();
                     break;
+                case 'transcripts':
+                    loadConversationList();
+                    break;
                 case 'logs':
                     loadLogs();
                     break;
@@ -1779,6 +2377,12 @@
                     break;
                 case 'analytics':
                     loadAnalytics();
+                    break;
+                case 'policies':
+                    loadPolicies();
+                    break;
+                case 'tracer':
+                    loadTracerList();
                     break;
             }
         }
@@ -1924,14 +2528,15 @@
                         </tr>
                     `).join('');
                 } else {
-                    columns = ['Conversation ID', 'Customer', 'Status', 'Started', 'Duration'];
+                    columns = ['Conversation ID', 'Customer', 'Status', 'Started', 'Duration', 'Review'];
                     rows = data.data.map(row => `
                         <tr class="clickable" onclick="loadTranscriptById('${row.conversation_id}')">
                             <td><code style="font-size: 11px;">${row.conversation_id}</code></td>
-                            <td>${row.customer_email}</td>
+                            <td>${row.customer_email || 'N/A'}</td>
                             <td><span class="badge badge-${getStatusBadgeClass(row.final_status)}">${escapeHtml(row.final_status || 'UNKNOWN')}</span></td>
                             <td>${formatDateTime(row.start_time)}</td>
                             <td>${formatDuration(row.duration_seconds)}</td>
+                            <td>${row.review_score ? renderStars(row.review_score) : '<span style="color:#71767b;">-</span>'}</td>
                         </tr>
                     `).join('');
                 }
@@ -1962,32 +2567,88 @@
             alert('CSV export functionality - To be implemented');
         }
 
-        // Transcripts
-        async function loadTranscript() {
-            const convId = document.getElementById('transcriptSearch').value.trim();
-            if (!convId) {
-                alert('Please enter a conversation ID');
-                return;
+        // Transcripts - conversation list with filters
+        let txDebounceTimer = null;
+
+        function loadConversationList() {
+            clearTimeout(txDebounceTimer);
+            txDebounceTimer = setTimeout(_fetchConversationList, 250);
+        }
+
+        async function _fetchConversationList() {
+            const table = document.getElementById('txConversationTable');
+            table.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading conversations...</p></div>';
+
+            const params = new URLSearchParams({ limit: '100' });
+            const sid = (document.getElementById('txSessionFilter') || {}).value;
+            const status = (document.getElementById('txStatusFilter') || {}).value;
+            const score = (document.getElementById('txScoreFilter') || {}).value;
+            if (sid) params.append('session_id', sid);
+            if (status) params.append('final_status', status);
+            if (score) params.append('review_score', score);
+
+            try {
+                const response = await fetch(`${API_URL}/admin/conversations?${params}`);
+                const data = await response.json();
+
+                if (!data.data || data.data.length === 0) {
+                    table.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No conversations found</p></div>';
+                    return;
+                }
+
+                const rows = data.data.map(row => {
+                    const shortId = String(row.conversation_id || '').substring(0, 8);
+                    const score = row.review_score;
+                    const stars = score ? renderStars(score) : '<span style="color:#71767b;">-</span>';
+                    return `<tr class="clickable" onclick="loadTranscriptById('${escapeHtml(row.conversation_id)}')">
+                        <td><code style="font-size:11px;" title="${escapeHtml(row.conversation_id)}">${escapeHtml(shortId)}...</code></td>
+                        <td>${formatDateTime(row.start_time)}</td>
+                        <td>${row.end_time ? formatDateTime(row.end_time) : '<span style="color:#71767b;">-</span>'}</td>
+                        <td><span class="badge badge-${getStatusBadgeClass(row.final_status)}">${escapeHtml(row.final_status || 'UNKNOWN')}</span></td>
+                        <td>${stars}</td>
+                    </tr>`;
+                }).join('');
+
+                table.innerHTML = `<table>
+                    <thead><tr><th>Session ID</th><th>Start</th><th>End</th><th>Status</th><th>Review</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+            } catch (error) {
+                console.error('Error loading conversations:', error);
+                table.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading conversations</p></div>';
             }
-            await loadTranscriptById(convId);
+        }
+
+        function renderStars(score) {
+            let html = '<span class="star-display">';
+            for (let i = 1; i <= 5; i++) {
+                html += i <= score ? '&#9733;' : '<span class="empty">&#9733;</span>';
+            }
+            html += '</span>';
+            return html;
         }
 
         async function loadTranscriptById(convId) {
-            document.getElementById('transcriptContent').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading transcript...</p></div>';
+            const container = document.getElementById('transcriptContent');
+            container.style.display = 'block';
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading transcript...</p></div>';
 
             try {
                 const response = await fetch(`${API_URL}/admin/transcript/${encodeURIComponent(convId.trim())}`);
-                
-                if (!response.ok) {
-                    throw new Error('Transcript not found');
-                }
-                
+                if (!response.ok) throw new Error('Transcript not found');
+
                 const transcript = await response.json();
                 const transcriptStatus = transcript.status || transcript.final_status || 'UNKNOWN';
                 const transcriptMessages = Array.isArray(transcript.messages) ? transcript.messages : [];
 
                 const html = `
                     <div class="transcript-container">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                            <h3 style="font-size:16px; font-weight:600;"><i class="fas fa-comments"></i> Transcript Detail</h3>
+                            <button class="btn btn-secondary" onclick="document.getElementById('transcriptContent').style.display='none'">
+                                <i class="fas fa-times"></i> Close
+                            </button>
+                        </div>
                         <div class="transcript-metadata">
                             <div class="metadata-item">
                                 <div class="metadata-label">Conversation ID</div>
@@ -2013,14 +2674,11 @@
                             <div class="metadata-item">
                                 <div class="metadata-label">Operator</div>
                                 <div class="metadata-value">${escapeHtml(transcript.operator_id)}</div>
-                            </div>
-                            ` : ''}
+                            </div>` : ''}
                         </div>
 
                         <div class="card">
-                            <div class="card-title">
-                                <i class="fas fa-comments"></i> Message Transcript
-                            </div>
+                            <div class="card-title"><i class="fas fa-comments"></i> Message Transcript</div>
                             <div class="transcript-messages">
                                 ${transcriptMessages.length === 0 ? `
                                     <div class="empty-state" style="padding: 10px 0;">
@@ -2054,14 +2712,131 @@
                         </div>
                     </div>
                 `;
-                document.getElementById('transcriptContent').innerHTML = html;
-                
-                // Switch to transcripts tab
-                showSection('transcripts', document.querySelector(".nav-item[onclick*=\"showSection('transcripts')\"]"));
+                container.innerHTML = html;
+                container.scrollIntoView({ behavior: 'smooth' });
+
+                // If called from reports page, switch to transcripts tab
+                const txSection = document.getElementById('transcripts-section');
+                if (txSection && txSection.style.display === 'none') {
+                    showSection('transcripts', document.querySelector(".nav-item[onclick*=\"showSection('transcripts')\"]"));
+                }
             } catch (error) {
                 console.error('Error loading transcript:', error);
-                document.getElementById('transcriptContent').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Transcript not found or error loading</p></div>';
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Transcript not found or error loading</p></div>';
             }
+        }
+
+        // Policy Management
+        let policyData = {};
+        let policyIndexStatus = {};
+
+        async function loadPolicies() {
+            const container = document.getElementById('policiesContainer');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading policies...</p></div>';
+
+            try {
+                const response = await fetch(`${API_URL}/policies`);
+                const data = await response.json();
+                policyData = data.policies || {};
+
+                const policyMeta = {
+                    'shipping.md': { title: 'Shipping Policy', icon: 'truck', category: 'SHIPPING' },
+                    'returns.md': { title: 'Returns Policy', icon: 'undo', category: 'RETURNS' },
+                    'onboarding.md': { title: 'Onboarding Policy', icon: 'user-plus', category: 'ONBOARDING' }
+                };
+
+                let html = '';
+                for (const [filename, content] of Object.entries(policyData)) {
+                    const meta = policyMeta[filename] || { title: filename, icon: 'file', category: filename.replace('.md','').toUpperCase() };
+                    const editorId = 'editor_' + filename.replace('.', '_');
+                    const statusId = 'status_' + filename.replace('.', '_');
+
+                    html += `
+                        <div class="policy-card">
+                            <div class="policy-card-header">
+                                <h4><i class="fas fa-${meta.icon}"></i> ${meta.title}</h4>
+                                <div class="policy-meta">
+                                    <span id="${statusId}" class="policy-status"></span>
+                                </div>
+                            </div>
+                            <textarea class="policy-editor" id="${editorId}" spellcheck="false">${escapeHtml(content)}</textarea>
+                            <div class="policy-actions">
+                                <button class="btn btn-primary" onclick="savePolicy('${filename}', '${editorId}', '${statusId}')">
+                                    <i class="fas fa-save"></i> Save & Re-index
+                                </button>
+                                <button class="btn btn-secondary" onclick="document.getElementById('${editorId}').value = policyData['${filename}'];">
+                                    <i class="fas fa-undo"></i> Revert
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML = html || '<div class="empty-state"><i class="fas fa-file-alt"></i><p>No policy files found</p></div>';
+            } catch (error) {
+                console.error('Error loading policies:', error);
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading policies</p></div>';
+            }
+        }
+
+        async function savePolicy(filename, editorId, statusId) {
+            const content = document.getElementById(editorId).value;
+            const statusEl = document.getElementById(statusId);
+            statusEl.textContent = 'Saving...';
+            statusEl.className = 'policy-status indexing';
+
+            try {
+                const response = await fetch(`${API_URL}/policies/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, content })
+                });
+
+                if (!response.ok) throw new Error('Save failed');
+                const result = await response.json();
+
+                policyData[filename] = content;
+                statusEl.textContent = 'Re-indexing...';
+                statusEl.className = 'policy-status indexing';
+
+                pollIndexStatus(filename, statusId);
+            } catch (error) {
+                console.error('Error saving policy:', error);
+                statusEl.textContent = 'Save failed';
+                statusEl.className = 'policy-status';
+                setTimeout(() => { statusEl.textContent = ''; }, 3000);
+            }
+        }
+
+        async function pollIndexStatus(filename, statusId) {
+            const category = filename.replace('.md', '').toUpperCase();
+            const statusEl = document.getElementById(statusId);
+            let attempts = 0;
+            const maxAttempts = 30;
+
+            const poll = async () => {
+                attempts++;
+                try {
+                    const response = await fetch(`${API_URL}/policies/status/${category}`);
+                    const data = await response.json();
+
+                    if (data.chunk_count > 0 || attempts >= maxAttempts) {
+                        statusEl.textContent = `Indexed (${data.chunk_count} chunks)`;
+                        statusEl.className = 'policy-status done';
+                        setTimeout(() => { statusEl.textContent = ''; statusEl.className = 'policy-status'; }, 5000);
+                        return;
+                    }
+                } catch (e) {}
+
+                if (attempts < maxAttempts) {
+                    setTimeout(poll, 2000);
+                } else {
+                    statusEl.textContent = 'Indexing may still be running...';
+                    statusEl.className = 'policy-status';
+                }
+            };
+
+            setTimeout(poll, 3000);
         }
 
         // Logs
@@ -2291,112 +3066,547 @@
             }
         }
 
-        // Tracer
-        async function loadTracerList() {
-            document.getElementById('tracerList').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading active sessions...</p></div>';
-            
-            try {
-                const response = await fetch(`${API_URL}/admin/active-sessions`);
-                const data = await response.json();
+        // ============================================================
+        // Conversation Tracer
+        // ============================================================
+        var tracerMode = 'active';
+        var tracerAllRows = [];
+        var currentTraceData = null;
+        var tracerRefreshTimer = null;
+        var tracerSegments = [];
+        var tracerCurrentStep = 0;
+        var tracerShowAll = false;
 
-                if (data.count === 0) {
-                    document.getElementById('tracerList').innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-comment-slash"></i>
-                            <p>No active conversations</p>
-                            <p style="font-size: 12px; color: #71767b; margin-top: 8px;">
-                                Sessions appear here only while active. Start a conversation to see it traced.
-                            </p>
-                        </div>
-                    `;
+        var AGENT_REGISTRY = {
+            coordinator:     { icon: 'fa-sitemap',            color: '#3b82f6' },
+            sentiment:       { icon: 'fa-heart',              color: '#ec4899' },
+            intent:          { icon: 'fa-crosshairs',         color: '#8b5cf6' },
+            shipping:        { icon: 'fa-truck',              color: '#f59e0b' },
+            returns:         { icon: 'fa-undo-alt',           color: '#10b981' },
+            greeting:        { icon: 'fa-comments',           color: '#06b6d4' },
+            onboarding:      { icon: 'fa-user-plus',          color: '#6366f1' },
+            escalation:      { icon: 'fa-exclamation-circle', color: '#ef4444' },
+            transcription:   { icon: 'fa-file-alt',           color: '#6b7280' },
+            stt_service:     { icon: 'fa-microphone',         color: '#14b8a6' },
+            tts_service:     { icon: 'fa-volume-up',          color: '#a855f7' },
+            voice_router:    { icon: 'fa-random',             color: '#0ea5e9' },
+            user:            { icon: 'fa-user',               color: '#e7e9ea' },
+            human_operator:  { icon: 'fa-headset',            color: '#f97316' },
+            unknown:         { icon: 'fa-question-circle',    color: '#6b7280' }
+        };
+
+        function agentMeta(name) {
+            if (!name) return AGENT_REGISTRY.unknown;
+            var key = name.toLowerCase().replace(/[\s-]+/g, '_');
+            if (key === 'shipping_agent') key = 'shipping';
+            if (key === 'returns_agent') key = 'returns';
+            if (key === 'greeting_agent') key = 'greeting';
+            if (key === 'onboarding_agent') key = 'onboarding';
+            if (key === 'sentiment_agent') key = 'sentiment';
+            if (key === 'intent_agent') key = 'intent';
+            if (key === 'escalation_agent') key = 'escalation';
+            return AGENT_REGISTRY[key] || AGENT_REGISTRY.unknown;
+        }
+
+        function agentDisplayName(name) {
+            if (!name) return 'Unknown';
+            return name.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        }
+
+        function setTracerMode(mode, btn) {
+            tracerMode = mode;
+            document.querySelectorAll('.tracer-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+            if (btn) btn.classList.add('active');
+            loadTracerList();
+        }
+
+        function filterTracerList() {
+            var q = (document.getElementById('tracerSearch').value || '').toLowerCase();
+            var tbody = document.querySelector('#tracerList tbody');
+            if (!tbody) return;
+            var rows = tbody.querySelectorAll('tr');
+            rows.forEach(function(row) {
+                var text = row.textContent.toLowerCase();
+                row.style.display = text.indexOf(q) >= 0 ? '' : 'none';
+            });
+        }
+
+        async function loadTracerList() {
+            var el = document.getElementById('tracerList');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading...</p></div>';
+
+            try {
+                var rows = [];
+                if (tracerMode === 'active') {
+                    var resp = await fetch(API_URL + '/admin/active-sessions');
+                    var data = await resp.json();
+                    rows = (data.sessions || []).map(function(s) {
+                        return {
+                            id: s.session_id,
+                            email: s.customer_email || '-',
+                            started: s.start_time,
+                            status: s.status || 'ACTIVE',
+                            intent: s.current_intent,
+                            sentiment: s.current_sentiment,
+                            messages: s.message_count || 0,
+                            source: 'active'
+                        };
+                    });
+                } else {
+                    var resp = await fetch(API_URL + '/admin/conversations?limit=50');
+                    var data = await resp.json();
+                    rows = (data.data || []).map(function(c) {
+                        return {
+                            id: c.conversation_id,
+                            email: c.customer_id || '-',
+                            started: c.start_time,
+                            status: c.final_status || 'COMPLETED',
+                            intent: null,
+                            sentiment: null,
+                            messages: null,
+                            review: c.review_score,
+                            source: 'completed'
+                        };
+                    });
+                }
+
+                tracerAllRows = rows;
+
+                if (rows.length === 0) {
+                    el.innerHTML = '<div class="empty-state"><i class="fas fa-comment-slash"></i><p>No conversations found</p></div>';
                     return;
                 }
 
-                const html = `
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Session ID</th>
-                                <th>Customer</th>
-                                <th>Started</th>
-                                <th>Intent</th>
-                                <th>Sentiment</th>
-                                <th>Status</th>
-                                <th>Messages</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.sessions.map(session => `
-                                <tr>
-                                    <td><code style="font-size: 11px;">${session.session_id}</code></td>
-                                    <td>${session.customer_email || 'Unknown'}</td>
-                                    <td>${formatDateTime(session.start_time)}</td>
-                                    <td>${session.current_intent ? `<span class="badge badge-neutral">${session.current_intent}</span>` : '<span style="color: #71767b;">-</span>'}</td>
-                                    <td>${session.current_sentiment ? `<span class="badge badge-info">${session.current_sentiment}</span>` : '<span style="color: #71767b;">-</span>'}</td>
-                                    <td><span class="badge badge-${
-                                        session.status === 'ACTIVE' ? 'success' : 
-                                        session.status === 'ESCALATED' ? 'warning' : 
-                                        'neutral'
-                                    }">${session.status}</span></td>
-                                    <td>${session.message_count}</td>
-                                    <td>
-                                        <button class="btn btn-primary" onclick="showTrace('${session.session_id}')">
-                                            <i class="fas fa-route"></i> Trace
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-                document.getElementById('tracerList').innerHTML = html;
+                var html = '<table><thead><tr>' +
+                    '<th>Session ID</th><th>Customer</th><th>Started</th>' +
+                    '<th>Status</th>' +
+                    (tracerMode === 'active' ? '<th>Intent</th><th>Sentiment</th><th>Msgs</th>' : '<th>Review</th>') +
+                    '<th>Action</th></tr></thead><tbody>';
+
+                rows.forEach(function(r) {
+                    var statusBadge = r.status === 'ACTIVE' ? 'badge-success' :
+                        (r.status || '').indexOf('ESCALAT') >= 0 ? 'badge-warning' :
+                        (r.status || '').indexOf('RESOLVED') >= 0 ? 'badge-info' : 'badge-neutral';
+
+                    html += '<tr>';
+                    html += '<td><code style="font-size:11px;">' + escapeHtml(r.id) + '</code></td>';
+                    html += '<td>' + escapeHtml(r.email) + '</td>';
+                    html += '<td>' + formatDateTime(r.started) + '</td>';
+                    html += '<td><span class="badge ' + statusBadge + '">' + escapeHtml(r.status) + '</span></td>';
+
+                    if (tracerMode === 'active') {
+                        html += '<td>' + (r.intent ? '<span class="badge badge-neutral">' + escapeHtml(r.intent) + '</span>' : '-') + '</td>';
+                        html += '<td>' + (r.sentiment ? '<span class="badge badge-info">' + escapeHtml(r.sentiment) + '</span>' : '-') + '</td>';
+                        html += '<td>' + (r.messages != null ? r.messages : '-') + '</td>';
+                    } else {
+                        html += '<td>' + (r.review != null ? renderStars(r.review) : '-') + '</td>';
+                    }
+
+                    html += '<td><button class="btn btn-primary" onclick="loadConversationTrace(\'' + escapeHtml(r.id) + '\')"><i class="fas fa-route"></i> Trace</button></td>';
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table>';
+                el.innerHTML = html;
+                filterTracerList();
             } catch (error) {
-                console.error('Error loading active sessions:', error);
-                document.getElementById('tracerList').innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <p>Error loading active sessions</p>
-                    </div>
-                `;
+                console.error('Error loading tracer list:', error);
+                el.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading conversations</p></div>';
             }
         }
 
-        async function showTrace(sessionId) {
-            document.getElementById('traceDetail').style.display = 'block';
-            document.getElementById('traceTimeline').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading trace...</p></div>';
-            
-            try {
-                const response = await fetch(`${API_URL}/admin/session-trace/${sessionId}`);
-                const data = await response.json();
+        function renderStars(score) {
+            var html = '<span class="star-display">';
+            for (var i = 1; i <= 5; i++) {
+                html += i <= score ? '\u2605' : '<span class="empty">\u2605</span>';
+            }
+            return html + '</span>';
+        }
 
-                const html = data.trace_events.map(trace => `
-                    <div class="trace-event">
-                        <div class="trace-event-header">
-                            <div class="trace-event-name">${trace.event_type}</div>
-                            <div class="trace-event-time">${formatTime(trace.timestamp)}.${String(parseAsUtcDate(trace.timestamp)?.getMilliseconds?.() ?? '0').padStart(3, '0')}</div>
-                        </div>
-                        <div class="trace-event-payload"><pre>${JSON.stringify(trace.payload, null, 2)}</pre></div>
-                    </div>
-                `).join('');
-                
-                document.getElementById('traceTimeline').innerHTML = html;
-                
-                // Scroll to trace detail
-                document.getElementById('traceDetail').scrollIntoView({ behavior: 'smooth' });
+        async function loadConversationTrace(conversationId) {
+            if (tracerRefreshTimer) { clearInterval(tracerRefreshTimer); tracerRefreshTimer = null; }
+
+            tracerSegments = [];
+            tracerCurrentStep = 0;
+            tracerShowAll = false;
+
+            document.getElementById('tracerSummary').style.display = 'none';
+            document.getElementById('swimlaneCard').style.display = 'none';
+            document.getElementById('traceDetailPanel').style.display = 'none';
+            document.getElementById('swimlanePagination').style.display = 'none';
+
+            document.getElementById('swimlaneCard').style.display = 'block';
+            document.getElementById('swimlaneLanes').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading trace...</p></div>';
+
+            try {
+                var resp = await fetch(API_URL + '/admin/conversation-trace/' + encodeURIComponent(conversationId));
+                if (!resp.ok) throw new Error('Not found');
+                var data = await resp.json();
+                currentTraceData = data;
+
+                renderTracerSummary(data);
+                renderSwimlane(data);
+
+                document.getElementById('swimlaneCard').scrollIntoView({ behavior: 'smooth' });
+
+                if (data.status === 'active') {
+                    tracerRefreshTimer = setInterval(function() {
+                        refreshActiveTrace(conversationId);
+                    }, 3000);
+                }
             } catch (error) {
                 console.error('Error loading trace:', error);
-                document.getElementById('traceTimeline').innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <p>Error loading trace. Session may have ended.</p>
-                    </div>
-                `;
+                document.getElementById('swimlaneLanes').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>No trace data found for this conversation</p></div>';
+                document.getElementById('swimlaneAxis').innerHTML = '';
             }
+        }
+
+        async function refreshActiveTrace(conversationId) {
+            try {
+                var resp = await fetch(API_URL + '/admin/conversation-trace/' + encodeURIComponent(conversationId));
+                if (!resp.ok) {
+                    clearInterval(tracerRefreshTimer);
+                    tracerRefreshTimer = null;
+                    return;
+                }
+                var data = await resp.json();
+                currentTraceData = data;
+                renderTracerSummary(data);
+                renderSwimlane(data);
+                if (data.status !== 'active') {
+                    clearInterval(tracerRefreshTimer);
+                    tracerRefreshTimer = null;
+                }
+            } catch (e) {
+                // ignore transient errors during auto-refresh
+            }
+        }
+
+        function renderTracerSummary(data) {
+            var s = data.summary || {};
+            var m = data.metadata || {};
+            var el = document.getElementById('tracerSummary');
+
+            var html = '';
+            html += '<div class="tracer-chip"><i class="fas fa-bolt"></i> Events: <span class="chip-value">' + (s.total_events || 0) + '</span></div>';
+            html += '<div class="tracer-chip"><i class="fas fa-comments"></i> Messages: <span class="chip-value">' + (s.total_messages || 0) + '</span></div>';
+            html += '<div class="tracer-chip"><i class="fas fa-robot"></i> Agents: <span class="chip-value">' + (s.agents_involved ? s.agents_involved.length : 0) + '</span></div>';
+
+            if (s.duration_seconds != null) {
+                var dur = s.duration_seconds;
+                var durStr = dur >= 60 ? Math.floor(dur / 60) + 'm ' + Math.round(dur % 60) + 's' : dur.toFixed(1) + 's';
+                html += '<div class="tracer-chip"><i class="fas fa-clock"></i> Duration: <span class="chip-value">' + durStr + '</span></div>';
+            }
+
+            if (m.final_status) {
+                var sc = (m.final_status || '').indexOf('RESOLVED') >= 0 ? 'badge-success' :
+                    (m.final_status || '').indexOf('ESCALAT') >= 0 ? 'badge-warning' : 'badge-info';
+                html += '<span class="badge ' + sc + '" style="font-size:12px;">' + escapeHtml(m.final_status) + '</span>';
+            }
+
+            if (s.was_escalated) {
+                html += '<span class="badge badge-warning" style="font-size:12px;">ESCALATED</span>';
+            }
+
+            if (s.sentiment_trajectory && s.sentiment_trajectory.length) {
+                html += '<div class="tracer-chip"><i class="fas fa-heart"></i> ' + s.sentiment_trajectory.map(function(st) { return escapeHtml(st); }).join(' &rarr; ') + '</div>';
+            }
+            if (s.intent_changes && s.intent_changes.length) {
+                html += '<div class="tracer-chip"><i class="fas fa-crosshairs"></i> ' + s.intent_changes.map(function(it) { return escapeHtml(it); }).join(' &rarr; ') + '</div>';
+            }
+
+            if (s.agents_involved && s.agents_involved.length) {
+                html += '<div class="tracer-agent-chips">';
+                s.agents_involved.forEach(function(a) {
+                    var meta = agentMeta(a);
+                    html += '<span class="tracer-agent-chip" style="background:' + meta.color + ';" title="' + agentDisplayName(a) + '"><i class="fas ' + meta.icon + '"></i></span>';
+                });
+                html += '</div>';
+            }
+
+            el.innerHTML = html;
+            el.style.display = 'flex';
+        }
+
+        function buildTracerSegments(events) {
+            var segments = [];
+            var current = [];
+            events.forEach(function(e) {
+                if (e.event_type === 'NEW_USER_MESSAGE' || e.event_type === 'VOICE_INPUT_RECEIVED') {
+                    if (current.length > 0) {
+                        segments.push(current);
+                    }
+                    current = [];
+                }
+                current.push(e);
+            });
+            if (current.length) segments.push(current);
+            return segments;
+        }
+
+        function getSegmentUserMessage(segment) {
+            for (var i = 0; i < segment.length; i++) {
+                var e = segment[i];
+                if (e.event_type === 'NEW_USER_MESSAGE' || e.event_type === 'VOICE_INPUT_RECEIVED') {
+                    var p = e.payload || {};
+                    return p.text || p.transcript_preview || '';
+                }
+            }
+            return '';
+        }
+
+        function renderSwimlane(data) {
+            var allEvents = data.events || [];
+            if (!allEvents.length) {
+                document.getElementById('swimlaneLanes').innerHTML = '<div class="empty-state"><p>No events recorded</p></div>';
+                document.getElementById('swimlaneAxis').innerHTML = '';
+                document.getElementById('swimlanePagination').style.display = 'none';
+                return;
+            }
+
+            tracerSegments = buildTracerSegments(allEvents);
+
+            if (tracerSegments.length <= 1) {
+                tracerShowAll = true;
+            }
+
+            var pagBar = document.getElementById('swimlanePagination');
+            if (tracerSegments.length > 1) {
+                pagBar.style.display = 'flex';
+                updatePaginationControls();
+            } else {
+                pagBar.style.display = 'none';
+            }
+
+            var visibleEvents;
+            if (tracerShowAll) {
+                visibleEvents = allEvents;
+            } else {
+                if (tracerCurrentStep >= tracerSegments.length) tracerCurrentStep = tracerSegments.length - 1;
+                visibleEvents = tracerSegments[tracerCurrentStep] || allEvents;
+            }
+
+            renderSwimlaneLanes(allEvents, visibleEvents);
+        }
+
+        function updatePaginationControls() {
+            var total = tracerSegments.length;
+            var prevBtn = document.getElementById('swimPrevBtn');
+            var nextBtn = document.getElementById('swimNextBtn');
+            var allBtn = document.getElementById('swimAllBtn');
+            var label = document.getElementById('swimPageLabel');
+            var msgEl = document.getElementById('swimPageMsg');
+
+            if (tracerShowAll) {
+                label.textContent = 'All Round Trips (' + total + ')';
+                msgEl.textContent = '';
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                allBtn.classList.add('active');
+            } else {
+                label.textContent = 'Round Trip ' + (tracerCurrentStep + 1) + ' of ' + total;
+                var userMsg = getSegmentUserMessage(tracerSegments[tracerCurrentStep]);
+                msgEl.textContent = userMsg ? ('\u201C' + (userMsg.length > 80 ? userMsg.substring(0, 80) + '\u2026' : userMsg) + '\u201D') : '';
+                prevBtn.disabled = tracerCurrentStep <= 0;
+                nextBtn.disabled = tracerCurrentStep >= total - 1;
+                allBtn.classList.remove('active');
+            }
+        }
+
+        function swimlanePagePrev() {
+            if (tracerCurrentStep > 0) {
+                tracerCurrentStep--;
+                tracerShowAll = false;
+                closeTraceDetail();
+                renderSwimlane(currentTraceData);
+            }
+        }
+
+        function swimlanePageNext() {
+            if (tracerCurrentStep < tracerSegments.length - 1) {
+                tracerCurrentStep++;
+                tracerShowAll = false;
+                closeTraceDetail();
+                renderSwimlane(currentTraceData);
+            }
+        }
+
+        function swimlanePageAll() {
+            tracerShowAll = !tracerShowAll;
+            closeTraceDetail();
+            renderSwimlane(currentTraceData);
+        }
+
+        function renderSwimlaneLanes(allEvents, visibleEvents) {
+            var timestamps = visibleEvents.map(function(e) { return new Date(e.timestamp).getTime(); });
+            var tMin = Math.min.apply(null, timestamps);
+            var tMax = Math.max.apply(null, timestamps);
+            var tRange = tMax - tMin || 1;
+
+            var laneMap = {};
+            var laneOrder = [];
+            visibleEvents.forEach(function(e) {
+                var agent = e.agent_name || 'unknown';
+                if (!laneMap[agent]) {
+                    laneMap[agent] = [];
+                    laneOrder.push(agent);
+                }
+                laneMap[agent].push(e);
+            });
+
+            var priorityOrder = ['user', 'coordinator', 'sentiment', 'intent', 'shipping', 'returns', 'greeting', 'onboarding', 'escalation', 'transcription', 'stt_service', 'voice_router', 'tts_service', 'human_operator'];
+            laneOrder.sort(function(a, b) {
+                var ia = priorityOrder.indexOf(a);
+                var ib = priorityOrder.indexOf(b);
+                if (ia < 0) ia = 999;
+                if (ib < 0) ib = 999;
+                return ia - ib;
+            });
+
+            var lanesHtml = '';
+            laneOrder.forEach(function(agent) {
+                var meta = agentMeta(agent);
+                lanesHtml += '<div class="swimlane-lane">';
+                lanesHtml += '<div class="swimlane-label">';
+                lanesHtml += '<span class="swimlane-label-icon" style="background:' + meta.color + ';"><i class="fas ' + meta.icon + '"></i></span>';
+                lanesHtml += '<span>' + agentDisplayName(agent) + '</span>';
+                lanesHtml += '</div>';
+                lanesHtml += '<div class="swimlane-track">';
+
+                laneMap[agent].forEach(function(e) {
+                    var t = new Date(e.timestamp).getTime();
+                    var pct = ((t - tMin) / tRange * 100);
+                    pct = Math.max(1, Math.min(99, pct));
+
+                    var nodeClass = 'swimlane-node';
+                    var et = e.event_type || '';
+                    if (et === 'AGENT_ERROR' || et === 'REQUEST_ESCALATION' || et === 'TASK_ESCALATE') {
+                        nodeClass += ' node-error';
+                    } else if (et === 'NEW_USER_MESSAGE' || et === 'VOICE_INPUT_RECEIVED') {
+                        nodeClass += ' node-user';
+                    } else if (et.indexOf('RESULT_') === 0 || et === 'TRANSCRIPT_SAVED') {
+                        nodeClass += ' node-result';
+                    } else {
+                        nodeClass += ' node-task';
+                    }
+
+                    var dataIdx = allEvents.indexOf(e);
+                    lanesHtml += '<div class="' + nodeClass + '" ' +
+                        'style="left:' + pct.toFixed(2) + '%;background:' + meta.color + ';" ' +
+                        'data-idx="' + dataIdx + '" ' +
+                        'onclick="showTraceNodeDetail(' + dataIdx + ')" ' +
+                        'onmouseenter="showSwimTooltip(event,' + dataIdx + ')" ' +
+                        'onmouseleave="hideSwimTooltip()">' +
+                        '</div>';
+                });
+
+                lanesHtml += '</div></div>';
+            });
+
+            document.getElementById('swimlaneLanes').innerHTML = lanesHtml;
+
+            var axisEl = document.getElementById('swimlaneAxis');
+            axisEl.innerHTML = '';
+            var tickCount = Math.min(10, Math.max(3, Math.ceil(tRange / 1000)));
+            var trackEl = document.querySelector('.swimlane-track');
+            if (trackEl) {
+                for (var i = 0; i <= tickCount; i++) {
+                    var pct = (i / tickCount * 100);
+                    var sec = ((tRange * i / tickCount) / 1000).toFixed(1);
+                    axisEl.innerHTML += '<span class="swimlane-tick" style="left:' + pct.toFixed(2) + '%;">' + sec + 's</span>';
+                }
+            }
+        }
+
+        var swimTooltipEl = null;
+        function showSwimTooltip(ev, idx) {
+            if (!currentTraceData) return;
+            var e = currentTraceData.events[idx];
+            if (!e) return;
+
+            if (!swimTooltipEl) {
+                swimTooltipEl = document.createElement('div');
+                swimTooltipEl.className = 'swimlane-tooltip';
+                document.body.appendChild(swimTooltipEl);
+            }
+            var ts = e.timestamp || '';
+            var timeParts = ts.split('T');
+            var timeStr = timeParts.length > 1 ? timeParts[1].substring(0, 12) : ts;
+            swimTooltipEl.innerHTML = '<div class="tt-event">' + escapeHtml(e.event_type) + '</div><div class="tt-time">' + escapeHtml(timeStr) + ' &bull; ' + agentDisplayName(e.agent_name) + '</div>';
+            swimTooltipEl.style.display = 'block';
+            swimTooltipEl.style.left = (ev.clientX + 12) + 'px';
+            swimTooltipEl.style.top = (ev.clientY - 10) + 'px';
+        }
+
+        function hideSwimTooltip() {
+            if (swimTooltipEl) swimTooltipEl.style.display = 'none';
+        }
+
+        function showTraceNodeDetail(idx) {
+            if (!currentTraceData) return;
+            var e = currentTraceData.events[idx];
+            if (!e) return;
+
+            document.querySelectorAll('.swimlane-node.active').forEach(function(n) { n.classList.remove('active'); });
+            var node = document.querySelector('.swimlane-node[data-idx="' + idx + '"]');
+            if (node) node.classList.add('active');
+
+            var meta = agentMeta(e.agent_name);
+            document.getElementById('traceDetailTitle').innerHTML = '<i class="fas ' + meta.icon + '" style="color:' + meta.color + ';"></i> ' + escapeHtml(e.event_type);
+
+            var metaHtml = '';
+            metaHtml += '<div class="meta-item"><span class="meta-label">Agent</span><span class="meta-value">' + agentDisplayName(e.agent_name) + '</span></div>';
+            metaHtml += '<div class="meta-item"><span class="meta-label">Direction</span><span class="meta-value">' + escapeHtml(e.direction || 'published') + '</span></div>';
+            metaHtml += '<div class="meta-item"><span class="meta-label">Timestamp</span><span class="meta-value">' + escapeHtml(e.timestamp || '-') + '</span></div>';
+            metaHtml += '<div class="meta-item"><span class="meta-label">Event ID</span><span class="meta-value" style="font-size:11px;word-break:break-all;">' + escapeHtml(e.event_id || '-') + '</span></div>';
+
+            var payload = e.payload || {};
+            if (payload.sentiment) {
+                metaHtml += '<div class="meta-item"><span class="meta-label">Sentiment</span><span class="meta-value">' + escapeHtml(payload.sentiment) + '</span></div>';
+            }
+            if (payload.confidence != null) {
+                metaHtml += '<div class="meta-item"><span class="meta-label">Confidence</span><span class="meta-value">' + payload.confidence + '</span></div>';
+            }
+            if (payload.intent) {
+                metaHtml += '<div class="meta-item"><span class="meta-label">Intent</span><span class="meta-value">' + escapeHtml(payload.intent) + '</span></div>';
+            }
+            if (payload.agent) {
+                metaHtml += '<div class="meta-item"><span class="meta-label">Response Agent</span><span class="meta-value">' + escapeHtml(payload.agent) + '</span></div>';
+            }
+
+            document.getElementById('traceDetailMeta').innerHTML = metaHtml;
+            document.getElementById('traceDetailPayload').textContent = JSON.stringify(payload, null, 2);
+
+            var panel = document.getElementById('traceDetailPanel');
+            panel.style.display = 'block';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         function closeTraceDetail() {
-            document.getElementById('traceDetail').style.display = 'none';
+            document.getElementById('traceDetailPanel').style.display = 'none';
+            document.querySelectorAll('.swimlane-node.active').forEach(function(n) { n.classList.remove('active'); });
+        }
+
+        function closeSwimlanTrace() {
+            if (tracerRefreshTimer) { clearInterval(tracerRefreshTimer); tracerRefreshTimer = null; }
+            document.getElementById('swimlaneCard').style.display = 'none';
+            document.getElementById('tracerSummary').style.display = 'none';
+            document.getElementById('traceDetailPanel').style.display = 'none';
+            currentTraceData = null;
+            tracerSegments = [];
+            tracerCurrentStep = 0;
+            tracerShowAll = false;
+        }
+
+        function downloadTraceJSON() {
+            if (!currentTraceData) return;
+            var blob = new Blob([JSON.stringify(currentTraceData, null, 2)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'trace-' + (currentTraceData.conversation_id || 'unknown') + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         // ============================================================

@@ -96,3 +96,21 @@ ON kb_articles(category);
 -- CREATE INDEX idx_kb_articles_embedding
 -- ON kb_articles
 -- USING ivfflat (embedding vector_cosine_ops);
+
+-- -----------------------------
+-- Conversation Event Trace
+-- -----------------------------
+-- Stores every event-bus event per conversation for the Conversation Tracer
+CREATE TABLE conversation_events (
+    id SERIAL PRIMARY KEY,
+    conversation_id UUID NOT NULL,
+    event_type TEXT NOT NULL,
+    agent_name TEXT,
+    direction TEXT DEFAULT 'published',
+    payload JSONB,
+    event_timestamp TIMESTAMP NOT NULL,
+    event_id TEXT
+);
+
+CREATE INDEX idx_conv_events_conversation
+ON conversation_events(conversation_id, event_timestamp);

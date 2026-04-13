@@ -380,8 +380,17 @@ class TranscriptionAgent:
             if self.db:
                 self._write_to_database(transcript)
             else:
-                # If no DB, just log what would be written
                 logger.info(f"[Transcription] Would write to DB: {len(transcript['messages'])} messages")
+
+            # Persist the conversation trace alongside the transcript
+            try:
+                try:
+                    from ..trace_store import get_trace_store
+                except (ImportError, ValueError):
+                    from src.trace_store import get_trace_store
+                get_trace_store().finalize(session_id)
+            except Exception as e:
+                logger.warning(f"[Transcription] Could not finalize trace for {session_id}: {e}")
             
             # Keep live context available after escalation so operators can
             # continue handling the session, but finalize transcript tracking.

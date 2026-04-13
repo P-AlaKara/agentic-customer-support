@@ -10,7 +10,7 @@ Design Decisions:
 """
 
 import logging
-from typing import Callable, Dict, List, Any
+from typing import Callable, Dict, List, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Lock
@@ -19,6 +19,37 @@ import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# Maps event types to the agent that publishes them (used by trace hook).
+_EVENT_TO_AGENT = {
+    "NEW_USER_MESSAGE": "user",
+    "TASK_RECOGNIZE_SENTIMENT": "coordinator",
+    "TASK_RECOGNIZE_INTENT": "coordinator",
+    "TASK_HANDLE_RETURNS": "coordinator",
+    "TASK_HANDLE_ORDER_TRACKING": "coordinator",
+    "TASK_HANDLE_GREETING": "coordinator",
+    "TASK_HANDLE_CLOSING": "coordinator",
+    "TASK_HANDLE_ONBOARDING": "coordinator",
+    "TASK_ESCALATE": "coordinator",
+    "RESULT_SENTIMENT_RECOGNIZED": "sentiment",
+    "RESULT_INTENT_RECOGNIZED": "intent",
+    "RESULT_SEND_RESPONSE_TO_USER": None,  # varies per agent
+    "RESULT_ESCALATION_COMPLETE": "escalation",
+    "NOTIFICATION_OPERATOR": "escalation",
+    "RESULT_OPERATOR_ASSIGNED": "escalation",
+    "RESULT_ESCALATION_RESOLVED": "escalation",
+    "TRANSCRIPT_SAVED": "transcription",
+    "CONVERSATION_END": "transcription",
+    "REQUEST_ESCALATION": "coordinator",
+    "AGENT_ERROR": None,
+    "VOICE_INPUT_RECEIVED": "user",
+    "VOICE_TRANSCRIPTION_COMPLETED": "stt_service",
+    "VOICE_TRANSCRIPTION_FAILED": "stt_service",
+    "VOICE_SYNTHESIS_COMPLETED": "tts_service",
+    "OPERATOR_AVAILABLE": "human_operator",
+    "ESCALATION_RESOLVED": "human_operator",
+}
 
 
 @dataclass
@@ -158,7 +189,29 @@ class EventBus:
         self._stats['published'] += 1
         logger.info(f"Publishing event '{event_type}' [ID: {event.event_id}]")
         logger.debug(f"Event payload: {json.dumps(payload, indent=2)}")
-        
+
+        # Trace hook: capture every event that carries a session_id
+        session_id = payload.get('session_id') if isinstance(payload, dict) else None
+        if session_id:
+            try:
+                from .trace_store import get_trace_store
+                agent = _EVENT_TO_AGENT.get(event_type)
+                if agent is None:
+                    agent = payload.get('agent', payload.get('agent_name', 'unknown'))
+                    if isinstance(agent, str):
+                        agent = agent.strip().lower().replace(' ', '_')
+                get_trace_store().log(
+                    session_id=session_id,
+                    event_type=event_type,
+                    agent_name=agent,
+                    direction="published",
+                    payload=payload,
+                    timestamp=event.timestamp,
+                    event_id=event.event_id,
+                )
+            except Exception:
+                pass  # never break event delivery for tracing
+
         # Get subscribers (make a copy to avoid holding lock during callbacks)
         with self._lock:
             subscribers = self._subscribers.get(event_type, []).copy()

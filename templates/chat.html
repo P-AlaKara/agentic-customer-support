@@ -583,6 +583,113 @@
         }
 
         .voice-feedback.active { color: var(--accent); }
+
+        /* ── Review Overlay ── */
+        .review-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .review-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .review-card {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 36px 40px;
+            text-align: center;
+            max-width: 380px;
+            width: 90%;
+            box-shadow: 0 16px 64px rgba(0,0,0,0.18);
+            transform: translateY(20px) scale(0.96);
+            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+        }
+        .review-overlay.visible .review-card {
+            transform: translateY(0) scale(1);
+        }
+        .review-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+        .review-card p {
+            font-size: 13.5px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+        .star-row {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 22px;
+        }
+        .star-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 32px;
+            color: var(--border);
+            transition: color 0.15s, transform 0.15s;
+            padding: 2px;
+            line-height: 1;
+        }
+        .star-btn:hover,
+        .star-btn.active {
+            color: #f59e0b;
+            transform: scale(1.15);
+        }
+        .review-submit {
+            padding: 10px 28px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.15s;
+        }
+        .review-submit:hover { background: var(--accent-hover); }
+        .review-submit:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+        .review-skip {
+            display: block;
+            margin: 12px auto 0;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 12.5px;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .review-skip:hover { color: var(--text-secondary); }
+        .review-thankyou {
+            display: none;
+            text-align: center;
+            padding: 10px 0;
+        }
+        .review-thankyou .check-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: #e6faf0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            margin-bottom: 14px;
+        }
+        .review-thankyou h3 { color: #16a34a; }
     </style>
 </head>
 <body>
@@ -695,6 +802,30 @@
     </div>
 </div>
 
+<!-- Review Overlay -->
+<div class="review-overlay" id="reviewOverlay">
+    <div class="review-card">
+        <div id="reviewForm">
+            <h3>How was your experience?</h3>
+            <p>Rate your conversation with our support team</p>
+            <div class="star-row" id="starRow">
+                <button class="star-btn" data-score="1" onclick="selectStar(1)">&#9733;</button>
+                <button class="star-btn" data-score="2" onclick="selectStar(2)">&#9733;</button>
+                <button class="star-btn" data-score="3" onclick="selectStar(3)">&#9733;</button>
+                <button class="star-btn" data-score="4" onclick="selectStar(4)">&#9733;</button>
+                <button class="star-btn" data-score="5" onclick="selectStar(5)">&#9733;</button>
+            </div>
+            <button class="review-submit" id="reviewSubmitBtn" onclick="submitReview()" disabled>Submit Rating</button>
+            <button class="review-skip" onclick="dismissReview()">Skip</button>
+        </div>
+        <div class="review-thankyou" id="reviewThankyou">
+            <div class="check-icon">&#10003;</div>
+            <h3>Thank you!</h3>
+            <p>Your feedback helps us improve.</p>
+        </div>
+    </div>
+</div>
+
 <script>
     const API_URL = 'http://localhost:8000';
     const EAT_TIMEZONE = 'Africa/Nairobi';
@@ -707,6 +838,8 @@
     let isRecording = false;
     let recognition = null;
     let liveTranscript = '';
+    let selectedReviewScore = 0;
+    let reviewSessionId = null;
 
     function updateSessionInfo() {
         const el = document.getElementById('sessionInfo');
@@ -806,11 +939,7 @@
             await syncSeenMessages();
 
             if (data.final) {
-                sessionId = null;
-                localStorage.removeItem('sessionId');
-                messagesShown = false;
-                updateSessionInfo();
-                seenMessageTimestamps.clear();
+                handleConversationEnd(data.session_id);
             }
         } catch (e) {
             setTyping(false);
@@ -986,6 +1115,10 @@
         if (!sessionId) return;
         try {
             const r = await fetch(`${API_URL}/chat/${sessionId}`);
+            if (r.status === 404) {
+                handleConversationEnd(sessionId);
+                return;
+            }
             if (!r.ok) return;
             const data = await r.json();
             (data.messages || []).forEach(msg => {
@@ -1000,6 +1133,60 @@
 
     function toggleSidebar() {
         document.querySelector('.app').classList.toggle('sidebar-open');
+    }
+
+    function handleConversationEnd(endedSessionId) {
+        reviewSessionId = endedSessionId || sessionId;
+        sessionId = null;
+        localStorage.removeItem('sessionId');
+        messagesShown = false;
+        updateSessionInfo();
+        seenMessageTimestamps.clear();
+        showReviewOverlay();
+    }
+
+    function showReviewOverlay() {
+        selectedReviewScore = 0;
+        document.getElementById('reviewForm').style.display = 'block';
+        document.getElementById('reviewThankyou').style.display = 'none';
+        document.getElementById('reviewSubmitBtn').disabled = true;
+        document.querySelectorAll('.star-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('reviewOverlay').classList.add('visible');
+    }
+
+    function selectStar(score) {
+        selectedReviewScore = score;
+        document.querySelectorAll('.star-btn').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.score) <= score);
+        });
+        document.getElementById('reviewSubmitBtn').disabled = false;
+    }
+
+    async function submitReview() {
+        if (!selectedReviewScore || !reviewSessionId) return;
+        const btn = document.getElementById('reviewSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Submitting...';
+
+        try {
+            await fetch(`${API_URL}/chat/review`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: reviewSessionId, review_score: selectedReviewScore })
+            });
+        } catch (e) {
+            console.error('Review submission failed:', e);
+        }
+
+        document.getElementById('reviewForm').style.display = 'none';
+        document.getElementById('reviewThankyou').style.display = 'block';
+        setTimeout(dismissReview, 2000);
+    }
+
+    function dismissReview() {
+        document.getElementById('reviewOverlay').classList.remove('visible');
+        reviewSessionId = null;
+        selectedReviewScore = 0;
     }
 
     // Initialize

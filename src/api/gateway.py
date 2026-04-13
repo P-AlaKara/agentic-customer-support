@@ -8,8 +8,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from threading import RLock
 from collections import Counter
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -160,6 +161,16 @@ class VoiceChatResponse(ChatResponse):
     audio_base64: Optional[str] = None
     audio_format: Optional[str] = None
     voice_name: Optional[str] = None
+
+class ReviewRequest(BaseModel):
+    """Post-conversation review from customer"""
+    session_id: str = Field(..., description="Session ID of the completed conversation")
+    review_score: int = Field(..., ge=1, le=5, description="Rating from 1 to 5")
+
+class PolicySaveRequest(BaseModel):
+    """Request to save a policy file"""
+    filename: str = Field(..., description="Policy filename (e.g. shipping.md)")
+    content: str = Field(..., description="Markdown content for the policy")
 
 class OperatorAssignment(BaseModel):
     """Operator assignment request"""
@@ -479,6 +490,43 @@ async def get_session(session_id: str):
 
 
 # ============================================================================
+# Review Endpoint
+# ============================================================================
+
+@app.post("/chat/review")
+async def submit_review(review: ReviewRequest):
+    """Submit a 1-5 star review for a completed conversation."""
+    try:
+        from ..utils.database import get_db_connection, ensure_uuid
+        db_conn = get_db_connection()
+        conv_uuid = str(ensure_uuid(review.session_id))
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute(
+                """UPDATE completed_conversations
+                   SET review_score = %s
+                   WHERE conversation_id = %s
+                   RETURNING conversation_id""",
+                (review.review_score, conv_uuid)
+            )
+            row = cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {
+            "status": "success",
+            "conversation_id": str(row["conversation_id"]),
+            "review_score": review.review_score
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error submitting review: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # Operator Endpoints
 # ============================================================================
 
@@ -652,7 +700,7 @@ async def operator_respond(session_id: str, message: str):
 
 @app.post("/operator/end/{session_id}")
 async def operator_end_conversation(session_id: str):
-    """End a conversation using the same close intent workflow as the user flow."""
+    """End an operator-controlled conversation with proper cleanup."""
     try:
         context = store.get(session_id)
         if not context:
@@ -660,7 +708,14 @@ async def operator_end_conversation(session_id: str):
         if context.metadata.get('controlled_by') != 'OPERATOR':
             raise HTTPException(status_code=409, detail="Session is not controlled by an operator")
 
-        bus.publish('TASK_HANDLE_CLOSING', context.to_dict())
+        # Send a closing message the customer can receive via polling.
+        bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
+            'session_id': session_id,
+            'text': "The operator has closed this conversation. If you need further help, start a new chat.",
+            'agent': 'HUMAN_OPERATOR',
+            'final': True
+        })
+
         bus.publish('ESCALATION_RESOLVED', {
             'session_id': session_id,
             'operator_id': context.operator_id or 'unknown',
@@ -670,6 +725,10 @@ async def operator_end_conversation(session_id: str):
         # Escalated transcripts are already finalized when queued; only clean up
         # the live context at operator close time.
         store.delete(session_id)
+
+        # Drain the response from the collector so it doesn't leak into
+        # a subsequent /chat request for a recycled session id.
+        response_collector.responses.pop(session_id, None)
 
         return {
             "status": "success",
@@ -983,6 +1042,7 @@ async def get_database_reports(
                     start_time,
                     end_time,
                     final_status,
+                    review_score,
                     operator_id,
                     EXTRACT(EPOCH FROM (end_time - start_time)) as duration_seconds
                 FROM completed_conversations
@@ -1124,6 +1184,68 @@ async def get_conversation_transcript(conversation_id: str):
         raise
     except Exception as e:
         logger.error(f"[API] Error fetching transcript: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/conversations")
+async def list_conversations(
+    session_id: Optional[str] = None,
+    final_status: Optional[str] = None,
+    review_score: Optional[int] = None,
+    limit: int = 100
+):
+    """Filterable list of completed conversations for the Transcripts dashboard."""
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+
+        query = """
+            SELECT
+                conversation_id,
+                customer_id,
+                start_time,
+                end_time,
+                final_status,
+                review_score,
+                operator_id
+            FROM completed_conversations
+            WHERE 1=1
+        """
+        params: list = []
+
+        if session_id:
+            query += " AND conversation_id::text ILIKE %s"
+            params.append(f"%{session_id}%")
+
+        if final_status:
+            query += " AND final_status ILIKE %s"
+            params.append(f"%{final_status}%")
+
+        if review_score is not None:
+            query += " AND review_score = %s"
+            params.append(review_score)
+
+        query += " ORDER BY start_time DESC NULLS LAST LIMIT %s"
+        params.append(limit)
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute(query, params)
+            results = cursor.fetchall()
+
+        data = []
+        for row in results:
+            row_dict = dict(row)
+            row_dict['conversation_id'] = str(row_dict['conversation_id'])
+            if row_dict.get('start_time'):
+                row_dict['start_time'] = row_dict['start_time'].isoformat()
+            if row_dict.get('end_time'):
+                row_dict['end_time'] = row_dict['end_time'].isoformat()
+            data.append(row_dict)
+
+        return {"count": len(data), "data": data}
+
+    except Exception as e:
+        logger.error(f"[API] Error listing conversations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1345,6 +1467,128 @@ async def get_session_trace(session_id: str):
     except Exception as e:
         logger.error(f"[API] Error getting session trace: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/conversation-trace/{conversation_id}")
+async def get_conversation_trace(conversation_id: str):
+    """
+    Full ordered event trace for a conversation (active or completed).
+    Powers the Conversation Tracer swimlane UI.
+    """
+    try:
+        try:
+            from ..trace_store import get_trace_store
+        except (ImportError, ValueError):
+            from src.trace_store import get_trace_store
+        ts = get_trace_store()
+
+        events = ts.get_trace(conversation_id)
+        source = "active"
+
+        if events is None:
+            events = ts.get_trace_from_db(conversation_id)
+            source = "completed"
+
+        if not events:
+            raise HTTPException(status_code=404, detail="No trace found for this conversation")
+
+        metadata = _build_trace_metadata(conversation_id, source)
+        summary = _build_trace_summary(events, metadata)
+
+        return {
+            "conversation_id": conversation_id,
+            "status": source,
+            "metadata": metadata,
+            "events": events,
+            "summary": summary,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error in conversation-trace: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _build_trace_metadata(conversation_id: str, source: str) -> Dict[str, Any]:
+    if source == "active":
+        ctx = store.get(conversation_id)
+        if ctx:
+            return {
+                "customer_email": ctx.customer_email,
+                "start_time": ctx.start_time,
+                "end_time": None,
+                "final_status": ctx.status,
+                "review_score": None,
+            }
+    else:
+        try:
+            from ..utils.database import get_db_connection, ensure_uuid
+            db_conn = get_db_connection()
+            conv_uuid = str(ensure_uuid(conversation_id))
+            with db_conn.get_cursor() as cursor:
+                cursor.execute(
+                    """SELECT customer_id, start_time, end_time,
+                              final_status, review_score
+                       FROM completed_conversations
+                       WHERE conversation_id = %s""",
+                    (conv_uuid,),
+                )
+                row = cursor.fetchone()
+            if row:
+                return {
+                    "customer_email": row["customer_id"],
+                    "start_time": row["start_time"].isoformat() if row["start_time"] else None,
+                    "end_time": row["end_time"].isoformat() if row["end_time"] else None,
+                    "final_status": row["final_status"],
+                    "review_score": row["review_score"],
+                }
+        except Exception:
+            pass
+    return {}
+
+
+def _build_trace_summary(events: List[Dict[str, Any]], metadata: Dict[str, Any]) -> Dict[str, Any]:
+    agents_involved = sorted({e["agent_name"] for e in events if e.get("agent_name")})
+    total_messages = sum(
+        1 for e in events if e["event_type"] in ("NEW_USER_MESSAGE", "RESULT_SEND_RESPONSE_TO_USER")
+    )
+
+    sentiments = []
+    intents = []
+    was_escalated = False
+    for e in events:
+        et = e["event_type"]
+        p = e.get("payload") or {}
+        if et == "RESULT_SENTIMENT_RECOGNIZED":
+            s = p.get("sentiment")
+            if s and (not sentiments or sentiments[-1] != s):
+                sentiments.append(s)
+        if et == "RESULT_INTENT_RECOGNIZED":
+            i = p.get("intent")
+            if i and (not intents or intents[-1] != i):
+                intents.append(i)
+        if et in ("TASK_ESCALATE", "RESULT_ESCALATION_COMPLETE"):
+            was_escalated = True
+
+    duration = None
+    if events:
+        from datetime import datetime as _dt
+        try:
+            t0 = _dt.fromisoformat(events[0]["timestamp"])
+            t1 = _dt.fromisoformat(events[-1]["timestamp"])
+            duration = round((t1 - t0).total_seconds(), 2)
+        except Exception:
+            pass
+
+    return {
+        "total_events": len(events),
+        "total_messages": total_messages,
+        "agents_involved": agents_involved,
+        "duration_seconds": duration,
+        "sentiment_trajectory": sentiments,
+        "intent_changes": intents,
+        "was_escalated": was_escalated,
+    }
 
 
 @app.get("/admin/agent/{agent_name}/events")
@@ -2062,6 +2306,137 @@ async def get_text_insights(
         }
 
 
+# ============================================================================
+# Policy Management Endpoints
+# ============================================================================
+
+POLICIES_DIR = Path(__file__).resolve().parent.parent.parent / "policies"
+ALLOWED_POLICIES = {"shipping.md", "returns.md", "onboarding.md"}
+
+
+def _run_embedding_for_category(filepath: str, category: str):
+    """Re-index a single policy file into kb_articles (runs in background)."""
+    try:
+        from ..utils.database import get_db_connection
+        import psycopg2
+        from psycopg2.extras import Json as PgJson
+
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            logger.error("[Embed] GEMINI_API_KEY missing; skipping re-index")
+            return
+
+        from google import genai
+        client = genai.Client(api_key=api_key, http_options={'api_version': 'v1beta'})
+
+        def embed_text(text: str):
+            try:
+                result = client.models.embed_content(model="text-embedding-004", contents=text)
+                return result.embeddings[0].values
+            except Exception:
+                result = client.models.embed_content(model="gemini-embedding-001", contents=text)
+                return result.embeddings[0].values
+
+        def chunk_text(text, max_chars=500):
+            chunks, current = [], ""
+            for line in text.split("\n"):
+                if len(current) + len(line) > max_chars:
+                    chunks.append(current.strip())
+                    current = ""
+                current += line + "\n"
+            if current.strip():
+                chunks.append(current.strip())
+            return chunks
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        db_conn = get_db_connection()
+        source_file = os.path.basename(filepath)
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM kb_articles WHERE category = %s",
+                (category,)
+            )
+            for chunk in chunk_text(content):
+                embedding = embed_text(chunk)
+                cursor.execute(
+                    """INSERT INTO kb_articles (text_chunk, category, source_file, embedding)
+                       VALUES (%s, %s, %s, %s)""",
+                    (chunk, category, source_file, embedding)
+                )
+
+        logger.info(f"[Embed] Re-indexed {source_file} ({category}) successfully")
+    except Exception as e:
+        logger.error(f"[Embed] Re-indexing failed for {category}: {e}", exc_info=True)
+
+
+@app.get("/policies")
+async def list_policies():
+    """Return the content of all policy markdown files."""
+    try:
+        policies = {}
+        for name in ALLOWED_POLICIES:
+            filepath = POLICIES_DIR / name
+            if filepath.exists():
+                policies[name] = filepath.read_text(encoding="utf-8")
+            else:
+                policies[name] = ""
+        return {"policies": policies}
+    except Exception as e:
+        logger.error(f"[API] Error reading policies: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/policies/save")
+async def save_policy(req: PolicySaveRequest, background_tasks: BackgroundTasks):
+    """Save a policy file and trigger background re-indexing."""
+    if req.filename not in ALLOWED_POLICIES:
+        raise HTTPException(status_code=400, detail=f"Invalid policy file. Allowed: {', '.join(ALLOWED_POLICIES)}")
+
+    try:
+        filepath = POLICIES_DIR / req.filename
+        filepath.write_text(req.content, encoding="utf-8")
+
+        category = req.filename.replace(".md", "").upper()
+        background_tasks.add_task(_run_embedding_for_category, str(filepath), category)
+
+        return {
+            "status": "success",
+            "filename": req.filename,
+            "message": f"Policy saved. Re-indexing {category} in the background."
+        }
+    except Exception as e:
+        logger.error(f"[API] Error saving policy: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/policies/status/{category}")
+async def policy_index_status(category: str):
+    """Check how many chunks exist for a given category."""
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        cat = category.upper()
+        with db_conn.get_cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) as chunk_count FROM kb_articles WHERE category = %s",
+                (cat,)
+            )
+            row = cursor.fetchone()
+        return {"category": cat, "chunk_count": row["chunk_count"] if row else 0}
+    except Exception as e:
+        logger.error(f"[API] Error checking index status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API info"""
@@ -2083,11 +2458,18 @@ async def root():
             "admin": {
                 "stats": "GET /admin/stats",
                 "health": "GET /admin/health",
+                "conversations": "GET /admin/conversations",
+                "transcript": "GET /admin/transcript/{conversation_id}",
                 "analytics_conversations": "GET /admin/analytics/conversations",
                 "analytics_pain_points": "GET /admin/analytics/pain-points",
                 "analytics_agent_performance": "GET /admin/analytics/agent-performance",
                 "analytics_business_metrics": "GET /admin/analytics/business-metrics",
                 "analytics_text_insights": "GET /admin/analytics/text-insights"
+            },
+            "policies": {
+                "list": "GET /policies",
+                "save": "POST /policies/save",
+                "status": "GET /policies/status/{category}"
             }
         }
     }
