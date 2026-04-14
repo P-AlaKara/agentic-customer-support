@@ -2043,6 +2043,59 @@ async def get_agent_performance(
         return {"agents": [], "escalation_triggers": []}
 
 
+@app.get("/admin/analytics/agent-performance-timeline")
+async def get_agent_performance_timeline(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    interval: Optional[str] = "day"
+):
+    try:
+        from ..utils.database import get_db_connection
+        db_conn = get_db_connection()
+        d_from, d_to, _, _ = _parse_date_range(date_from, date_to)
+
+        trunc = interval if interval in ("hour", "day", "week", "month") else "day"
+
+        with db_conn.get_cursor() as cursor:
+            cursor.execute(f"""
+                SELECT
+                    date_trunc('{trunc}', timestamp)::date AS period,
+                    agent_action->>'agent' AS agent_name,
+                    COUNT(*) AS total_actions,
+                    COUNT(*) FILTER (WHERE agent_action->>'status' = 'success') AS successful
+                FROM completed_messages
+                WHERE agent_action IS NOT NULL
+                  AND agent_action->>'agent' IS NOT NULL
+                  AND timestamp >= %s AND timestamp < %s
+                GROUP BY 1, 2
+                ORDER BY 1, 2
+            """, (d_from, d_to))
+            rows = cursor.fetchall()
+
+        date_set = sorted(set(str(r['period']) for r in rows))
+        agents_set = sorted(set(r['agent_name'] for r in rows))
+
+        lookup = {}
+        for r in rows:
+            lookup[(str(r['period']), r['agent_name'])] = {
+                "total": r['total_actions'] or 0,
+                "successful": r['successful'] or 0
+            }
+
+        series = []
+        for agent in agents_set:
+            series.append({
+                "agent": agent,
+                "total": [lookup.get((d, agent), {}).get("total", 0) for d in date_set],
+                "successful": [lookup.get((d, agent), {}).get("successful", 0) for d in date_set]
+            })
+
+        return {"dates": date_set, "series": series}
+    except Exception as e:
+        logger.error(f"[API] Error in agent performance timeline: {e}", exc_info=True)
+        return {"dates": [], "series": []}
+
+
 @app.get("/admin/analytics/business-metrics")
 async def get_business_metrics(
     date_from: Optional[str] = None,

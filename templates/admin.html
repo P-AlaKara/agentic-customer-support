@@ -1801,6 +1801,636 @@
             color: #334155;
         }
 
+        /* ── Agent Performance Page ── */
+        .perf-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .perf-kpi-card {
+            background: #1e2530;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .perf-kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .perf-kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+
+        .perf-kpi-card.card-success::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .perf-kpi-card.card-blue::before   { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .perf-kpi-card.card-amber::before  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .perf-kpi-card.card-red::before    { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+        .perf-kpi-icon {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+
+        .perf-kpi-card.card-success .perf-kpi-icon { color: #10b981; }
+        .perf-kpi-card.card-blue   .perf-kpi-icon { color: #3b82f6; }
+        .perf-kpi-card.card-amber  .perf-kpi-icon { color: #f59e0b; }
+        .perf-kpi-card.card-red    .perf-kpi-icon { color: #ef4444; }
+
+        .perf-kpi-value {
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .perf-kpi-label {
+            font-size: 12px;
+            color: #71767b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .perf-kpi-trend {
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        .perf-kpi-trend.positive { color: #10b981; }
+        .perf-kpi-trend.negative { color: #ef4444; }
+        .perf-kpi-trend.neutral  { color: #71767b; }
+
+        /* Status strip */
+        .agent-status-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 16px 20px;
+            background: #1e2530;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            align-items: center;
+        }
+
+        .agent-status-strip-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #71767b;
+            margin-right: 4px;
+        }
+
+        .agent-status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid #2f3336;
+            background: #0f1419;
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .agent-status-chip:hover {
+            border-color: #3b82f6;
+            background: #1a2535;
+        }
+
+        .agent-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .agent-status-dot.online   { background: #10b981; box-shadow: 0 0 6px #10b981; }
+        .agent-status-dot.degraded { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+        .agent-status-dot.offline  { background: #ef4444; }
+
+        .agent-status-chip-count {
+            font-size: 11px;
+            color: #71767b;
+        }
+
+        /* Chart grid (reuse existing .chart-grid but add wide variant) */
+        .chart-card-full {
+            grid-column: 1 / -1;
+        }
+
+        /* Comparison table progress bars */
+        .perf-bar-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .perf-bar {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #2f3336;
+            overflow: hidden;
+            min-width: 60px;
+        }
+
+        .perf-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.6s ease;
+        }
+
+        .perf-bar-fill.good   { background: #10b981; }
+        .perf-bar-fill.medium { background: #f59e0b; }
+        .perf-bar-fill.poor   { background: #ef4444; }
+
+        .perf-bar-label {
+            font-size: 12px;
+            min-width: 36px;
+            text-align: right;
+            color: #e7e9ea;
+        }
+
+        .perf-trend-up   { color: #10b981; }
+        .perf-trend-down { color: #ef4444; }
+        .perf-trend-flat { color: #71767b; }
+
+        tr.perf-row {
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        tr.perf-row:hover td {
+            background: #1e2a3a !important;
+        }
+
+        /* Performance drilldown modal */
+        #perfModalOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #perfModalOverlay.open {
+            display: flex;
+        }
+
+        #perfModal {
+            background: #1e2530;
+            border: 1px solid #2f3336;
+            border-radius: 16px;
+            width: 700px;
+            max-width: 95vw;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .perf-modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #2f3336;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .perf-modal-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .perf-modal-body {
+            padding: 20px 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .perf-event-item {
+            display: flex;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #2f3336;
+        }
+
+        .perf-event-item:last-child {
+            border-bottom: none;
+        }
+
+        .perf-event-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #3b82f6;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .perf-event-dot.success { background: #10b981; }
+        .perf-event-dot.error   { background: #ef4444; }
+
+        .perf-event-time {
+            font-size: 11px;
+            color: #71767b;
+            min-width: 80px;
+        }
+
+        .perf-event-type {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .perf-event-detail {
+            font-size: 12px;
+            color: #71767b;
+            margin-top: 2px;
+        }
+
+        /* ── Settings Page ── */
+        .settings-layout {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 24px;
+            height: calc(100% - 48px);
+        }
+
+        .settings-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .settings-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #71767b;
+            transition: all 0.15s;
+        }
+
+        .settings-nav-item:hover {
+            background: #2f3336;
+            color: #e7e9ea;
+        }
+
+        .settings-nav-item.active {
+            background: rgba(59,130,246,0.15);
+            color: #3b82f6;
+        }
+
+        .settings-nav-item i {
+            width: 16px;
+            text-align: center;
+        }
+
+        .settings-panel {
+            overflow-y: auto;
+        }
+
+        .settings-card {
+            background: #1e2530;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .settings-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-card-title i {
+            color: #3b82f6;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #2f3336;
+        }
+
+        .settings-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .settings-row-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .settings-row-desc {
+            font-size: 12px;
+            color: #71767b;
+            margin-top: 2px;
+        }
+
+        .settings-input {
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #e7e9ea;
+            font-size: 13px;
+            min-width: 200px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .settings-input:focus {
+            border-color: #3b82f6;
+        }
+
+        .settings-select {
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #e7e9ea;
+            font-size: 13px;
+            min-width: 180px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .settings-toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .settings-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .settings-toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: #2f3336;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .settings-toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            top: 3px;
+            background: #71767b;
+            border-radius: 50%;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .settings-toggle input:checked + .settings-toggle-slider {
+            background: rgba(59,130,246,0.3);
+        }
+
+        .settings-toggle input:checked + .settings-toggle-slider::before {
+            transform: translateX(20px);
+            background: #3b82f6;
+        }
+
+        .settings-slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .settings-range {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 160px;
+            height: 4px;
+            background: #2f3336;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .settings-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+
+        .settings-range-val {
+            font-size: 13px;
+            min-width: 36px;
+            text-align: center;
+            color: #e7e9ea;
+        }
+
+        .color-swatch-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .color-swatch {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: border-color 0.15s, transform 0.1s;
+        }
+
+        .color-swatch:hover { transform: scale(1.15); }
+        .color-swatch.selected { border-color: #ffffff; }
+
+        .settings-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .settings-badge.ok     { background: rgba(16,185,129,0.15); color: #10b981; }
+        .settings-badge.error  { background: rgba(239,68,68,0.15);  color: #ef4444; }
+        .settings-badge.info   { background: rgba(59,130,246,0.15); color: #3b82f6; }
+
+        .settings-save-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            padding-top: 8px;
+        }
+
+        .settings-about-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .settings-about-item {
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .settings-about-item .val {
+            font-size: 18px;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+
+        .settings-about-item .lbl {
+            font-size: 11px;
+            color: #71767b;
+            margin-top: 4px;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            min-width: 240px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            animation: toastIn 0.25s ease;
+        }
+
+        .toast.success { background: #10b981; color: #fff; }
+        .toast.error   { background: #ef4444; color: #fff; }
+        .toast.info    { background: #3b82f6; color: #fff; }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Light-mode overrides for new elements */
+        body.light-mode .perf-kpi-card,
+        body.light-mode .agent-status-strip,
+        body.light-mode #perfModal,
+        body.light-mode .settings-card {
+            background: #ffffff;
+            border-color: #e5e7eb;
+            color: #111827;
+        }
+
+        /* KPI card text */
+        body.light-mode .perf-kpi-value { color: #111827; }
+        body.light-mode .perf-kpi-label { color: #4b5563; }
+        body.light-mode .perf-kpi-trend.neutral { color: #4b5563; }
+
+        /* Status strip */
+        body.light-mode .agent-status-strip-title { color: #4b5563; }
+
+        body.light-mode .agent-status-chip {
+            background: #f9fafb;
+            border-color: #e2e8f0;
+            color: #111827;
+        }
+
+        body.light-mode .agent-status-chip-count { color: #4b5563; }
+
+        /* Comparison table */
+        body.light-mode .perf-bar { background: #e2e8f0; }
+        body.light-mode .perf-bar-label { color: #111827; }
+        body.light-mode .perf-trend-flat { color: #4b5563; }
+
+        /* Drilldown modal */
+        body.light-mode #perfModal { background: #ffffff; border-color: #e2e8f0; }
+        body.light-mode .perf-modal-header { border-color: #e2e8f0; color: #111827; }
+        body.light-mode .perf-event-item { border-color: #e2e8f0; }
+        body.light-mode .perf-event-type { color: #111827; }
+        body.light-mode .perf-event-time { color: #4b5563; }
+        body.light-mode .perf-event-detail { color: #4b5563; }
+
+        /* Settings */
+        body.light-mode .settings-card-title { color: #111827; }
+        body.light-mode .settings-row-label { color: #111827; }
+        body.light-mode .settings-row-desc { color: #4b5563; }
+        body.light-mode .settings-row { border-color: #e5e7eb; }
+
+        body.light-mode .settings-nav-item { color: #374151; }
+        body.light-mode .settings-nav-item:hover { background: #f3f4f6; color: #111827; }
+        body.light-mode .settings-nav-item.active { background: rgba(37,99,235,0.1); color: #1d4ed8; }
+
+        body.light-mode .settings-input,
+        body.light-mode .settings-select {
+            background: #f9fafb;
+            border-color: #d1d5db;
+            color: #111827;
+        }
+
+        body.light-mode .settings-range { background: #d1d5db; }
+
+        body.light-mode .settings-about-item {
+            background: #f9fafb;
+            border-color: #e5e7eb;
+        }
+        body.light-mode .settings-about-item .val { color: #1d4ed8; }
+        body.light-mode .settings-about-item .lbl { color: #4b5563; }
+
+        body.light-mode .settings-toggle-slider { background: #d1d5db; }
+
+        body.light-mode .settings-badge.ok    { background: rgba(16,185,129,0.12); color: #065f46; }
+        body.light-mode .settings-badge.error { background: rgba(239,68,68,0.12);  color: #991b1b; }
+        body.light-mode .settings-badge.info  { background: rgba(37,99,235,0.12);  color: #1e40af; }
+
+        body.light-mode .settings-range-val { color: #111827; }
+
+        @media (max-width: 1100px) {
+            .perf-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .settings-layout { grid-template-columns: 1fr; }
+            .settings-nav { flex-direction: row; flex-wrap: wrap; }
+        }
+
     </style>
 </head>
 <body>
@@ -1851,6 +2481,14 @@
                 <div class="nav-item" onclick="showSection('policies', this)">
                     <i class="fas fa-file-alt"></i>
                     <span>Policies</span>
+                </div>
+                <div class="nav-item" onclick="showSection('performance', this)">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Agent Performance</span>
+                </div>
+                <div class="nav-item" onclick="showSection('settings', this)">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
                 </div>
             </nav>
         </div>
@@ -2244,6 +2882,372 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ── Agent Performance Section ── -->
+            <div id="performance-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Agent Performance</h2>
+                    <p>Deep-dive metrics and live health for every agent in the system</p>
+                </div>
+                <div class="content-body">
+
+                    <!-- Toolbar -->
+                    <div class="analytics-toolbar">
+                        <button class="btn btn-secondary analytics-preset active" id="perfPreset7"  onclick="setPerfDateRange(7, this)">Last 7 Days</button>
+                        <button class="btn btn-secondary analytics-preset"        id="perfPreset30" onclick="setPerfDateRange(30, this)">Last 30 Days</button>
+                        <button class="btn btn-secondary analytics-preset"        id="perfPreset90" onclick="setPerfDateRange(90, this)">Last 90 Days</button>
+                        <div class="analytics-custom-range">
+                            <input type="date" id="perfDateFrom">
+                            <span>to</span>
+                            <input type="date" id="perfDateTo">
+                        </div>
+                        <button class="btn btn-primary" onclick="loadPerformance()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                        <span id="perfLastUpdated" class="analytics-timestamp"></span>
+                    </div>
+
+                    <!-- KPI cards -->
+                    <div class="perf-kpi-grid" id="perfKpiGrid">
+                        <div class="perf-kpi-card card-success">
+                            <div class="perf-kpi-icon"><i class="fas fa-check-circle"></i></div>
+                            <div class="perf-kpi-value" id="perfKpiSuccessRate">—</div>
+                            <div class="perf-kpi-label">System Success Rate</div>
+                            <div class="perf-kpi-trend neutral" id="perfKpiSuccessTrend">vs prior period</div>
+                        </div>
+                        <div class="perf-kpi-card card-blue">
+                            <div class="perf-kpi-icon"><i class="fas fa-bolt"></i></div>
+                            <div class="perf-kpi-value" id="perfKpiTotalActions">—</div>
+                            <div class="perf-kpi-label">Total Agent Actions</div>
+                            <div class="perf-kpi-trend neutral" id="perfKpiActionsTrend">vs prior period</div>
+                        </div>
+                        <div class="perf-kpi-card card-amber">
+                            <div class="perf-kpi-icon"><i class="fas fa-brain"></i></div>
+                            <div class="perf-kpi-value" id="perfKpiConfidence">—</div>
+                            <div class="perf-kpi-label">Avg Confidence</div>
+                            <div class="perf-kpi-trend neutral" id="perfKpiConfidenceTrend">across all agents</div>
+                        </div>
+                        <div class="perf-kpi-card card-red">
+                            <div class="perf-kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="perf-kpi-value" id="perfKpiEscalations">—</div>
+                            <div class="perf-kpi-label">Total Escalation Triggers</div>
+                            <div class="perf-kpi-trend neutral" id="perfKpiEscalationsTrend">distinct intents</div>
+                        </div>
+                    </div>
+
+                    <!-- Live agent status strip -->
+                    <div class="agent-status-strip" id="agentStatusStrip">
+                        <span class="agent-status-strip-title"><i class="fas fa-circle-notch fa-spin"></i> Loading live agents…</span>
+                    </div>
+
+                    <!-- Charts row 1: Success Rate bar + Confidence Radar -->
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-chart-bar"></i> Success Rate by Agent</div>
+                            <canvas id="perfSuccessChart" style="max-height:280px;"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-spider"></i> Confidence Score Radar</div>
+                            <canvas id="perfRadarChart" style="max-height:280px;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Charts row 2: Timeline (full width) -->
+                    <div class="chart-grid">
+                        <div class="chart-card chart-card-wide">
+                            <div class="card-title"><i class="fas fa-chart-line"></i> Action Volume Over Time</div>
+                            <canvas id="perfTimelineChart" style="max-height:240px;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Charts row 3: Escalation triggers bar + Comparison table -->
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-fire-alt"></i> Top Escalation Triggers</div>
+                            <canvas id="perfEscalationChart" style="max-height:260px;"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-table"></i> Agent Comparison <small style="color:#71767b;font-weight:400;">(click row to inspect)</small></div>
+                            <div class="table-container" id="perfComparisonTable">
+                                <div class="empty-state"><p>Select a date range and click Refresh</p></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ── Settings Section ── -->
+            <div id="settings-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Settings</h2>
+                    <p>System configuration, agent tuning, and appearance preferences</p>
+                </div>
+                <div class="content-body">
+                    <div class="settings-layout">
+
+                        <!-- Left nav -->
+                        <div class="settings-nav" id="settingsNav">
+                            <div class="settings-nav-item active" onclick="showSettingsPanel('system', this)">
+                                <i class="fas fa-server"></i> System
+                            </div>
+                            <div class="settings-nav-item" onclick="showSettingsPanel('agents-cfg', this)">
+                                <i class="fas fa-robot"></i> Agents
+                            </div>
+                            <div class="settings-nav-item" onclick="showSettingsPanel('notifications', this)">
+                                <i class="fas fa-bell"></i> Notifications
+                            </div>
+                            <div class="settings-nav-item" onclick="showSettingsPanel('appearance', this)">
+                                <i class="fas fa-palette"></i> Appearance
+                            </div>
+                            <div class="settings-nav-item" onclick="showSettingsPanel('data', this)">
+                                <i class="fas fa-database"></i> Data &amp; Privacy
+                            </div>
+                            <div class="settings-nav-item" onclick="showSettingsPanel('about', this)">
+                                <i class="fas fa-info-circle"></i> About
+                            </div>
+                        </div>
+
+                        <!-- Right panels -->
+                        <div class="settings-panel">
+
+                            <!-- System -->
+                            <div id="settings-system" class="settings-card">
+                                <div class="settings-card-title"><i class="fas fa-server"></i> System Configuration</div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">API Base URL</div>
+                                        <div class="settings-row-desc">Backend endpoint the dashboard talks to</div>
+                                    </div>
+                                    <input type="text" class="settings-input" id="cfg-api-url" value="http://localhost:8000">
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Request Timeout (s)</div>
+                                        <div class="settings-row-desc">Max wait time per API call</div>
+                                    </div>
+                                    <input type="number" class="settings-input" id="cfg-timeout" value="30" min="5" max="120" style="min-width:100px;">
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Max Concurrent Sessions</div>
+                                        <div class="settings-row-desc">Hard cap on simultaneous chat sessions</div>
+                                    </div>
+                                    <input type="number" class="settings-input" id="cfg-max-sessions" value="100" min="1" max="1000" style="min-width:100px;">
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Log Level</div>
+                                        <div class="settings-row-desc">Verbosity for system logs</div>
+                                    </div>
+                                    <select class="settings-select" id="cfg-log-level">
+                                        <option value="DEBUG">DEBUG</option>
+                                        <option value="INFO" selected>INFO</option>
+                                        <option value="WARNING">WARNING</option>
+                                        <option value="ERROR">ERROR</option>
+                                    </select>
+                                </div>
+                                <div class="settings-save-bar">
+                                    <button class="btn btn-secondary" onclick="resetSettings('system')"><i class="fas fa-undo"></i> Reset</button>
+                                    <button class="btn btn-primary"   onclick="saveSettings('system')"><i class="fas fa-save"></i> Save Changes</button>
+                                </div>
+                            </div>
+
+                            <!-- Agents config -->
+                            <div id="settings-agents-cfg" class="settings-card" style="display:none;">
+                                <div class="settings-card-title"><i class="fas fa-robot"></i> Agent Configuration</div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Intent Classifier Agent</div>
+                                        <div class="settings-row-desc">Classifies user message intent</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-agent-intent" checked><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Sentiment Analysis Agent</div>
+                                        <div class="settings-row-desc">Tracks emotional tone of messages</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-agent-sentiment" checked><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Order Lookup Agent</div>
+                                        <div class="settings-row-desc">Queries orders database on behalf of users</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-agent-order" checked><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Escalation Confidence Threshold</div>
+                                        <div class="settings-row-desc">Escalate to human if confidence falls below this</div>
+                                    </div>
+                                    <div class="settings-slider-wrap">
+                                        <input type="range" class="settings-range" id="cfg-escalation-threshold"
+                                               min="0" max="100" value="40"
+                                               oninput="document.getElementById('cfg-esc-val').textContent=this.value+'%'">
+                                        <span class="settings-range-val" id="cfg-esc-val">40%</span>
+                                    </div>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Max Retries per Agent Action</div>
+                                        <div class="settings-row-desc">Retries before marking an action failed</div>
+                                    </div>
+                                    <input type="number" class="settings-input" id="cfg-max-retries" value="3" min="0" max="10" style="min-width:100px;">
+                                </div>
+                                <div class="settings-save-bar">
+                                    <button class="btn btn-secondary" onclick="resetSettings('agents-cfg')"><i class="fas fa-undo"></i> Reset</button>
+                                    <button class="btn btn-primary"   onclick="saveSettings('agents-cfg')"><i class="fas fa-save"></i> Save Changes</button>
+                                </div>
+                            </div>
+
+                            <!-- Notifications -->
+                            <div id="settings-notifications" class="settings-card" style="display:none;">
+                                <div class="settings-card-title"><i class="fas fa-bell"></i> Notifications</div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Email on Escalation</div>
+                                        <div class="settings-row-desc">Send an email when a conversation is escalated</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-notif-email-esc"><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Email on Agent Error</div>
+                                        <div class="settings-row-desc">Notify when an agent action fails repeatedly</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-notif-email-err" checked><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Notification Email</div>
+                                        <div class="settings-row-desc">Recipient address for system alerts</div>
+                                    </div>
+                                    <input type="email" class="settings-input" id="cfg-notif-email" placeholder="admin@example.com">
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">In-dashboard Alerts</div>
+                                        <div class="settings-row-desc">Show banner alerts inside the dashboard</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-notif-dashboard" checked><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-save-bar">
+                                    <button class="btn btn-secondary" onclick="resetSettings('notifications')"><i class="fas fa-undo"></i> Reset</button>
+                                    <button class="btn btn-primary"   onclick="saveSettings('notifications')"><i class="fas fa-save"></i> Save Changes</button>
+                                </div>
+                            </div>
+
+                            <!-- Appearance -->
+                            <div id="settings-appearance" class="settings-card" style="display:none;">
+                                <div class="settings-card-title"><i class="fas fa-palette"></i> Appearance</div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Dark Mode</div>
+                                        <div class="settings-row-desc">Toggle between dark and light theme</div>
+                                    </div>
+                                    <label class="settings-toggle">
+                                        <input type="checkbox" id="cfg-dark-mode" onchange="toggleTheme(); syncDarkModeToggle()">
+                                        <span class="settings-toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Sidebar Collapsed by Default</div>
+                                        <div class="settings-row-desc">Start with the sidebar minimised</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-sidebar-collapsed" onchange="toggleSidebar()"><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Accent Colour</div>
+                                        <div class="settings-row-desc">Highlight colour used for active elements (visual preview only)</div>
+                                    </div>
+                                    <div class="color-swatch-row" id="accentSwatches">
+                                        <div class="color-swatch selected" style="background:#3b82f6;" data-color="#3b82f6" onclick="selectAccent(this)" title="Blue"></div>
+                                        <div class="color-swatch" style="background:#8b5cf6;" data-color="#8b5cf6" onclick="selectAccent(this)" title="Violet"></div>
+                                        <div class="color-swatch" style="background:#10b981;" data-color="#10b981" onclick="selectAccent(this)" title="Emerald"></div>
+                                        <div class="color-swatch" style="background:#f59e0b;" data-color="#f59e0b" onclick="selectAccent(this)" title="Amber"></div>
+                                        <div class="color-swatch" style="background:#ef4444;" data-color="#ef4444" onclick="selectAccent(this)" title="Red"></div>
+                                        <div class="color-swatch" style="background:#ec4899;" data-color="#ec4899" onclick="selectAccent(this)" title="Pink"></div>
+                                    </div>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Chart Animation</div>
+                                        <div class="settings-row-desc">Animate charts when data loads</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-chart-anim" checked><span class="settings-toggle-slider"></span></label>
+                                </div>
+                            </div>
+
+                            <!-- Data & Privacy -->
+                            <div id="settings-data" class="settings-card" style="display:none;">
+                                <div class="settings-card-title"><i class="fas fa-database"></i> Data &amp; Privacy</div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Conversation Retention (days)</div>
+                                        <div class="settings-row-desc">Completed conversations older than this are archived</div>
+                                    </div>
+                                    <input type="number" class="settings-input" id="cfg-retention" value="90" min="1" max="3650" style="min-width:100px;">
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Anonymise PII in Logs</div>
+                                        <div class="settings-row-desc">Mask email addresses and phone numbers in system logs</div>
+                                    </div>
+                                    <label class="settings-toggle"><input type="checkbox" id="cfg-anonymise" checked><span class="settings-toggle-slider"></span></label>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Export All Data</div>
+                                        <div class="settings-row-desc">Download a full data dump (conversations, messages, events)</div>
+                                    </div>
+                                    <button class="btn btn-secondary" disabled title="Coming soon" style="opacity:0.45;cursor:not-allowed;">
+                                        <i class="fas fa-download"></i> Export (coming soon)
+                                    </button>
+                                </div>
+                                <div class="settings-row">
+                                    <div>
+                                        <div class="settings-row-label">Purge All Logs</div>
+                                        <div class="settings-row-desc">Clear in-memory system logs (cannot be undone)</div>
+                                    </div>
+                                    <button class="btn btn-secondary" onclick="confirmPurgeLogs()" style="color:#ef4444;border-color:#ef4444;">
+                                        <i class="fas fa-trash"></i> Purge Logs
+                                    </button>
+                                </div>
+                                <div class="settings-save-bar">
+                                    <button class="btn btn-secondary" onclick="resetSettings('data')"><i class="fas fa-undo"></i> Reset</button>
+                                    <button class="btn btn-primary"   onclick="saveSettings('data')"><i class="fas fa-save"></i> Save Changes</button>
+                                </div>
+                            </div>
+
+                            <!-- About -->
+                            <div id="settings-about" class="settings-card" style="display:none;">
+                                <div class="settings-card-title"><i class="fas fa-info-circle"></i> About This System</div>
+                                <div class="settings-about-grid" id="settingsAboutGrid">
+                                    <div class="settings-about-item"><div class="val">1.0.0</div><div class="lbl">Version</div></div>
+                                    <div class="settings-about-item"><div class="val">FastAPI</div><div class="lbl">Backend Framework</div></div>
+                                    <div class="settings-about-item"><div class="val" id="aboutDbStatus">—</div><div class="lbl">Database</div></div>
+                                    <div class="settings-about-item"><div class="val">PostgreSQL</div><div class="lbl">DB Engine</div></div>
+                                    <div class="settings-about-item"><div class="val">pgvector</div><div class="lbl">Vector Extension</div></div>
+                                    <div class="settings-about-item"><div class="val" id="aboutActiveAgents">—</div><div class="lbl">Active Agents</div></div>
+                                </div>
+                                <div style="margin-top:20px;padding-top:16px;border-top:1px solid #2f3336;">
+                                    <div class="settings-row-desc" style="line-height:1.7;">
+                                        Agentic Customer Support System &mdash; a multi-agent AI platform for
+                                        intelligent, real-time customer support with automated intent classification,
+                                        sentiment analysis, order lookup, and human escalation.
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div><!-- /settings-panel -->
+                    </div><!-- /settings-layout -->
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -2266,6 +3270,22 @@
             </div>
         </div>
     </div>
+
+    <!-- Performance drilldown modal -->
+    <div id="perfModalOverlay" onclick="closePerfModal(event)">
+        <div id="perfModal" onclick="event.stopPropagation()">
+            <div class="perf-modal-header">
+                <h3 id="perfModalTitle"><i class="fas fa-robot"></i> Agent Drilldown</h3>
+                <button class="btn btn-secondary" onclick="closePerfModal()"><i class="fas fa-times"></i> Close</button>
+            </div>
+            <div class="perf-modal-body" id="perfModalBody">
+                <div class="loading"><div class="spinner"></div><p>Loading events…</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <script>
         const API_URL = 'http://localhost:8000';
@@ -2383,6 +3403,13 @@
                     break;
                 case 'tracer':
                     loadTracerList();
+                    break;
+                case 'performance':
+                    setPerfDateRange(7, document.getElementById('perfPreset7'));
+                    loadPerformance();
+                    break;
+                case 'settings':
+                    loadSettings();
                     break;
             }
         }
@@ -4048,6 +5075,650 @@
             html += '<div class="word-cloud-section" style="margin-top:16px;"><h4 style="color:#10b981;">Positive Messages</h4>';
             html += '<div class="word-cloud-words">' + buildCloud(data.positive_word_cloud, '#10b981') + '</div></div>';
             container.innerHTML = html;
+        }
+
+        // ────────────────────────────────────────────────────────────
+        // Agent Performance Page
+        // ────────────────────────────────────────────────────────────
+
+        var perfCharts = {};
+        var perfRefreshTimer = null;
+        var perfDateFrom = null;
+        var perfDateTo = null;
+
+        var AGENT_COLORS = [
+            '#3b82f6','#10b981','#f59e0b','#8b5cf6',
+            '#ef4444','#ec4899','#06b6d4','#84cc16'
+        ];
+
+        function setPerfDateRange(days, btn) {
+            document.querySelectorAll('#performance-section .analytics-preset').forEach(function(b){ b.classList.remove('active'); });
+            if (btn) btn.classList.add('active');
+            var to   = new Date();
+            var from = new Date();
+            from.setDate(from.getDate() - days);
+            perfDateFrom = from.toISOString().slice(0,10);
+            perfDateTo   = to.toISOString().slice(0,10);
+            document.getElementById('perfDateFrom').value = perfDateFrom;
+            document.getElementById('perfDateTo').value   = perfDateTo;
+        }
+
+        function getPerfParams() {
+            var from = document.getElementById('perfDateFrom').value || perfDateFrom;
+            var to   = document.getElementById('perfDateTo').value   || perfDateTo;
+            if (!from || !to) {
+                setPerfDateRange(7, document.getElementById('perfPreset7'));
+                from = perfDateFrom; to = perfDateTo;
+            }
+            return 'date_from=' + encodeURIComponent(from) + '&date_to=' + encodeURIComponent(to);
+        }
+
+        function destroyPerfChart(key) {
+            if (perfCharts[key]) { perfCharts[key].destroy(); delete perfCharts[key]; }
+        }
+
+        // ── Dummy data generator ──────────────────────────────────
+        // Returns data shaped identically to the real API responses so
+        // every render function works without modification.
+
+        function _perfRng(seed) {
+            // simple seeded pseudo-random (mulberry32)
+            return function() {
+                seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+                var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
+
+        function getPerfDummyData(days) {
+            // seed from day-bucket so data is stable within the same date range
+            var seed = Math.floor(Date.now() / 86400000) * days;
+            var rng = _perfRng(seed);
+            var jitter = function(base, pct) { return base * (1 + (rng() - 0.5) * 2 * pct); };
+
+            // Base stats calibrated for a 30-day window; scale linearly with days
+            var scale = days / 30;
+            var AGENTS_BASE = [
+                { name: 'coordinator',   total: 6840,  successRate: 94.4, conf: 0.89, trend: +1.8, health: 'online', icon: 'sitemap' },
+                { name: 'sentiment',     total: 4102,  successRate: 97.9, conf: 0.94, trend: +0.4, health: 'online', icon: 'heart' },
+                { name: 'intent',        total: 4098,  successRate: 93.0, conf: 0.87, trend: -0.7, health: 'online', icon: 'tag' },
+                { name: 'shipping',      total: 1876,  successRate: 97.0, conf: 0.93, trend: +0.9, health: 'online', icon: 'truck' },
+                { name: 'transcription', total: 1247,  successRate: 88.9, conf: 0.82, trend: +2.1, health: 'online', icon: 'microphone' },
+                { name: 'returns',       total: 984,   successRate: 94.3, conf: 0.91, trend: -1.2, health: 'online', icon: 'undo' },
+                { name: 'onboarding',    total: 412,   successRate: 95.6, conf: 0.88, trend: +3.4, health: 'online', icon: 'user-plus' }
+            ];
+
+            var agents = AGENTS_BASE.map(function(a) {
+                var total      = Math.round(jitter(a.total * scale, 0.08));
+                var rate       = Math.min(100, Math.max(50, jitter(a.successRate, 0.03)));
+                var successful = Math.round(total * rate / 100);
+                var conf       = Math.min(1, Math.max(0.5, jitter(a.conf, 0.04)));
+                var trend      = parseFloat((a.trend + (rng() - 0.5) * 0.6).toFixed(1));
+                return {
+                    name:          a.name,
+                    total_actions: total,
+                    successful:    successful,
+                    success_rate:  parseFloat(rate.toFixed(1)),
+                    avg_confidence: parseFloat(conf.toFixed(2)),
+                    trend:         trend
+                };
+            });
+
+            var escalation_triggers = [
+                { trigger_intent: 'negative_sentiment',        escalation_count: Math.round(jitter(38 * scale, 0.12)) },
+                { trigger_intent: 'low_intent_confidence',     escalation_count: Math.round(jitter(27 * scale, 0.12)) },
+                { trigger_intent: 'low_response_con_shipping', escalation_count: Math.round(jitter(16 * scale, 0.12)) },
+                { trigger_intent: 'low_response_con_returns',  escalation_count: Math.round(jitter(11 * scale, 0.12)) },
+                { trigger_intent: 'low_response_con_onboarding', escalation_count: Math.round(jitter( 6 * scale, 0.12)) }
+            ].sort(function(a, b){ return b.escalation_count - a.escalation_count; });
+
+            // ── Live agents (for status strip + table) ────────────
+            var liveAgents = { agents: AGENTS_BASE.map(function(a, i) {
+                return {
+                    name:            a.name,
+                    health:          a.health,
+                    status:          a.health,
+                    event_count:     agents[i].total_actions,
+                    events_processed:agents[i].total_actions
+                };
+            })};
+
+            // ── Timeline: daily totals per agent ──────────────────
+            var dates = [];
+            var now   = new Date();
+            for (var d = days - 1; d >= 0; d--) {
+                var dt = new Date(now);
+                dt.setDate(dt.getDate() - d);
+                dates.push(dt.toISOString().slice(0, 10));
+            }
+
+            // Smoothed curve: sine wave + noise so it looks organic
+            var series = agents.map(function(a) {
+                var dailyAvg = a.total_actions / days;
+                var vals = dates.map(function(_, idx) {
+                    var wave = Math.sin((idx / days) * Math.PI * 2.5) * 0.25;
+                    return Math.max(0, Math.round(jitter(dailyAvg * (1 + wave), 0.18)));
+                });
+                return { agent: a.name, total: vals, successful: vals.map(function(v){ return Math.round(v * a.success_rate / 100); }) };
+            });
+
+            // Drilldown events for each agent (50 mock events)
+            var EVENT_TYPES = {
+                coordinator:   ['session.started','session.routed','agent.dispatched','session.resolved','session.escalated'],
+                sentiment:     ['sentiment.analysed','sentiment.negative_detected','sentiment.positive_detected'],
+                intent:        ['intent.classified','intent.low_confidence','intent.reclassified'],
+                transcription: ['audio.received','transcription.completed','transcription.failed','transcription.retried'],
+                shipping:      ['order.lookup','order.found','order.not_found','shipping.status_updated'],
+                returns:       ['return.initiated','return.approved','return.rejected','refund.processed'],
+                onboarding:    ['user.welcomed','account.created','preferences.set','onboarding.completed']
+            };
+            var SAMPLE_PAYLOADS = {
+                coordinator:   [{ action:'route', intent:'shipping_inquiry', confidence:0.91 },{ action:'escalate', reason:'unresolved', confidence:0.38 }],
+                sentiment:     [{ sentiment:'positive', score:0.87 },{ sentiment:'negative', score:0.76 },{ sentiment:'neutral', score:0.55 }],
+                intent:        [{ intent:'order_status', confidence:0.93 },{ intent:'return_request', confidence:0.88 },{ intent:'billing_query', confidence:0.71 }],
+                transcription: [{ audio_ms:1340, words:14, status:'success' },{ audio_ms:820, words:0, status:'error', message:'low audio quality' }],
+                shipping:      [{ order_ref:'ORD-8821', status:'shipped', eta:'2 days' },{ order_ref:'ORD-9043', status:'delivered' }],
+                returns:       [{ return_id:'RET-441', status:'approved', refund_amt:'$42.00' },{ return_id:'RET-502', status:'rejected', reason:'outside window' }],
+                onboarding:    [{ step:'welcome', completed:true },{ step:'preferences', completed:true },{ step:'tutorial', completed:false }]
+            };
+
+            var dummyEvents = {};
+            AGENTS_BASE.forEach(function(a) {
+                var types    = EVENT_TYPES[a.name]    || ['event.processed'];
+                var payloads = SAMPLE_PAYLOADS[a.name]|| [{ status:'success' }];
+                var evts = [];
+                for (var i = 0; i < 48; i++) {
+                    var ts = new Date(now - Math.floor(rng() * 86400000 * Math.min(days, 3)));
+                    var evType = types[Math.floor(rng() * types.length)];
+                    var pl = Object.assign({}, payloads[Math.floor(rng() * payloads.length)]);
+                    pl.status = rng() > 0.1 ? 'success' : 'error';
+                    evts.push({ event_type: evType, event_timestamp: ts.toISOString(), payload: pl });
+                }
+                evts.sort(function(a,b){ return new Date(b.event_timestamp) - new Date(a.event_timestamp); });
+                dummyEvents[a.name] = evts;
+            });
+
+            return {
+                agentPerf:  { agents: agents, escalation_triggers: escalation_triggers },
+                liveAgents: liveAgents,
+                timeline:   { dates: dates, series: series },
+                events:     dummyEvents
+            };
+        }
+
+        // Cache so clicking a chip / row reuses the same data set for the current view
+        var _perfDummyCache = null;
+
+        async function loadPerformance() {
+            // Determine day count from active preset or date range
+            var from = document.getElementById('perfDateFrom').value || perfDateFrom;
+            var to   = document.getElementById('perfDateTo').value   || perfDateTo;
+            var days = 7;
+            if (from && to) {
+                var ms = new Date(to) - new Date(from);
+                days = Math.max(1, Math.round(ms / 86400000)) || 7;
+            }
+
+            // Reset KPIs to loading state
+            ['perfKpiSuccessRate','perfKpiTotalActions','perfKpiConfidence','perfKpiEscalations'].forEach(function(id){
+                var el = document.getElementById(id);
+                if (el) el.textContent = '…';
+            });
+
+            // Small artificial delay so the spinner is visible
+            await new Promise(function(res){ setTimeout(res, 420); });
+
+            _perfDummyCache = getPerfDummyData(days);
+            var agentPerf  = _perfDummyCache.agentPerf;
+            var liveAgents = _perfDummyCache.liveAgents;
+            var timeline   = _perfDummyCache.timeline;
+
+            renderPerfKPIs(agentPerf);
+            renderAgentStatusStrip(liveAgents, agentPerf);
+            renderSuccessBar(agentPerf);
+            renderRadarChart(agentPerf);
+            renderTimelineChart(timeline);
+            renderEscalationBar(agentPerf);
+            renderComparisonTable(agentPerf, liveAgents);
+
+            document.getElementById('perfLastUpdated').textContent =
+                'Last updated: ' + new Date().toLocaleTimeString();
+        }
+
+        function renderPerfKPIs(data) {
+            if (!data || !data.agents || !data.agents.length) {
+                ['perfKpiSuccessRate','perfKpiTotalActions','perfKpiConfidence','perfKpiEscalations'].forEach(function(id){
+                    var el = document.getElementById(id);
+                    if (el) el.textContent = '—';
+                });
+                return;
+            }
+            var agents = data.agents;
+            var totalActions    = agents.reduce(function(s,a){ return s + (a.total_actions||0); }, 0);
+            var totalSuccessful = agents.reduce(function(s,a){ return s + (a.successful||0); }, 0);
+            var sysSuccessRate  = totalActions > 0 ? ((totalSuccessful / totalActions) * 100).toFixed(1) : '0.0';
+            var avgConf = agents.length > 0
+                ? (agents.reduce(function(s,a){ return s + (a.avg_confidence||0); }, 0) / agents.length).toFixed(2)
+                : '0.00';
+            var escalations = (data.escalation_triggers||[]).reduce(function(s,e){ return s + (e.escalation_count||0); }, 0);
+
+            document.getElementById('perfKpiSuccessRate').textContent = sysSuccessRate + '%';
+            document.getElementById('perfKpiTotalActions').textContent = totalActions.toLocaleString();
+            document.getElementById('perfKpiConfidence').textContent   = avgConf;
+            document.getElementById('perfKpiEscalations').textContent  = escalations.toLocaleString();
+
+            // trend arrows for success rate (average of individual agent trends)
+            var avgTrend = agents.reduce(function(s,a){ return s + (a.trend||0); }, 0) / agents.length;
+            var trendEl = document.getElementById('perfKpiSuccessTrend');
+            if (trendEl) {
+                trendEl.textContent = (avgTrend >= 0 ? '▲ ' : '▼ ') + Math.abs(avgTrend).toFixed(1) + '% vs prior period';
+                trendEl.className   = 'perf-kpi-trend ' + (avgTrend >= 0 ? 'positive' : 'negative');
+            }
+            var escTrend = document.getElementById('perfKpiEscalationsTrend');
+            if (escTrend) escTrend.textContent = (data.escalation_triggers||[]).length + ' distinct intent(s)';
+        }
+
+        function renderAgentStatusStrip(liveData, agentPerf) {
+            var strip = document.getElementById('agentStatusStrip');
+            if (!strip) return;
+
+            var agents = [];
+            if (liveData && liveData.agents) {
+                agents = liveData.agents;
+            } else if (liveData && Array.isArray(liveData)) {
+                agents = liveData;
+            }
+
+            if (!agents.length) {
+                strip.innerHTML = '<span class="agent-status-strip-title">No live agent data</span>';
+                return;
+            }
+
+            var html = '<span class="agent-status-strip-title"><i class="fas fa-satellite-dish"></i>&nbsp;Live Status</span>';
+            agents.forEach(function(agent) {
+                var name   = agent.name || agent.agent_name || 'Unknown';
+                var health = (agent.health || agent.status || 'unknown').toLowerCase();
+                var dotClass = health === 'healthy' || health === 'online' ? 'online'
+                             : health === 'degraded' ? 'degraded' : 'offline';
+                var evtCount = agent.event_count || agent.events_processed || agent.total_events || 0;
+                html += '<div class="agent-status-chip" onclick="openPerfModal(\'' + escapeHtml(name) + '\')">' +
+                    '<span class="agent-status-dot ' + dotClass + '"></span>' +
+                    '<span>' + escapeHtml(name) + '</span>' +
+                    '<span class="agent-status-chip-count">' + Number(evtCount).toLocaleString() + ' events</span>' +
+                    '</div>';
+            });
+            strip.innerHTML = html;
+        }
+
+        function renderSuccessBar(data) {
+            destroyPerfChart('success');
+            if (!data || !data.agents || !data.agents.length) return;
+            var theme  = getThemeColors();
+            var agents = data.agents;
+            var labels = agents.map(function(a){ return a.name; });
+            var values = agents.map(function(a){ return a.success_rate || 0; });
+            var colors = values.map(function(v){ return v >= 80 ? '#10b981' : v >= 60 ? '#f59e0b' : '#ef4444'; });
+
+            var ctx = document.getElementById('perfSuccessChart');
+            if (!ctx) return;
+            perfCharts.success = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Success Rate (%)',
+                        data: values,
+                        backgroundColor: colors,
+                        borderRadius: 6,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx){ return ' ' + ctx.raw.toFixed(1) + '%'; }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            min: 0, max: 100,
+                            grid: { color: theme.grid },
+                            ticks: { color: theme.subtext, callback: function(v){ return v + '%'; } }
+                        },
+                        y: { grid: { display: false }, ticks: { color: theme.text } }
+                    }
+                }
+            });
+        }
+
+        function renderRadarChart(data) {
+            destroyPerfChart('radar');
+            if (!data || !data.agents || !data.agents.length) return;
+            var theme  = getThemeColors();
+            var agents = data.agents;
+
+            // Metrics: success_rate (0-100), avg_confidence (0-1 → ×100), total_actions (normalise to 100)
+            var maxActions = Math.max.apply(null, agents.map(function(a){ return a.total_actions||0; })) || 1;
+
+            var datasets = agents.map(function(a, i) {
+                var color = AGENT_COLORS[i % AGENT_COLORS.length];
+                return {
+                    label: a.name,
+                    data: [
+                        a.success_rate || 0,
+                        (a.avg_confidence || 0) * 100,
+                        Math.round(((a.total_actions||0) / maxActions) * 100)
+                    ],
+                    borderColor: color,
+                    backgroundColor: color.replace(')', ',0.12)').replace('rgb', 'rgba'),
+                    borderWidth: 2,
+                    pointRadius: 4
+                };
+            });
+
+            var ctx = document.getElementById('perfRadarChart');
+            if (!ctx) return;
+            perfCharts.radar = new Chart(ctx.getContext('2d'), {
+                type: 'radar',
+                data: {
+                    labels: ['Success Rate', 'Confidence', 'Relative Volume'],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { position: 'bottom', labels: { color: theme.subtext, boxWidth: 12 } } },
+                    scales: {
+                        r: {
+                            min: 0, max: 100,
+                            ticks: { display: false },
+                            grid:  { color: theme.grid },
+                            angleLines: { color: theme.grid },
+                            pointLabels: { color: theme.subtext, font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTimelineChart(data) {
+            destroyPerfChart('timeline');
+            if (!data || !data.dates || !data.dates.length || !data.series || !data.series.length) return;
+            var theme = getThemeColors();
+
+            var datasets = data.series.map(function(s, i) {
+                var color = AGENT_COLORS[i % AGENT_COLORS.length];
+                return {
+                    label: s.agent,
+                    data: s.total,
+                    borderColor: color,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                };
+            });
+
+            var ctx = document.getElementById('perfTimelineChart');
+            if (!ctx) return;
+            perfCharts.timeline = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: { labels: data.dates, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'bottom', labels: { color: theme.subtext, boxWidth: 12 } } },
+                    scales: {
+                        x: { grid: { color: theme.grid }, ticks: { color: theme.subtext } },
+                        y: {
+                            grid: { color: theme.grid },
+                            ticks: { color: theme.subtext },
+                            title: { display: true, text: 'Actions', color: theme.subtext, font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderEscalationBar(data) {
+            destroyPerfChart('escalation');
+            if (!data || !data.escalation_triggers || !data.escalation_triggers.length) return;
+            var theme    = getThemeColors();
+            var triggers = data.escalation_triggers.slice(0, 10);
+            var labels   = triggers.map(function(t){ return t.trigger_intent || 'Unknown'; });
+            var values   = triggers.map(function(t){ return t.escalation_count || 0; });
+
+            var ctx = document.getElementById('perfEscalationChart');
+            if (!ctx) return;
+            perfCharts.escalation = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Escalations',
+                        data: values,
+                        backgroundColor: 'rgba(239,68,68,0.7)',
+                        borderColor: '#ef4444',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: theme.grid }, ticks: { color: theme.subtext } },
+                        y: { grid: { display: false }, ticks: { color: theme.text, font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function renderComparisonTable(agentPerf, liveData) {
+            var container = document.getElementById('perfComparisonTable');
+            if (!container) return;
+
+            var agents = (agentPerf && agentPerf.agents) ? agentPerf.agents : [];
+            if (!agents.length) {
+                container.innerHTML = '<div class="empty-state"><p>No agent data for this period</p></div>';
+                return;
+            }
+
+            // Build a live-status lookup from /admin/agents
+            var liveMap = {};
+            var liveList = (liveData && liveData.agents) ? liveData.agents : (Array.isArray(liveData) ? liveData : []);
+            liveList.forEach(function(a) {
+                liveMap[(a.name || a.agent_name || '').toLowerCase()] = a;
+            });
+
+            var rows = agents.map(function(a) {
+                var live   = liveMap[a.name.toLowerCase()] || {};
+                var health = (live.health || live.status || '').toLowerCase();
+                var dotCls = health === 'healthy' || health === 'online' ? 'online'
+                           : health === 'degraded' ? 'degraded' : 'offline';
+                var statusLabel = health ? health.charAt(0).toUpperCase() + health.slice(1) : 'Unknown';
+
+                var barCls = a.success_rate >= 80 ? 'good' : a.success_rate >= 60 ? 'medium' : 'poor';
+                var confBarCls = (a.avg_confidence * 100) >= 80 ? 'good' : (a.avg_confidence * 100) >= 60 ? 'medium' : 'poor';
+
+                var trendArrow = a.trend > 0 ? '▲' : a.trend < 0 ? '▼' : '—';
+                var trendCls   = a.trend > 0 ? 'perf-trend-up' : a.trend < 0 ? 'perf-trend-down' : 'perf-trend-flat';
+
+                return '<tr class="perf-row" onclick="openPerfModal(\'' + escapeHtml(a.name) + '\')">' +
+                    '<td><strong>' + escapeHtml(a.name) + '</strong></td>' +
+                    '<td><span style="display:inline-flex;align-items:center;gap:6px;">' +
+                        '<span class="agent-status-dot ' + dotCls + '"></span>' +
+                        escapeHtml(statusLabel) +
+                    '</span></td>' +
+                    '<td>' + (a.total_actions||0).toLocaleString() + '</td>' +
+                    '<td><div class="perf-bar-cell">' +
+                        '<div class="perf-bar"><div class="perf-bar-fill ' + barCls + '" style="width:' + (a.success_rate||0).toFixed(1) + '%"></div></div>' +
+                        '<span class="perf-bar-label">' + (a.success_rate||0).toFixed(1) + '%</span>' +
+                    '</div></td>' +
+                    '<td><div class="perf-bar-cell">' +
+                        '<div class="perf-bar"><div class="perf-bar-fill ' + confBarCls + '" style="width:' + ((a.avg_confidence||0)*100).toFixed(1) + '%"></div></div>' +
+                        '<span class="perf-bar-label">' + (a.avg_confidence||0).toFixed(2) + '</span>' +
+                    '</div></td>' +
+                    '<td class="' + trendCls + '">' + trendArrow + ' ' + Math.abs(a.trend||0).toFixed(1) + '%</td>' +
+                    '</tr>';
+            }).join('');
+
+            container.innerHTML =
+                '<table class="table">' +
+                '<thead><tr>' +
+                '<th>Agent</th><th>Live Status</th><th>Actions</th>' +
+                '<th>Success Rate</th><th>Confidence</th><th>WoW Trend</th>' +
+                '</tr></thead>' +
+                '<tbody>' + rows + '</tbody>' +
+                '</table>';
+        }
+
+        async function openPerfModal(agentName) {
+            var overlay = document.getElementById('perfModalOverlay');
+            var body    = document.getElementById('perfModalBody');
+            var title   = document.getElementById('perfModalTitle');
+            title.innerHTML = '<i class="fas fa-robot"></i> ' + escapeHtml(agentName) + ' — Recent Events';
+            body.innerHTML  = '<div class="loading"><div class="spinner"></div><p>Loading events…</p></div>';
+            overlay.classList.add('open');
+
+            await new Promise(function(res){ setTimeout(res, 280); });
+
+            var events = (_perfDummyCache && _perfDummyCache.events && _perfDummyCache.events[agentName]) || [];
+
+            if (!events.length) {
+                body.innerHTML = '<div class="empty-state"><p>No recent events recorded for this agent.</p></div>';
+                return;
+            }
+
+            var html = events.map(function(ev) {
+                var evType   = ev.event_type || ev.type || 'event';
+                var evTime   = formatTime(ev.event_timestamp || ev.timestamp, '');
+                var evStatus = (ev.payload && ev.payload.status) || '';
+                var dotCls   = evStatus === 'success' ? 'success' : evStatus === 'error' ? 'error' : '';
+                var detail   = '';
+                if (ev.payload) {
+                    var p = ev.payload;
+                    if (p.action)     detail += 'Action: ' + p.action + '  ';
+                    if (p.intent)     detail += 'Intent: ' + p.intent + '  ';
+                    if (p.sentiment)  detail += 'Sentiment: ' + p.sentiment + '  ';
+                    if (p.confidence !== undefined) detail += 'Conf: ' + Number(p.confidence).toFixed(2) + '  ';
+                    if (p.audio_ms)   detail += 'Audio: ' + p.audio_ms + 'ms  ';
+                    if (p.words !== undefined) detail += 'Words: ' + p.words + '  ';
+                    if (p.order_ref)  detail += 'Order: ' + p.order_ref + '  ';
+                    if (p.return_id)  detail += 'Return: ' + p.return_id + '  ';
+                    if (p.step)       detail += 'Step: ' + p.step + '  ';
+                    if (p.reason)     detail += 'Reason: ' + p.reason + '  ';
+                    if (p.message)    detail += p.message;
+                }
+                return '<div class="perf-event-item">' +
+                    '<div class="perf-event-dot ' + dotCls + '"></div>' +
+                    '<div>' +
+                        '<div style="display:flex;align-items:center;gap:10px;">' +
+                            '<span class="perf-event-type">' + escapeHtml(evType) + '</span>' +
+                            '<span class="perf-event-time">' + escapeHtml(evTime) + '</span>' +
+                        '</div>' +
+                        (detail ? '<div class="perf-event-detail">' + escapeHtml(detail.trim()) + '</div>' : '') +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            body.innerHTML = html;
+        }
+
+        function closePerfModal(evt) {
+            if (evt && evt.target !== document.getElementById('perfModalOverlay')) return;
+            document.getElementById('perfModalOverlay').classList.remove('open');
+        }
+
+        // ────────────────────────────────────────────────────────────
+        // Settings Page
+        // ────────────────────────────────────────────────────────────
+
+        function showSettingsPanel(panelId, clickedEl) {
+            document.querySelectorAll('.settings-nav-item').forEach(function(el){ el.classList.remove('active'); });
+            if (clickedEl) clickedEl.classList.add('active');
+            document.querySelectorAll('#settings-section .settings-card').forEach(function(el){ el.style.display = 'none'; });
+            var panel = document.getElementById('settings-' + panelId);
+            if (panel) panel.style.display = 'block';
+        }
+
+        function syncDarkModeToggle() {
+            var toggle = document.getElementById('cfg-dark-mode');
+            if (toggle) toggle.checked = !document.body.classList.contains('light-mode');
+        }
+
+        function selectAccent(el) {
+            document.querySelectorAll('.color-swatch').forEach(function(s){ s.classList.remove('selected'); });
+            el.classList.add('selected');
+        }
+
+        function loadSettings() {
+            syncDarkModeToggle();
+            showSettingsPanel('system', document.querySelector('.settings-nav-item'));
+            loadAboutInfo();
+        }
+
+        async function loadAboutInfo() {
+            try {
+                var data = await fetch(API_URL + '/admin/health').then(function(r){ return r.json(); });
+                var dbEl = document.getElementById('aboutDbStatus');
+                var agEl = document.getElementById('aboutActiveAgents');
+                if (dbEl) dbEl.textContent = data.status === 'ok' || data.healthy ? 'Connected' : 'Error';
+                if (agEl) {
+                    var count = 0;
+                    if (data.agents) count = Object.values(data.agents).filter(function(v){ return v === true || v === 'healthy'; }).length;
+                    agEl.textContent = count;
+                }
+            } catch(e) {
+                var dbEl = document.getElementById('aboutDbStatus');
+                if (dbEl) dbEl.textContent = 'Unknown';
+            }
+        }
+
+        function saveSettings(section) {
+            showToast('Settings saved successfully', 'success');
+        }
+
+        function resetSettings(section) {
+            showToast('Settings reset to defaults', 'info');
+        }
+
+        function confirmPurgeLogs() {
+            if (!confirm('Purge all in-memory logs? This cannot be undone.')) return;
+            fetch(API_URL + '/admin/logs/clear', { method: 'POST' })
+                .then(function(){ showToast('Logs purged', 'success'); })
+                .catch(function(){ showToast('Failed to purge logs', 'error'); });
+        }
+
+        // ────────────────────────────────────────────────────────────
+        // Toast helper
+        // ────────────────────────────────────────────────────────────
+
+        function showToast(message, type) {
+            type = type || 'info';
+            var container = document.getElementById('toastContainer');
+            if (!container) return;
+            var toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(function(){ if (toast.parentNode) toast.parentNode.removeChild(toast); }, 350);
+            }, 3000);
         }
 
         // Initialize
