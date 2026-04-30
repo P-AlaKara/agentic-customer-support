@@ -17,18 +17,21 @@ Design Decisions:
 - Returns confidence score for escalation decisions
 """
 
+import json
 import logging
-from typing import Dict, Any, List, Tuple
 import re
+from typing import Dict, Any, List, Tuple, Optional
 
 # Flexible import pattern
 try:
     from ..event_bus import EventBus, Event
+    from ..utils.gemini import get_gemini_client
 except (ImportError, ValueError):
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from event_bus import EventBus, Event
+    from utils.gemini import get_gemini_client
 
 
 logging.basicConfig(level=logging.INFO)
@@ -62,41 +65,104 @@ class IntentAgent:
 
     ORDER_ID_PATTERN = re.compile(r"\b(ORD\d{5})\b", re.IGNORECASE)
 
-    # Intent keyword mappings
+    # Intent keyword mappings — includes English and Swahili so the rule-based
+    # path stays useful as a fast fallback even for Swahili input.
     INTENT_KEYWORDS = {
         'track_order': {
-            'primary': ['track', 'tracking', 'shipped', 'shipping', 'delivery', 'deliver', 'status'],
-            'secondary': ['where is', 'arrive', 'arriving', 'eta', 'when will'],
-            'entities': ['order', 'package', 'shipment']
+            'primary': [
+                'track', 'tracking', 'shipped', 'shipping', 'delivery', 'deliver', 'status',
+                # Swahili
+                'fuatilia', 'kufuatilia', 'usafirishaji', 'kusafirisha', 'kupeleka', 'imepelekwa', 'imefika', 'hali ya agizo'
+            ],
+            'secondary': [
+                'where is', 'arrive', 'arriving', 'eta', 'when will',
+                # Swahili
+                'iko wapi', 'itafika', 'lini itafika', 'inakuja'
+            ],
+            'entities': ['order', 'package', 'shipment', 'agizo', 'kifurushi', 'mzigo']
         },
         'process_return': {
-            'primary': ['return', 'refund', 'exchange', 'replace', 'send back', 'take back'],
-            'secondary': ['give back', 'money back'],
-            'entities': ['item', 'product', 'purchase']
+            'primary': [
+                'return', 'refund', 'exchange', 'replace', 'send back', 'take back',
+                # Swahili
+                'rudisha', 'kurudisha', 'rejesha', 'kurejesha', 'rudishiwa', 'rudisheni', 'badilisha bidhaa'
+            ],
+            'secondary': [
+                'give back', 'money back',
+                # Swahili
+                'rejesha pesa', 'pesa zangu', 'kurudishiwa pesa'
+            ],
+            'entities': ['item', 'product', 'purchase', 'bidhaa', 'kitu', 'ununuzi']
         },
         'account_issues': {
-            'primary': ['account', 'login', 'password', 'sign in', 'log in'],
-            'secondary': ['email', 'profile', 'username', 'change', 'update', 'reset'],
-            'entities': ['credentials', 'access', 'settings']
+            'primary': [
+                'account', 'login', 'password', 'sign in', 'log in',
+                # Swahili
+                'akaunti', 'ingia', 'kuingia', 'nywila', 'neno la siri'
+            ],
+            'secondary': [
+                'email', 'profile', 'username', 'change', 'update', 'reset',
+                # Swahili
+                'barua pepe', 'wasifu', 'jina la mtumiaji', 'badilisha', 'sasisha', 'rekebisha'
+            ],
+            'entities': ['credentials', 'access', 'settings', 'mipangilio']
         },
         'onboarding': {
-            'primary': ['onboarding', 'onboard', 'get started', 'getting started', 'new account', 'create account', 'sign up', 'register', 'first login', 'welcome tour'],
-            'secondary': ['first time', 'setup', 'walkthrough', 'tutorial', 'introduction', 'start here'],
-            'entities': ['tour', 'guide', 'profile', 'preferences']
+            'primary': [
+                'onboarding', 'onboard', 'get started', 'getting started', 'new account',
+                'create account', 'sign up', 'register', 'first login', 'welcome tour',
+                # Swahili
+                'anza', 'kuanza', 'fungua akaunti', 'sajili', 'kujisajili', 'mtumiaji mpya', 'kuingia kwa mara ya kwanza'
+            ],
+            'secondary': [
+                'first time', 'setup', 'walkthrough', 'tutorial', 'introduction', 'start here',
+                # Swahili
+                'mara ya kwanza', 'sanidi', 'mafunzo', 'utangulizi', 'anzia hapa'
+            ],
+            'entities': ['tour', 'guide', 'profile', 'preferences', 'mwongozo', 'wasifu']
         },
         'greeting': {
-            'primary': ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening'],
-            'secondary': ['how are you', 'thanks', 'thank you', 'help'],
+            'primary': [
+                'hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening',
+                # Swahili
+                'habari', 'jambo', 'hujambo', 'mambo', 'salamu', 'shikamoo', 'habari yako', 'asubuhi njema', 'mchana mwema', 'jioni njema'
+            ],
+            'secondary': [
+                'how are you', 'thanks', 'thank you', 'help',
+                # Swahili
+                'asante', 'asanteni', 'shukrani', 'msaada', 'naomba msaada'
+            ],
             'entities': []
         },
         'close_conversation': {
-            'primary': ['bye', 'goodbye', 'that is all', "that's all", 'done', 'no thanks'],
-            'secondary': ['thank you bye', 'all good', 'nothing else'],
+            'primary': [
+                'bye', 'goodbye', 'that is all', "that's all", 'done', 'no thanks',
+                # Swahili
+                'kwaheri', 'kwaherini', 'ndio hivyo', 'hiyo ni yote', 'nimemaliza', 'hapana asante'
+            ],
+            'secondary': [
+                'thank you bye', 'all good', 'nothing else',
+                # Swahili
+                'asante kwaheri', 'sawa', 'hakuna kitu kingine'
+            ],
+            'entities': []
+        },
+        'request_human': {
+            'primary': [
+                'human', 'agent', 'representative', 'operator', 'real person', 'live agent',
+                # Swahili
+                'binadamu', 'mtu halisi', 'wakala', 'mwakilishi', 'opereta'
+            ],
+            'secondary': [
+                'speak to', 'talk to', 'connect me', 'someone real',
+                # Swahili
+                'ongea na', 'zungumza na', 'unganisha na', 'mtu wa kweli', 'mtu halisi'
+            ],
             'entities': []
         }
     }
     
-    # Common phrases that indicate specific intents
+    # Common phrases that indicate specific intents (English + Swahili)
     INTENT_PHRASES = {
         'track_order': [
             'where is my order',
@@ -107,7 +173,15 @@ class IntentAgent:
             'when will it arrive',
             'has it shipped',
             'tracking number',
-            'delivery date'
+            'delivery date',
+            # Swahili
+            'agizo langu liko wapi',
+            'fuatilia agizo langu',
+            'hali ya agizo langu',
+            'agizo lipo wapi',
+            'kifurushi changu kiko wapi',
+            'lini agizo langu litafika',
+            'nataka kufuatilia agizo'
         ],
         'process_return': [
             'want to return',
@@ -117,17 +191,35 @@ class IntentAgent:
             'send it back',
             'not satisfied',
             'wrong item',
-            'defective'
+            'defective',
+            # Swahili
+            'nataka kurudisha',
+            'ningependa kurudisha',
+            'naomba kurudisha bidhaa',
+            'rudisha bidhaa',
+            'nirejeshe pesa',
+            'naomba rejesho',
+            'bidhaa mbaya',
+            'bidhaa iliyoharibika',
+            'sio bidhaa niliyoagiza'
         ],
         'account_issues': [
-            'can\'t log in',
+            "can't log in",
             'cannot log in',
             'forgot password',
             'reset password',
             'update email',
             'change password',
             'account locked',
-            'can\'t access'
+            "can't access",
+            # Swahili
+            'siwezi kuingia',
+            'nimesahau nywila',
+            'nimesahau neno la siri',
+            'badilisha nywila',
+            'rekebisha nywila',
+            'akaunti yangu imefungwa',
+            'siwezi kufikia akaunti'
         ],
         'onboarding': [
             'how do i get started',
@@ -137,7 +229,14 @@ class IntentAgent:
             'help me create an account',
             'create my account',
             'first login help',
-            'show me the welcome tour'
+            'show me the welcome tour',
+            # Swahili
+            'nianzeje',
+            'ninaanzaje',
+            'mimi ni mtumiaji mpya',
+            'nisaidie kufungua akaunti',
+            'fungua akaunti mpya',
+            'msaada wa kuingia mara ya kwanza'
         ],
         'greeting': [
             'hi',
@@ -149,7 +248,18 @@ class IntentAgent:
             'good afternoon',
             'good evening',
             'hey there',
-            'greetings'
+            'greetings',
+            # Swahili
+            'habari',
+            'jambo',
+            'hujambo',
+            'mambo',
+            'salamu',
+            'shikamoo',
+            'habari yako',
+            'asubuhi njema',
+            'mchana mwema',
+            'jioni njema'
         ],
         'close_conversation': [
             'bye',
@@ -158,7 +268,49 @@ class IntentAgent:
             "that's all",
             'nothing else',
             'all good thanks',
-            'no thanks bye'
+            'no thanks bye',
+            # Swahili
+            'kwaheri',
+            'kwaherini',
+            'hiyo ni yote',
+            'ndio hivyo',
+            'nimemaliza',
+            'hapana asante',
+            'asante kwaheri'
+        ],
+        'request_human': [
+            'speak to a human',
+            'talk to a human',
+            'speak to an agent',
+            'talk to an agent',
+            'speak to a person',
+            'talk to a person',
+            'speak to someone',
+            'talk to someone',
+            'speak to a real person',
+            'talk to a real person',
+            'connect me to a human',
+            'connect me to an agent',
+            'connect me to a person',
+            'connect me to someone',
+            'human agent',
+            'live agent',
+            'real person',
+            'i want a human',
+            'i need a human',
+            'get me a human',
+            'transfer me to a human',
+            'transfer me to an agent',
+            # Swahili
+            'nataka kuongea na binadamu',
+            'nataka kuongea na mtu halisi',
+            'nataka kuzungumza na wakala',
+            'naomba kuongea na binadamu',
+            'unganisha na binadamu',
+            'nipe wakala',
+            'nipe mtu halisi',
+            'wakala wa binadamu',
+            'mtu wa kweli'
         ]
     }
     
@@ -183,19 +335,40 @@ class IntentAgent:
             r'\bhow\s+(do\s+i|can\s+i)\s+(get\s+started|start)',
             r'\b(help\s+me\s+)?(create|set\s*up)\s+(an\s+)?account',
             r'\b(first\s+login|welcome\s+tour|new\s+user\s+guide)',
+        ],
+        'request_human': [
+            r'\b(speak|talk|chat)\s+(to|with)\s+(a\s+)?(human|person|agent|operator|representative|someone)\b',
+            r'\bconnect\s+me\s+(to|with)\s+(a\s+)?(human|person|agent|operator|someone)\b',
+            r'\b(transfer|escalate)\s+(me\s+)?to\s+(a\s+)?(human|agent|operator|person)\b',
+            r'\b(real|live)\s+(person|agent|human)\b',
+            r'\bi\s+(want|need)\s+(a\s+)?(human|real person|live agent)\b',
         ]
     }
     
+    # Intents the ML classifier is allowed to return
+    ML_VALID_INTENTS = {
+        'track_order', 'process_return', 'account_issues', 'onboarding',
+        'greeting', 'close_conversation', 'request_human', 'general_inquiry'
+    }
+
     def __init__(self, event_bus: EventBus, use_ml: bool = False):
         """
         Initialize the Intent Agent.
-        
+
         Args:
             event_bus: The event bus for communication
-            use_ml: If True, use ML model; if False, use rule-based (default: False)
+            use_ml: If True, force ML mode for all messages; if False, default
+                to rule-based but switch to ML automatically when the
+                conversation language is non-English (e.g. Swahili).
         """
         self.bus = event_bus
         self.use_ml = use_ml
+
+        try:
+            self.gemini = get_gemini_client()
+        except Exception as e:
+            logger.warning(f"IntentAgent: Gemini initialization failed: {e}")
+            self.gemini = None
         
         # Statistics
         self.stats = {
@@ -205,6 +378,7 @@ class IntentAgent:
             'account_issues': 0,
             'onboarding': 0,
             'close_conversation': 0,
+            'request_human': 0,
             'general_inquiry': 0,
             'high_confidence': 0,
             'low_confidence': 0
@@ -239,12 +413,16 @@ class IntentAgent:
             session_id = payload['session_id']
             text = payload['text']
             history = payload.get('conversation_history', [])
-            
-            logger.info(f"[Intent Agent] Analyzing message from session {session_id}")
+            language = (payload.get('language') or 'en').lower()
+
+            logger.info(f"[Intent Agent] Analyzing message from session {session_id} (lang={language})")
             logger.debug(f"[Intent Agent] Text: '{text}'")
-            
-            # Classify intent
-            if self.use_ml:
+
+            # Classify intent. Use ML when forced, or whenever the language is
+            # not English (rule-based keyword lists are tuned for English/SW
+            # but Gemini is more reliable for arbitrary phrasing).
+            use_ml = self.use_ml or language != 'en'
+            if use_ml:
                 result = self._classify_with_ml(text, history)
             else:
                 result = self._classify_with_rules(text)
@@ -441,24 +619,102 @@ class IntentAgent:
         return entities
     
     def _classify_with_ml(self, text: str, history: List[str]) -> Dict[str, Any]:
+        """LLM-based intent classification using Gemini.
+
+        Returns the rule-based classification if Gemini is unavailable, or
+        if the response is not parseable. Entities are still extracted via
+        the rule-based extractor so order_id, email, etc. continue to work.
         """
-        ML-based intent classification (placeholder).
-        
-        Options for implementation:
-        1. Zero-shot classification (transformers)
-        2. Fine-tuned BERT/RoBERTa
-        3. LLM-based classification (GPT/Claude)
-        
-        Args:
-            text: The message to classify
-            history: Previous messages for context
-        
-        Returns:
-            {'intent': str, 'confidence': float, 'entities': dict}
-        """
-        # TODO: Implement ML-based classification
-        logger.warning("[Intent Agent] ML mode not implemented, falling back to rules")
-        return self._classify_with_rules(text)
+        if not self.gemini or self.gemini.model is None:
+            logger.warning("[Intent Agent] Gemini unavailable; falling back to rule-based classification")
+            return self._classify_with_rules(text)
+
+        history_block = ""
+        if history:
+            recent = history[-3:]
+            history_lines = [f"- {h}" for h in recent if h]
+            if history_lines:
+                history_block = "RECENT MESSAGES (oldest first):\n" + "\n".join(history_lines) + "\n\n"
+
+        prompt = (
+            "You are an intent classifier for a customer-support assistant on an "
+            "e-commerce platform. The customer may write in English, Swahili, or a mix.\n\n"
+            "Allowed intents: [track_order, process_return, account_issues, onboarding, "
+            "greeting, close_conversation, request_human, general_inquiry]\n\n"
+            "Definitions:\n"
+            "- track_order: customer asks about order/shipping status, tracking, delivery time.\n"
+            "- process_return: customer wants to return an item, request refund, or exchange.\n"
+            "- account_issues: login problems, password reset, account locked, profile/email changes.\n"
+            "- onboarding: new customer wants help getting started, creating an account, first login.\n"
+            "- greeting: customer is just saying hello or making small talk.\n"
+            "- close_conversation: customer indicates they are done.\n"
+            "- request_human: customer explicitly asks to speak to a human/agent/person.\n"
+            "- general_inquiry: anything else, including unclear or out-of-scope questions.\n\n"
+            f"{history_block}"
+            f"CUSTOMER MESSAGE: \"{text}\"\n\n"
+            "Respond with ONLY a JSON object on a single line, no Markdown, no extra text. "
+            "Example: {\"intent\":\"process_return\",\"confidence\":0.92}\n"
+            "The confidence is a float between 0 and 1."
+        )
+
+        try:
+            response = self.gemini.model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': 0.0,
+                    'top_p': 1.0,
+                    'max_output_tokens': 80,
+                }
+            )
+            raw = (response.text or '').strip()
+            parsed = self._parse_ml_response(raw)
+            if parsed is None:
+                logger.warning(f"[Intent Agent] Could not parse ML response: {raw!r}; using rules")
+                return self._classify_with_rules(text)
+
+            intent = parsed.get('intent') or 'general_inquiry'
+            try:
+                confidence = float(parsed.get('confidence', 0.7))
+            except (TypeError, ValueError):
+                confidence = 0.7
+            confidence = max(0.0, min(confidence, 1.0))
+
+            if intent not in self.ML_VALID_INTENTS:
+                intent = 'general_inquiry'
+
+            entities = self._extract_entities(text.lower(), intent)
+            return {'intent': intent, 'confidence': confidence, 'entities': entities}
+
+        except Exception as e:
+            logger.error(f"[Intent Agent] ML classification error: {e}")
+            return self._classify_with_rules(text)
+
+    @staticmethod
+    def _parse_ml_response(raw: str) -> Optional[Dict[str, Any]]:
+        """Best-effort JSON parser tolerating Markdown fences."""
+        if not raw:
+            return None
+        # Strip Markdown code fences if Gemini returns them despite instructions
+        cleaned = raw.strip()
+        if cleaned.startswith('```'):
+            cleaned = re.sub(r'^```(?:json)?', '', cleaned).strip()
+            cleaned = re.sub(r'```$', '', cleaned).strip()
+        try:
+            data = json.loads(cleaned)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+        # Fallback: extract first {...} block
+        match = re.search(r'\{[^{}]*\}', cleaned)
+        if match:
+            try:
+                data = json.loads(match.group(0))
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError:
+                return None
+        return None
     
     def get_stats(self) -> Dict[str, int]:
         """Get intent classification statistics"""

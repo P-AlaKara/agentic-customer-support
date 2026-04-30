@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 customer_support_agents.egg-info/
 dist/
+.cursor/

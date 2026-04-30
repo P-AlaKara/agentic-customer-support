@@ -23,6 +23,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Hardcoded here to keep the agent persona consistent. If you rename the agent
+# in the UI (templates/chat.html AGENT_NAME), update this constant too.
+AGENT_NAME = "Rehema"
+
+SYSTEM_PREAMBLE = f"""You are {AGENT_NAME}, an AI customer support agent for an e-commerce platform.
+
+SCOPE: You only assist with the following topics:
+- Order tracking and shipping status
+- Returns, refunds, and exchanges
+- Account and login issues
+- Onboarding for new customers
+
+OUT OF SCOPE: Politely decline anything outside that scope (e.g., general knowledge, creative writing, personal advice, financial, legal, or medical guidance). Use this exact redirect phrasing: "I can only help with orders, returns, and account issues. Is there something in those areas I can assist with?"
+
+SAFETY: Do not engage with harmful, abusive, hateful, or sexually explicit content. Stay calm and redirect the customer to a support topic. If the customer becomes abusive, respond once with a calm acknowledgement and ask them to rephrase respectfully.
+
+LANGUAGE: Detect the language used by the customer and respond in that same language. If they write in Swahili, respond in Swahili. If they mix English and Swahili (Sheng), match their style.
+
+OUTPUT STYLE (TTS-safe):
+- Use plain prose with proper punctuation. Your response may be read aloud by text-to-speech.
+- Do not use Markdown formatting: no asterisks, no bullets, no headers, no backticks.
+- Numbered lists are acceptable when listing more than two steps. Spell numbers out where they read naturally.
+- Be empathetic, clear, and concise. Prefer 2-4 sentences unless step-by-step instructions are genuinely required.
+- Never invent fields you do not have (order ID, tracking number, dates, etc.). Ask for them instead.
+""".strip()
+
+
 class GeminiClient:
     """
     Client for Google Gemini API.
@@ -63,27 +90,37 @@ class GeminiClient:
         user_query: str,
         context: Dict[str, Any],
         knowledge: str = "",
-        template: Optional[str] = None
+        template: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """
         Generate a response using Gemini.
-        
+
         Args:
             user_query: The user's question/request
             context: Conversation context (customer email, entities, etc.)
             knowledge: Retrieved knowledge from database/KB
             template: Response template/guidelines (optional)
-        
+            conversation_history: Recent messages in the conversation. Each
+                entry should be a dict with `sender` ("USER"/"AGENT") and
+                `text`. The last 5 are used to give Gemini multi-turn context.
+
         Returns:
             Generated response text
         """
         if not self.model:
             logger.warning("Gemini not available, using fallback")
             return self._fallback_response(user_query, context, knowledge)
-        
+
         try:
-            prompt = self._build_prompt(user_query, context, knowledge, template)
-            
+            prompt = self._build_prompt(
+                user_query=user_query,
+                context=context,
+                knowledge=knowledge,
+                template=template,
+                conversation_history=conversation_history,
+            )
+
             response = self.model.generate_content(
                 prompt,
                 generation_config={
@@ -92,57 +129,94 @@ class GeminiClient:
                     'max_output_tokens': 1024,
                 }
             )
-            
+
             return response.text.strip()
-            
+
         except Exception as e:
             logger.error(f"Gemini generation error: {e}")
             return self._fallback_response(user_query, context, knowledge)
-    
+
     def _build_prompt(
         self,
         user_query: str,
         context: Dict[str, Any],
         knowledge: str,
-        template: Optional[str]
+        template: Optional[str],
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
-        """Build the prompt for Gemini"""
-        
-        prompt = f"""You are a helpful customer support agent. Generate a professional, friendly response.
+        """Build the prompt for Gemini, preceded by the system preamble."""
 
-USER QUERY:
-{user_query}
+        prompt = f"{SYSTEM_PREAMBLE}\n\n"
 
-CONTEXT:
-- Customer Email: {context.get('customer_email', 'Unknown')}
-- Intent: {context.get('current_intent', 'Unknown')}
-- Sentiment: {context.get('current_sentiment', 'Neutral')}
-- Order ID: {context.get('order_id', 'Unknown')}
-- Order Status: {context.get('order_status', 'Unknown')}
-- Entities: {context.get('entities', {})}
-- Order Details: {context.get('order_details', {})}
-- Return Details: {context.get('return_details', {})}
-"""
-        
+        if conversation_history:
+            recent = conversation_history[-5:]
+            prompt += "CONVERSATION HISTORY (most recent last):\n"
+            for msg in recent:
+                sender = (msg.get('sender') or '').upper() or 'USER'
+                text = msg.get('text', '')
+                role = 'Customer' if sender == 'USER' else AGENT_NAME
+                prompt += f"- {role}: {text}\n"
+            prompt += "\n"
+
+        prompt += f"USER QUERY:\n{user_query}\n\n"
+
+        prompt += "CONTEXT:\n"
+        prompt += f"- Intent: {context.get('current_intent', 'Unknown')}\n"
+        prompt += f"- Sentiment: {context.get('current_sentiment', 'Neutral')}\n"
+        prompt += f"- Order ID: {context.get('order_id', 'Unknown')}\n"
+        prompt += f"- Order Status: {context.get('order_status', 'Unknown')}\n"
+        prompt += f"- Entities: {context.get('entities', {})}\n"
+        prompt += f"- Order Details: {context.get('order_details', {})}\n"
+        prompt += f"- Return Details: {context.get('return_details', {})}\n"
+
         if knowledge:
-            prompt += f"\nRELEVANT INFORMATION:\n{knowledge}\n"
-        
+            prompt += f"\nRELEVANT POLICY / KNOWLEDGE:\n{knowledge}\n"
+
         if template:
             prompt += f"\nRESPONSE GUIDELINES:\n{template}\n"
-        
+
         prompt += """
 INSTRUCTIONS:
-1. Be professional and empathetic
-2. Address the user's query directly
-3. Use the relevant information provided
-4. Keep response concise (2-3 sentences)
-5. Include next steps or call-to-action if applicable
-6. Do not make up information not in the context
+1. Follow the SYSTEM PREAMBLE rules (scope, safety, language, TTS-safe output) at all times.
+2. Address the customer's most recent query directly, using the conversation history for continuity.
+3. Use only the information provided in CONTEXT and RELEVANT POLICY. Do not invent details.
+4. Keep the response concise and TTS-friendly (no Markdown, no asterisks, no headers).
+5. End with a clear next step or question if appropriate.
 
 Generate the response:"""
-        
+
         return prompt
     
+    def generate_embedding(self, text: str) -> Optional[List[float]]:
+        """Generate an embedding vector for `text`.
+
+        Uses the same `text-embedding-004` model as embed.py so the query
+        vector lives in the same space as the indexed kb_articles.
+        Returns None if embeddings are unavailable (no API key, package
+        missing, or API error). Callers should treat None as "RAG disabled"
+        and fall back to static knowledge.
+        """
+        if not self.api_key or not GENAI_AVAILABLE:
+            return None
+
+        text = (text or '').strip()
+        if not text:
+            return None
+
+        try:
+            result = genai.embed_content(
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_query",
+            )
+            embedding = result.get('embedding') if isinstance(result, dict) else getattr(result, 'embedding', None)
+            if embedding is None:
+                return None
+            return list(embedding)
+        except Exception as e:
+            logger.warning(f"Gemini embedding error: {e}")
+            return None
+
     def _fallback_response(
         self,
         user_query: str,

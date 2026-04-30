@@ -137,7 +137,7 @@ class ShippingAgent:
                 response = "I can definitely help with tracking. Could you please share your order ID in the format ORD12345 so I can check the latest status?"
             else:
                 # Step 1: Retrieve shipping policies/info from KB
-                knowledge = self._retrieve_shipping_info()
+                knowledge = self._retrieve_shipping_info(user_query)
 
                 # Step 2: Generate response using Gemini
                 response = self._generate_response(
@@ -189,38 +189,56 @@ class ShippingAgent:
                 return msg.get('text', '')
         return "Where is my order?"
     
-    def _retrieve_shipping_info(self) -> str:
-        """
-        Retrieve shipping policies from knowledge base using RAG.
-        
-        Returns:
-            Concatenated shipping info text
+    _STATIC_SHIPPING_POLICY = (
+        "Shipping Information:\n"
+        "- Standard Shipping: 5-7 business days (Free on orders over $50)\n"
+        "- Express Shipping: 2-3 business days ($15)\n"
+        "- Overnight Shipping: Next business day ($30)\n"
+        "- Orders ship within 24 hours of placement\n"
+        "- Tracking numbers emailed when order ships\n"
+        "- International shipping: 10-14 business days\n\n"
+        "Status-specific guidance:\n"
+        "- PROCESSING: order is being prepared and should ship within 24 hours.\n"
+        "- SHIPPED: order has left warehouse, share expected delivery estimate.\n"
+        "- DELIVERED: confirm delivery and offer additional help.\n"
+        "- CANCELLED: explain cancellation and recommend checking payment/inventory notices."
+    )
+
+    def _retrieve_shipping_info(self, user_query: str = "") -> str:
+        """Retrieve shipping policies from the KB via vector search.
+
+        Falls back to a static policy block if RAG is unavailable.
         """
         if not self.kb_db:
             return "Standard shipping: 5-7 business days. Express shipping: 2-3 business days."
-        
-        try:
-            # TODO: Implement vector search with embeddings
-            # For now, return static shipping info
-            self.stats['policies_retrieved'] += 1
-            
-            return """Shipping Information:
-- Standard Shipping: 5-7 business days (Free on orders over $50)
-- Express Shipping: 2-3 business days ($15)
-- Overnight Shipping: Next business day ($30)
-- Orders ship within 24 hours of placement
-- Tracking numbers emailed when order ships
-- International shipping: 10-14 business days
 
-Status-specific guidance:
-- PROCESSING: order is being prepared and should ship within 24 hours.
-- SHIPPED: order has left warehouse, share expected delivery estimate.
-- DELIVERED: confirm delivery and offer additional help.
-- CANCELLED: explain cancellation and recommend checking payment/inventory notices."""
-            
+        try:
+            embedding = None
+            if self.gemini and user_query:
+                embedding = self.gemini.generate_embedding(user_query)
+
+            if embedding:
+                results = self.kb_db.search_similar(
+                    embedding=embedding,
+                    category='SHIPPING',
+                    limit=5,
+                )
+                if results:
+                    chunks = [
+                        (row.get('text_chunk') or '').strip()
+                        for row in results
+                        if row and row.get('text_chunk')
+                    ]
+                    if chunks:
+                        self.stats['policies_retrieved'] += 1
+                        return "\n\n".join(chunks)
+
+            self.stats['policies_retrieved'] += 1
+            return self._STATIC_SHIPPING_POLICY
+
         except Exception as e:
             logger.error(f"Error retrieving shipping info: {e}")
-            return "Please contact support for shipping details."
+            return self._STATIC_SHIPPING_POLICY
     
     def _generate_response(
         self,
@@ -243,8 +261,6 @@ Status-specific guidance:
         Returns:
             Generated response text
         """
-        # Build enhanced context for Gemini
-        #TODO: Give last 2-3 messages as context & modify template to instruct Gemini to use them
         enhanced_context = {
             'customer_email': context.get('customer_email'),
             'current_intent': context.get('current_intent'),
@@ -254,18 +270,19 @@ Status-specific guidance:
             'entities': context.get('entities', {}),
             'order_details': order_info
         }
-        
+
         template = SHIPPING_RESPONSE_TEMPLATE
-        
+
         if self.gemini:
+            history = context.get('messages', []) or []
             return self.gemini.generate_response(
                 user_query=user_query,
                 context=enhanced_context,
                 knowledge=knowledge,
-                template=template
+                template=template,
+                conversation_history=history,
             )
         else:
-            # Fallback response
             return self._fallback_response(order_id, order_info, order_status)
 
     def _fallback_response(self, order_id: str, order_info: Optional[Dict[str, Any]], order_status: Optional[str]) -> str:

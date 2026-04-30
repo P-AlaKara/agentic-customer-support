@@ -68,38 +68,60 @@ class SentimentAgent:
     - Can be upgraded to transformer-based model later
     """
     
-    # Keyword dictionaries for rule-based classification
+    # Keyword dictionaries for rule-based classification (English + Swahili)
     ANGRY_KEYWORDS = [
         'angry', 'furious', 'outraged', 'livid', 'enraged',
         'hate', 'terrible', 'worst', 'awful', 'horrible',
         'disgusting', 'unacceptable', 'ridiculous', 'pathetic',
-        'scam', 'fraud', 'steal', 'rip off', 'ripped off'
+        'scam', 'fraud', 'steal', 'rip off', 'ripped off',
+        # Swahili
+        'hasira', 'nina hasira', 'nimekasirika', 'kasirika', 'mbaya sana',
+        'mbaya kabisa', 'wizi', 'udanganyifu', 'haikubaliki',
+        'hii ni upuuzi', 'upuuzi', 'mnacheza', 'mnanidanganya'
     ]
-    
+
     NEGATIVE_KEYWORDS = [
         'bad', 'poor', 'disappointed', 'unhappy', 'frustrated',
         'upset', 'annoyed', 'dissatisfied', 'unsatisfied',
         'problem', 'issue', 'complaint', 'wrong', 'broken',
-        'not working', 'doesn\'t work', 'failed'
+        'not working', "doesn't work", 'failed',
+        # Swahili
+        'mbaya', 'sijaridhika', 'sina furaha', 'nimekata tamaa',
+        'nimekasirishwa', 'shida', 'tatizo', 'malalamiko', 'sio sahihi',
+        'imeharibika', 'haifanyi kazi', 'imeshindwa'
     ]
-    
+
     URGENT_KEYWORDS = [
         'urgent', 'asap', 'immediately', 'right now', 'now',
         'emergency', 'critical', 'urgent matter', 'time sensitive',
-        'deadline', 'expiring', 'expire'
+        'deadline', 'expiring', 'expire',
+        # Swahili
+        'haraka', 'haraka sana', 'sasa hivi', 'mara moja', 'dharura',
+        'la dharura', 'jambo la haraka', 'muda umeisha', 'inaisha muda'
     ]
-    
+
     POSITIVE_KEYWORDS = [
         'great', 'excellent', 'amazing', 'wonderful', 'fantastic',
         'love', 'perfect', 'awesome', 'brilliant', 'thank',
-        'appreciate', 'helpful', 'satisfied', 'happy'
+        'appreciate', 'helpful', 'satisfied', 'happy',
+        # Swahili
+        'asante', 'asanteni', 'shukrani', 'nzuri', 'nzuri sana', 'safi',
+        'safi sana', 'nimefurahi', 'furaha', 'nimeridhika', 'msaada mzuri',
+        'kazi nzuri', 'umenisaidia'
     ]
-    
-    # Intensifiers that boost sentiment
-    INTENSIFIERS = ['very', 'extremely', 'really', 'so', 'absolutely', 'totally']
-    
-    # Negations that can flip sentiment
-    NEGATIONS = ['not', 'no', 'never', 'neither', 'nobody', 'nothing', 'don\'t', 'doesn\'t', 'didn\'t']
+
+    # Intensifiers that boost sentiment (English + Swahili)
+    INTENSIFIERS = [
+        'very', 'extremely', 'really', 'so', 'absolutely', 'totally',
+        'sana', 'kabisa', 'mno', 'kweli kweli'
+    ]
+
+    # Negations that can flip sentiment (English + Swahili)
+    NEGATIONS = [
+        'not', 'no', 'never', 'neither', 'nobody', 'nothing',
+        "don't", "doesn't", "didn't",
+        'si', 'sio', 'hapana', 'hakuna', 'kamwe', 'siwezi', 'hawezi'
+    ]
     
     def __init__(self, event_bus: EventBus, use_ml: bool = False):
         """

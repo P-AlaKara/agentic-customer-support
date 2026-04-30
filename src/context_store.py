@@ -80,8 +80,8 @@ class ConversationContext:
     # Extracted entities across the conversation
     entities: Dict[str, Any] = field(default_factory=dict)
     
-    # Metadata
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    # Metadata — activated is False until the wake phrase is received
+    metadata: Dict[str, Any] = field(default_factory=lambda: {'activated': False})
     
     # For escalations
     escalation_reason: Optional[str] = None

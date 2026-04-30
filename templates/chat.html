@@ -244,6 +244,38 @@
             border: 1px solid var(--border);
         }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 2px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'DM Sans', sans-serif;
+            user-select: none;
+        }
+
+        .lang-toggle .lang-opt {
+            padding: 4px 10px;
+            border-radius: 999px;
+            color: var(--text-muted);
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .lang-toggle .lang-opt.active {
+            background: var(--accent);
+            color: #fff;
+        }
+
         /* ── Messages ── */
         .chat-messages {
             flex: 1;
@@ -699,27 +731,27 @@
     <aside class="sidebar">
         <div class="sidebar-brand">
             <div class="brand-icon">💬</div>
-            <div class="brand-name">Support Center</div>
-            <div class="brand-sub">We usually reply in minutes</div>
+            <div class="brand-name" id="brandName">Rehema Support</div>
+            <div class="brand-sub" id="brandSub">We usually reply in minutes</div>
         </div>
 
         <div class="sidebar-section">
-            <div class="sidebar-label">Quick Actions</div>
-            <div class="quick-link" onclick="sendSuggestion('Track my order')">
-                <span>📦</span><span>Track my order</span>
+            <div class="sidebar-label" id="sidebarQuickLabel">Quick Actions</div>
+            <div class="quick-link" id="sidebarQuickTrack" onclick="sendSuggestion('Hey Rehema, track my order')">
+                <span>📦</span><span id="sidebarTrackLabel">Track my order</span>
             </div>
-            <div class="quick-link" onclick="sendSuggestion('I want to return an item')">
-                <span>↩️</span><span>Return an item</span>
+            <div class="quick-link" id="sidebarQuickReturn" onclick="sendSuggestion('Hey Rehema, I want to return an item')">
+                <span>↩️</span><span id="sidebarReturnLabel">Return an item</span>
             </div>
-            <div class="quick-link" onclick="sendSuggestion('Help with my account')">
-                <span>👤</span><span>Account help</span>
+            <div class="quick-link" id="sidebarQuickAccount" onclick="sendSuggestion('Hey Rehema, help with my account')">
+                <span>👤</span><span id="sidebarAccountLabel">Account help</span>
             </div>
         </div>
 
         <div class="sidebar-status">
             <div class="quick-link" style="cursor:default; gap:8px;">
                 <span class="status-dot"></span>
-                <span class="status-text">Support is online</span>
+                <span class="status-text" id="sidebarStatus">Support is online</span>
             </div>
         </div>
     </aside>
@@ -734,29 +766,42 @@
                         <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>
                     </svg>
                 </button>
-                <div class="agent-avatar">🤖</div>
+                <div class="agent-avatar" id="agentAvatar">🤖</div>
                 <div>
-                    <div class="agent-name">Support Bot</div>
-                    <div class="agent-sub">Automated · can escalate to a human</div>
+                    <div class="agent-name" id="agentName">Rehema</div>
+                    <div class="agent-sub" id="agentSub">AI Support · We're here to help</div>
                 </div>
             </div>
-            <div class="session-badge" id="sessionInfo">No active session</div>
+            <div class="header-right">
+                <div
+                    class="lang-toggle"
+                    id="langToggle"
+                    onclick="toggleLanguage()"
+                    title="Toggle language / Badilisha lugha"
+                    role="switch"
+                    aria-label="Toggle language between English and Swahili"
+                >
+                    <span class="lang-opt active" id="langOptEn">EN</span>
+                    <span class="lang-opt" id="langOptSw">SW</span>
+                </div>
+                <div class="session-badge" id="sessionInfo">No active session</div>
+            </div>
         </div>
 
         <div class="chat-messages" id="chatMessages">
             <div class="welcome" id="welcomeScreen">
                 <div class="welcome-icon">👋</div>
-                <h2>How can we help?</h2>
-                <p>Ask anything or pick a quick action from the sidebar to get started.</p>
+                <h2 id="welcomeTitle">Start by saying "Hey Rehema"</h2>
+                <p id="welcomeSubtitle">Type or say "Hey Rehema" to begin. I can help with shipping, returns, and account issues.</p>
                 <div class="suggestions">
-                    <div class="suggestion-chip" onclick="sendSuggestion('Track my order')">
-                        <span>📦</span> Track my order
+                    <div class="suggestion-chip" onclick="sendSuggestion('Hey Rehema, track my order')">
+                        <span>📦</span> <span class="chip-label">Hey Rehema, track my order</span>
                     </div>
-                    <div class="suggestion-chip" onclick="sendSuggestion('I want to return an item')">
-                        <span>↩️</span> Return an item
+                    <div class="suggestion-chip" onclick="sendSuggestion('Hey Rehema, I want to return an item')">
+                        <span>↩️</span> <span class="chip-label">Hey Rehema, return an item</span>
                     </div>
-                    <div class="suggestion-chip" onclick="sendSuggestion('Help with my account')">
-                        <span>👤</span> Help with my account
+                    <div class="suggestion-chip" onclick="sendSuggestion('Hey Rehema, help with my account')">
+                        <span>👤</span> <span class="chip-label">Hey Rehema, account help</span>
                     </div>
                 </div>
             </div>
@@ -777,7 +822,7 @@
                 <input
                     type="text"
                     id="messageInput"
-                    placeholder="Type your message…"
+                    placeholder="Type 'Hey Rehema' to begin…"
                     onkeypress="handleKeyPress(event)"
                     autocomplete="off"
                 >
@@ -792,11 +837,11 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
                     </svg>
-                    Send
+                    <span id="sendButtonLabel">Send</span>
                 </button>
             </div>
-            <div class="input-hint">Press Enter to send</div>
-            <div class="voice-feedback" id="voiceFeedback">Voice: ready. Tap mic to speak.</div>
+            <div class="input-hint" id="inputHint">Say or type "Hey Rehema" to get started</div>
+            <div class="voice-feedback" id="voiceFeedback"></div>
         </div>
 
     </div>
@@ -806,8 +851,8 @@
 <div class="review-overlay" id="reviewOverlay">
     <div class="review-card">
         <div id="reviewForm">
-            <h3>How was your experience?</h3>
-            <p>Rate your conversation with our support team</p>
+            <h3 id="reviewTitle">How was your experience?</h3>
+            <p id="reviewSubtitle">Rate your conversation with our support team</p>
             <div class="star-row" id="starRow">
                 <button class="star-btn" data-score="1" onclick="selectStar(1)">&#9733;</button>
                 <button class="star-btn" data-score="2" onclick="selectStar(2)">&#9733;</button>
@@ -816,12 +861,12 @@
                 <button class="star-btn" data-score="5" onclick="selectStar(5)">&#9733;</button>
             </div>
             <button class="review-submit" id="reviewSubmitBtn" onclick="submitReview()" disabled>Submit Rating</button>
-            <button class="review-skip" onclick="dismissReview()">Skip</button>
+            <button class="review-skip" id="reviewSkipBtn" onclick="dismissReview()">Skip</button>
         </div>
         <div class="review-thankyou" id="reviewThankyou">
             <div class="check-icon">&#10003;</div>
-            <h3>Thank you!</h3>
-            <p>Your feedback helps us improve.</p>
+            <h3 id="reviewThanksTitle">Thank you!</h3>
+            <p id="reviewThanksSub">Your feedback helps us improve.</p>
         </div>
     </div>
 </div>
@@ -829,6 +874,7 @@
 <script>
     const API_URL = 'http://localhost:8000';
     const EAT_TIMEZONE = 'Africa/Nairobi';
+    const AGENT_NAME = 'Rehema';
     let sessionId = localStorage.getItem('sessionId') || null;
     const customerEmail = 'customer@example.com';
     let seenMessageTimestamps = new Set();
@@ -840,10 +886,221 @@
     let liveTranscript = '';
     let selectedReviewScore = 0;
     let reviewSessionId = null;
+    let isActivated = false;
+    let currentLang = localStorage.getItem('lang') || 'en';
+
+    const I18N = {
+        en: {
+            brandName: `${AGENT_NAME} Support`,
+            brandSub: 'We usually reply in minutes',
+            agentName: AGENT_NAME,
+            agentSub: "AI Support · We're here to help",
+            humanAgentName: 'Human Agent',
+            humanAgentSub: 'Connected to support team',
+            sidebarLabel: 'Quick Actions',
+            quickTrack: 'Track my order',
+            quickReturn: 'Return an item',
+            quickAccount: 'Account help',
+            statusOnline: 'Support is online',
+            welcomeTitle: `Start by saying "Hey ${AGENT_NAME}"`,
+            welcomeSubtitle: `Type or say "Hey ${AGENT_NAME}" to begin. I can help with shipping, returns, and account issues.`,
+            chipTrack: `Hey ${AGENT_NAME}, track my order`,
+            chipReturn: `Hey ${AGENT_NAME}, return an item`,
+            chipAccount: `Hey ${AGENT_NAME}, account help`,
+            sessionNone: 'No active session',
+            sessionFmt: (id) => `Session ${id.substring(0, 8)}…`,
+            placeholderInactive: `Type "Hey ${AGENT_NAME}" to begin…`,
+            placeholderActive: 'Type your message…',
+            hintInactive: `Say or type "Hey ${AGENT_NAME}" to get started`,
+            hintActive: 'Press Enter to send',
+            sendButton: 'Send',
+            voiceReady: 'Voice: ready. Tap mic to speak.',
+            voiceListening: 'Listening… speak now.',
+            voiceProcessing: 'Processing speech…',
+            voiceFailed: 'Voice processing failed. Please try again or type.',
+            voiceUnsupported: 'Voice capture is not supported in this browser.',
+            voiceMicDenied: 'Microphone access was denied or unavailable.',
+            voiceNoSpeech: 'No speech detected. Please try again.',
+            voicePlaying: (name) => `Playing voice response (${name || 'Kenyan voice'})…`,
+            voiceFallback: 'Used browser voice fallback.',
+            voiceUnavailable: 'Voice output unavailable, text shown.',
+            errorGeneric: 'Sorry, something went wrong. Please try again.',
+            errorVoice: 'Sorry, voice processing failed. Please try again.',
+            voiceTextPlaceholder: '[Voice message]',
+            reviewTitle: 'How was your experience?',
+            reviewSubtitle: 'Rate your conversation with our support team',
+            reviewSubmit: 'Submit Rating',
+            reviewSkip: 'Skip',
+            reviewThanks: 'Thank you!',
+            reviewThanksSub: 'Your feedback helps us improve.',
+            sttLang: 'en-KE',
+        },
+        sw: {
+            brandName: `Msaada wa ${AGENT_NAME}`,
+            brandSub: 'Kwa kawaida tunajibu ndani ya dakika chache',
+            agentName: AGENT_NAME,
+            agentSub: 'Msaidizi wa AI · Tuko hapa kukusaidia',
+            humanAgentName: 'Wakala wa Binadamu',
+            humanAgentSub: 'Umeunganishwa na timu ya msaada',
+            sidebarLabel: 'Vitendo vya Haraka',
+            quickTrack: 'Fuatilia agizo langu',
+            quickReturn: 'Rudisha bidhaa',
+            quickAccount: 'Msaada wa akaunti',
+            statusOnline: 'Msaada uko mtandaoni',
+            welcomeTitle: `Anza kwa kusema "Hey ${AGENT_NAME}"`,
+            welcomeSubtitle: `Andika au sema "Hey ${AGENT_NAME}" kuanza. Naweza kusaidia na usafirishaji, marejesho, na masuala ya akaunti.`,
+            chipTrack: `Hey ${AGENT_NAME}, fuatilia agizo langu`,
+            chipReturn: `Hey ${AGENT_NAME}, nataka kurudisha bidhaa`,
+            chipAccount: `Hey ${AGENT_NAME}, msaada wa akaunti`,
+            sessionNone: 'Hakuna kikao kinachoendelea',
+            sessionFmt: (id) => `Kikao ${id.substring(0, 8)}…`,
+            placeholderInactive: `Andika "Hey ${AGENT_NAME}" kuanza…`,
+            placeholderActive: 'Andika ujumbe wako…',
+            hintInactive: `Sema au andika "Hey ${AGENT_NAME}" kuanza`,
+            hintActive: 'Bonyeza Enter kutuma',
+            sendButton: 'Tuma',
+            voiceReady: 'Sauti: tayari. Bofya kipaza sauti kuongea.',
+            voiceListening: 'Ninasikiliza… ongea sasa.',
+            voiceProcessing: 'Ninachakata sauti…',
+            voiceFailed: 'Uchakataji wa sauti umeshindikana. Tafadhali jaribu tena au andika.',
+            voiceUnsupported: 'Kunasa sauti hakuauniwi kwenye kivinjari hiki.',
+            voiceMicDenied: 'Ufikiaji wa kipaza sauti umekataliwa au haupatikani.',
+            voiceNoSpeech: 'Hakuna sauti iliyogunduliwa. Tafadhali jaribu tena.',
+            voicePlaying: (name) => `Inacheza jibu la sauti (${name || 'sauti ya Kenya'})…`,
+            voiceFallback: 'Imetumika sauti mbadala ya kivinjari.',
+            voiceUnavailable: 'Sauti haipatikani, maandishi yameonyeshwa.',
+            errorGeneric: 'Samahani, kuna hitilafu. Tafadhali jaribu tena.',
+            errorVoice: 'Samahani, uchakataji wa sauti umeshindikana. Tafadhali jaribu tena.',
+            voiceTextPlaceholder: '[Ujumbe wa sauti]',
+            reviewTitle: 'Uzoefu wako ulikuwaje?',
+            reviewSubtitle: 'Toa alama kuhusu mazungumzo yako na timu yetu ya msaada',
+            reviewSubmit: 'Tuma Alama',
+            reviewSkip: 'Ruka',
+            reviewThanks: 'Asante!',
+            reviewThanksSub: 'Maoni yako yanatusaidia kuboresha.',
+            sttLang: 'sw-KE',
+        }
+    };
+
+    function t() {
+        return I18N[currentLang] || I18N.en;
+    }
+
+    function applyLanguage() {
+        const s = t();
+        // Header / sidebar
+        const setText = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.textContent = v; };
+        setText('brandName', s.brandName);
+        setText('brandSub', s.brandSub);
+        setText('welcomeTitle', s.welcomeTitle);
+        setText('welcomeSubtitle', s.welcomeSubtitle);
+
+        // Only set default agent header text when not in human-handoff mode
+        const agentNameEl = document.getElementById('agentName');
+        if (agentNameEl && agentNameEl.textContent !== s.humanAgentName) {
+            agentNameEl.textContent = s.agentName;
+        }
+        const agentSubEl = document.getElementById('agentSub');
+        if (agentSubEl && agentSubEl.textContent !== s.humanAgentSub) {
+            agentSubEl.textContent = s.agentSub;
+        }
+
+        // Suggestion chips (welcome screen)
+        const chipLabels = document.querySelectorAll('.chip-label');
+        const chipValues = [s.chipTrack, s.chipReturn, s.chipAccount];
+        chipLabels.forEach((el, i) => {
+            if (chipValues[i] != null) el.textContent = chipValues[i];
+        });
+        // Update onclick to send the localized phrase
+        const chips = document.querySelectorAll('.suggestion-chip');
+        chips.forEach((el, i) => {
+            if (chipValues[i] != null) {
+                el.setAttribute('onclick', `sendSuggestion(${JSON.stringify(chipValues[i])})`);
+            }
+        });
+
+        // Sidebar quick actions
+        setText('sidebarQuickLabel', s.sidebarLabel);
+        setText('sidebarTrackLabel', s.quickTrack);
+        setText('sidebarReturnLabel', s.quickReturn);
+        setText('sidebarAccountLabel', s.quickAccount);
+        setText('sidebarStatus', s.statusOnline);
+        const sidebarLinks = [
+            ['sidebarQuickTrack', s.quickTrack],
+            ['sidebarQuickReturn', s.quickReturn],
+            ['sidebarQuickAccount', s.quickAccount],
+        ];
+        // Sidebar quick-link onclicks → send localized phrases
+        const map = {
+            sidebarQuickTrack: s.chipTrack,
+            sidebarQuickReturn: s.chipReturn,
+            sidebarQuickAccount: s.chipAccount,
+        };
+        Object.keys(map).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.setAttribute('onclick', `sendSuggestion(${JSON.stringify(map[id])})`);
+        });
+
+        // Send button label
+        setText('sendButtonLabel', s.sendButton);
+
+        // Voice feedback default
+        const vf = document.getElementById('voiceFeedback');
+        if (vf && (vf.textContent === I18N.en.voiceReady || vf.textContent === I18N.sw.voiceReady || vf.textContent === '')) {
+            vf.textContent = s.voiceReady;
+        }
+
+        // Review overlay
+        setText('reviewTitle', s.reviewTitle);
+        setText('reviewSubtitle', s.reviewSubtitle);
+        const submitBtn = document.getElementById('reviewSubmitBtn');
+        if (submitBtn && submitBtn.textContent !== 'Submitting...') submitBtn.textContent = s.reviewSubmit;
+        setText('reviewSkipBtn', s.reviewSkip);
+        setText('reviewThanksTitle', s.reviewThanks);
+        setText('reviewThanksSub', s.reviewThanksSub);
+
+        // Session badge
+        updateSessionInfo();
+
+        // Input placeholder/hint reflect activation state under the new language
+        setActivatedUI(isActivated);
+
+        // STT language
+        // (recognition.lang is read at start time; nothing to do here)
+
+        // Toggle pill state
+        const enOpt = document.getElementById('langOptEn');
+        const swOpt = document.getElementById('langOptSw');
+        if (enOpt && swOpt) {
+            enOpt.classList.toggle('active', currentLang === 'en');
+            swOpt.classList.toggle('active', currentLang === 'sw');
+        }
+    }
+
+    function toggleLanguage() {
+        currentLang = currentLang === 'en' ? 'sw' : 'en';
+        localStorage.setItem('lang', currentLang);
+        applyLanguage();
+    }
+
+    function setActivatedUI(activated) {
+        isActivated = activated;
+        const input = document.getElementById('messageInput');
+        const hint = document.getElementById('inputHint');
+        const s = t();
+        if (activated) {
+            input.placeholder = s.placeholderActive;
+            hint.textContent = s.hintActive;
+        } else {
+            input.placeholder = s.placeholderInactive;
+            hint.textContent = s.hintInactive;
+        }
+    }
 
     function updateSessionInfo() {
         const el = document.getElementById('sessionInfo');
-        el.textContent = sessionId ? `Session ${sessionId.substring(0, 8)}…` : 'No active session';
+        const s = t();
+        el.textContent = sessionId ? s.sessionFmt(sessionId) : s.sessionNone;
     }
 
     function showMessages() {
@@ -855,7 +1112,7 @@
         }
     }
 
-    function addMessage(text, sender, status = null) {
+    function addMessage(text, sender, status = null, isHumanHandoff = false) {
         showMessages();
         const container = document.getElementById('chatMessages');
         const now = new Date().toLocaleTimeString('en-US', {
@@ -867,7 +1124,14 @@
         const row = document.createElement('div');
         row.className = `message ${sender}`;
 
-        const avatar = sender === 'user' ? '👤' : '🤖';
+        let avatar;
+        if (sender === 'user') {
+            avatar = '👤';
+        } else if (isHumanHandoff || status === 'escalated') {
+            avatar = '🧑‍💼';
+        } else {
+            avatar = '🤖';
+        }
         let statusHtml = status ? `<span class="status-pill ${status}">${status}</span>` : '';
 
         row.innerHTML = `
@@ -879,6 +1143,22 @@
 
         container.appendChild(row);
         container.scrollTop = container.scrollHeight;
+    }
+
+    function setHumanHandoffHeader(active) {
+        const avatar = document.getElementById('agentAvatar');
+        const nameEl = document.getElementById('agentName');
+        const subEl = document.getElementById('agentSub');
+        const s = t();
+        if (active) {
+            if (avatar) avatar.textContent = '🧑‍💼';
+            if (nameEl) nameEl.textContent = s.humanAgentName;
+            if (subEl) subEl.textContent = s.humanAgentSub;
+        } else {
+            if (avatar) avatar.textContent = '🤖';
+            if (nameEl) nameEl.textContent = s.agentName;
+            if (subEl) subEl.textContent = s.agentSub;
+        }
     }
 
     function setTyping(on) {
@@ -909,6 +1189,31 @@
         } catch (e) {}
     }
 
+    async function initSession() {
+        // On page load, validate the stored sessionId. If the backend reports
+        // the conversation has ended (or is unknown), clear silently without
+        // triggering the review overlay.
+        if (!sessionId) return;
+        try {
+            const r = await fetch(`${API_URL}/chat/${sessionId}`);
+            if (!r.ok) return;
+            const data = await r.json();
+            if (data.ended) {
+                sessionId = null;
+                localStorage.removeItem('sessionId');
+                updateSessionInfo();
+                return;
+            }
+            // Session still alive — backfill seen-message keys so we don't
+            // re-render history from polling.
+            (data.messages || []).forEach(msg =>
+                seenMessageTimestamps.add(`${msg.timestamp}-${msg.sender}-${msg.text}`)
+            );
+            // Existing live session — assume previously activated
+            setActivatedUI(true);
+        } catch (e) {}
+    }
+
     async function sendMessage() {
         const input = document.getElementById('messageInput');
         const message = input.value.trim();
@@ -922,7 +1227,7 @@
             const r = await fetch(`${API_URL}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, session_id: sessionId, customer_email: customerEmail })
+                body: JSON.stringify({ message, session_id: sessionId, language: currentLang })
             });
             if (!r.ok) throw new Error();
             const data = await r.json();
@@ -935,15 +1240,23 @@
             }
 
             setTyping(false);
-            addMessage(data.response, 'agent', data.status);
+            addMessage(data.response, 'agent', data.status, data.is_human_handoff);
+            if (data.is_human_handoff) {
+                setHumanHandoffHeader(true);
+            }
             await syncSeenMessages();
+
+            // Activate UI on first non-idle response (i.e. wake phrase accepted)
+            if (!isActivated && data.status !== 'idle') {
+                setActivatedUI(true);
+            }
 
             if (data.final) {
                 handleConversationEnd(data.session_id);
             }
         } catch (e) {
             setTyping(false);
-            addMessage('Sorry, something went wrong. Please try again.', 'agent');
+            addMessage(t().errorGeneric, 'agent');
         }
     }
 
@@ -958,7 +1271,7 @@
         recognition = new SR();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = 'en-KE';
+        recognition.lang = t().sttLang;
 
         recognition.onresult = (event) => {
             let interim = '';
@@ -969,7 +1282,10 @@
                 else interim += transcript;
             }
             liveTranscript = (final + interim).trim();
-            if (liveTranscript) setVoiceFeedback(`Listening… ${liveTranscript}`, true);
+            if (liveTranscript) {
+                const prefix = t().voiceListening.replace(/\.$/, '');
+                setVoiceFeedback(`${prefix} ${liveTranscript}`, true);
+            }
         };
 
         recognition.onerror = () => {};
@@ -993,7 +1309,7 @@
 
     async function startRecording() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setVoiceFeedback('Voice capture is not supported in this browser.', false);
+            setVoiceFeedback(t().voiceUnsupported, false);
             return;
         }
 
@@ -1010,17 +1326,17 @@
             mediaRecorder.onstop = async () => {
                 stream.getTracks().forEach(track => track.stop());
                 stopLiveTranscriptPreview();
-                setVoiceFeedback('Processing speech…', true);
+                setVoiceFeedback(t().voiceProcessing, true);
                 await sendVoiceMessage();
             };
 
             mediaRecorder.start();
             isRecording = true;
             document.getElementById('micButton').classList.add('recording');
-            setVoiceFeedback('Listening… speak now.', true);
+            setVoiceFeedback(t().voiceListening, true);
             startLiveTranscriptPreview();
         } catch (err) {
-            setVoiceFeedback('Microphone access was denied or unavailable.', false);
+            setVoiceFeedback(t().voiceMicDenied, false);
         }
     }
 
@@ -1033,7 +1349,7 @@
 
     async function sendVoiceMessage() {
         if (!audioChunks.length && !liveTranscript.trim()) {
-            setVoiceFeedback('No speech detected. Please try again.', false);
+            setVoiceFeedback(t().voiceNoSpeech, false);
             return;
         }
 
@@ -1060,7 +1376,7 @@
                     mime_type: mimeType,
                     transcript_preview: liveTranscript || null,
                     session_id: sessionId,
-                    customer_email: customerEmail
+                    language: currentLang
                 })
             });
             if (!r.ok) throw new Error();
@@ -1073,10 +1389,17 @@
                 seenMessageTimestamps.clear();
             }
 
-            const transcriptText = data.transcript || liveTranscript || '[Voice message]';
+            const transcriptText = data.transcript || liveTranscript || t().voiceTextPlaceholder;
             addMessage(transcriptText, 'user');
             setTyping(false);
-            addMessage(data.response, 'agent', data.status);
+            addMessage(data.response, 'agent', data.status, data.is_human_handoff);
+            if (data.is_human_handoff) {
+                setHumanHandoffHeader(true);
+            }
+
+            if (!isActivated && data.status !== 'idle') {
+                setActivatedUI(true);
+            }
 
             if (data.audio_base64) {
                 const format = data.audio_format || 'mp3';
@@ -1085,22 +1408,22 @@
                 audio.preload = 'auto';
                 audio.src = audioUrl;
                 audio.play().catch(() => {});
-                setVoiceFeedback(`Playing voice response (${data.voice_name || 'Kenyan voice'})…`, true);
-                audio.onended = () => setVoiceFeedback('Voice: ready. Tap mic to speak.', false);
+                setVoiceFeedback(t().voicePlaying(data.voice_name), true);
+                audio.onended = () => setVoiceFeedback(t().voiceReady, false);
             } else if ('speechSynthesis' in window && data.response) {
                 const utterance = new SpeechSynthesisUtterance(data.response);
-                utterance.lang = 'en-KE';
+                utterance.lang = t().sttLang;
                 speechSynthesis.speak(utterance);
-                setVoiceFeedback('Used browser voice fallback.', false);
+                setVoiceFeedback(t().voiceFallback, false);
             } else {
-                setVoiceFeedback('Voice output unavailable, text shown.', false);
+                setVoiceFeedback(t().voiceUnavailable, false);
             }
 
             syncSeenMessages();
         } catch (e) {
             setTyping(false);
-            setVoiceFeedback('Voice processing failed. Please try again or type.', false);
-            addMessage('Sorry, voice processing failed. Please try again.', 'agent');
+            setVoiceFeedback(t().voiceFailed, false);
+            addMessage(t().errorVoice, 'agent');
         } finally {
             audioChunks = [];
             liveTranscript = '';
@@ -1115,17 +1438,23 @@
         if (!sessionId) return;
         try {
             const r = await fetch(`${API_URL}/chat/${sessionId}`);
-            if (r.status === 404) {
+            if (!r.ok) return;
+            const data = await r.json();
+            if (data.ended) {
                 handleConversationEnd(sessionId);
                 return;
             }
-            if (!r.ok) return;
-            const data = await r.json();
+            const isEscalated = data.status === 'ESCALATED';
+            if (isEscalated) {
+                setHumanHandoffHeader(true);
+            }
             (data.messages || []).forEach(msg => {
                 const key = `${msg.timestamp}-${msg.sender}-${msg.text}`;
                 if (!seenMessageTimestamps.has(key)) {
                     seenMessageTimestamps.add(key);
-                    if (msg.sender === 'AGENT') addMessage(msg.text, 'agent', data.status?.toLowerCase());
+                    if (msg.sender === 'AGENT') {
+                        addMessage(msg.text, 'agent', data.status?.toLowerCase(), isEscalated);
+                    }
                 }
             });
         } catch (e) {}
@@ -1142,6 +1471,8 @@
         messagesShown = false;
         updateSessionInfo();
         seenMessageTimestamps.clear();
+        setActivatedUI(false);
+        setHumanHandoffHeader(false);
         showReviewOverlay();
     }
 
@@ -1166,7 +1497,7 @@
         if (!selectedReviewScore || !reviewSessionId) return;
         const btn = document.getElementById('reviewSubmitBtn');
         btn.disabled = true;
-        btn.textContent = 'Submitting...';
+        btn.textContent = currentLang === 'sw' ? 'Inatuma...' : 'Submitting...';
 
         try {
             await fetch(`${API_URL}/chat/review`, {
@@ -1190,8 +1521,10 @@
     }
 
     // Initialize
+    applyLanguage();
+    setActivatedUI(false);
     updateSessionInfo();
-    syncSeenMessages();
+    initSession();
     setInterval(pollForUpdates, 2000);
 </script>
 </body>

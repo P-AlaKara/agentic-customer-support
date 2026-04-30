@@ -157,10 +157,13 @@ class EscalationAgent:
             self.stats['queued'] += 1
             self.stats['by_reason'][reason] = self.stats['by_reason'].get(reason, 0) + 1
             
-            # Publish confirmation
+            # Publish confirmation. `reason` is forwarded so downstream
+            # consumers (e.g. the API gateway response collector) can choose
+            # an appropriate user-facing message.
             self.bus.publish('RESULT_ESCALATION_COMPLETE', {
                 'session_id': session_id,
                 'status': 'QUEUED',
+                'reason': reason,
                 'queue_position': escalation['queue_position'],
                 'estimated_wait_time': self._estimate_wait_time()
             })

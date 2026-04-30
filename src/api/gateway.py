@@ -65,6 +65,7 @@ AGENT_EVENT_RELATIONSHIPS = {
             "TASK_HANDLE_GREETING",
             "TASK_HANDLE_CLOSING",
             "TASK_HANDLE_ONBOARDING",
+            "TASK_HANDLE_GENERAL_INQUIRY",
             "TASK_ESCALATE"
         ],
         "subscribed_events": [
@@ -110,6 +111,10 @@ AGENT_EVENT_RELATIONSHIPS = {
         "published_events": ["RESULT_SEND_RESPONSE_TO_USER"],
         "subscribed_events": ["TASK_HANDLE_ONBOARDING"]
     },
+    "greeting": {
+        "published_events": ["RESULT_SEND_RESPONSE_TO_USER", "REQUEST_ESCALATION"],
+        "subscribed_events": ["TASK_HANDLE_GREETING", "TASK_HANDLE_CLOSING", "TASK_HANDLE_GENERAL_INQUIRY"]
+    },
     "stt_service": {
         "published_events": ["VOICE_TRANSCRIPTION_COMPLETED", "VOICE_TRANSCRIPTION_FAILED"],
         "subscribed_events": ["VOICE_INPUT_RECEIVED"]
@@ -135,14 +140,16 @@ class ChatMessage(BaseModel):
     message: str = Field(..., min_length=1, max_length=5000, description="User's message")
     session_id: Optional[str] = Field(None, description="Session ID (auto-generated if not provided)")
     customer_email: Optional[str] = Field(None, description="Customer email (optional)")
+    language: str = Field('en', description="UI language: 'en' or 'sw'")
 
 class ChatResponse(BaseModel):
     """Response to user"""
     session_id: str
     response: str
-    status: str  # "processing", "responded", "escalated"
+    status: str  # "idle", "processing", "responded", "escalated"
     final: bool = False
     timestamp: str
+    is_human_handoff: bool = False
 
 
 class VoiceChatRequest(BaseModel):
@@ -152,6 +159,7 @@ class VoiceChatRequest(BaseModel):
     transcript_preview: Optional[str] = Field(None, description="Optional live transcript preview from browser")
     session_id: Optional[str] = Field(None, description="Session ID (auto-generated if not provided)")
     customer_email: Optional[str] = Field(None, description="Customer email (optional)")
+    language: str = Field('en', description="UI language: 'en' or 'sw'")
 
 
 class VoiceChatResponse(ChatResponse):
@@ -268,14 +276,31 @@ class ResponseCollector:
         }
     
     def collect_escalation(self, event):
-        """Collect escalation notification"""
+        """Collect escalation notification.
+
+        We pick a message based on the escalation `reason`:
+        - MANUAL_REQUEST: customer explicitly asked for a human
+        - everything else (sentiment, low confidence, agent error, etc.):
+          generic handoff message
+        """
         payload = event.payload
         session_id = payload['session_id']
+        reason = payload.get('reason') or ''
+
+        if reason == 'MANUAL_REQUEST':
+            text = "Connecting you with a human agent now. Please hold on."
+        else:
+            text = (
+                "I am connecting you with a human support agent now. "
+                "Please hold on — they will be with you shortly."
+            )
+
         self.responses[session_id] = {
-            'text': f"Your request has been escalated to a human operator. Queue position: {payload.get('queue_position', 'unknown')}",
-            'agent': 'ESCALATION',
+            'text': text,
+            'agent': 'HUMAN_HANDOFF',
             'status': 'escalated',
-            'final': False
+            'final': False,
+            'is_human_handoff': True
         }
 
     def collect_voice_output(self, event):
@@ -338,6 +363,9 @@ logger.info("✅ API Gateway initialized with all agents")
 # User Chat Endpoints
 # ============================================================================
 
+_WAKE_PHRASE_RE = re.compile(r'\bhey\s+rehema\b', re.IGNORECASE)
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(message: ChatMessage):
     """
@@ -345,23 +373,45 @@ async def chat(message: ChatMessage):
     
     Flow:
     1. Create/retrieve session
-    2. Publish message to event bus (off the event loop)
-    3. Wait for agent response (or escalation)
-    4. Return response to user
+    2. Activation gate — require wake phrase for new/inactive sessions
+    3. Publish message to event bus (off the event loop)
+    4. Wait for agent response (or escalation)
+    5. Return response to user
     """
     try:
         session_id = message.session_id or str(uuid.uuid4())
         
         logger.info(f"[API] Received message for session {session_id}")
-        
-        existing_context = store.get(session_id)
-        is_operator_controlled = bool(existing_context and existing_context.metadata.get('controlled_by') == 'OPERATOR')
+
+        # Ensure context exists so we can inspect metadata before routing
+        context = store.get_or_create(session_id, customer_email=message.customer_email)
+        is_operator_controlled = bool(context.metadata.get('controlled_by') == 'OPERATOR')
+        # Track language preference on the context so downstream agents (intent,
+        # gemini prompt) can adapt without each having to re-receive it.
+        context.metadata['language'] = message.language or 'en'
+
+        # Activation gate — only applies to non-operator sessions that have not
+        # yet been activated by the wake phrase.
+        if not is_operator_controlled and not context.metadata.get('activated', False):
+            if not _WAKE_PHRASE_RE.search(message.message):
+                logger.info(f"[API] Session {session_id} not yet activated — wake phrase required")
+                return ChatResponse(
+                    session_id=session_id,
+                    response="To get started, just type or say \"Hey Rehema\".",
+                    status="idle",
+                    final=False,
+                    timestamp=datetime.now(timezone.utc).isoformat()
+                )
+            # Wake phrase matched — activate the session
+            context.metadata['activated'] = True
+            logger.info(f"[API] Session {session_id} activated via wake phrase")
 
         def _process():
             bus.publish('NEW_USER_MESSAGE', {
                 'session_id': session_id,
                 'text': message.message,
-                'customer_email': message.customer_email
+                'customer_email': message.customer_email,
+                'language': message.language or 'en'
             })
             if is_operator_controlled:
                 return None
@@ -376,7 +426,7 @@ async def chat(message: ChatMessage):
                 response="Your message was delivered to a human operator.",
                 status="waiting_operator",
                 final=False,
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat()
             )
         
         if response_data:
@@ -385,7 +435,8 @@ async def chat(message: ChatMessage):
                 response=response_data['text'],
                 status=response_data['status'],
                 final=response_data.get('final', False),
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                is_human_handoff=response_data.get('is_human_handoff', False)
             )
         else:
             return ChatResponse(
@@ -393,7 +444,7 @@ async def chat(message: ChatMessage):
                 response="Your message is being processed. Please wait a moment...",
                 status="processing",
                 final=False,
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat()
             )
     
     except Exception as e:
@@ -414,13 +465,18 @@ async def voice_chat(message: VoiceChatRequest):
     try:
         session_id = message.session_id or str(uuid.uuid4())
 
+        # Track language preference on the context (parallels /chat).
+        ctx_for_voice = store.get_or_create(session_id, customer_email=message.customer_email)
+        ctx_for_voice.metadata['language'] = message.language or 'en'
+
         def _process_voice():
             bus.publish('VOICE_INPUT_RECEIVED', {
                 'session_id': session_id,
                 'audio_base64': message.audio_base64,
                 'mime_type': message.mime_type,
                 'transcript_preview': message.transcript_preview,
-                'customer_email': message.customer_email
+                'customer_email': message.customer_email,
+                'language': message.language or 'en'
             })
             resp = response_collector.get_response(session_id, timeout=12.0)
             voice = response_collector.get_voice_output(session_id, timeout=4.0) or {}
@@ -452,7 +508,8 @@ async def voice_chat(message: VoiceChatRequest):
             audio_format=voice_data.get('audio_format'),
             voice_name=voice_data.get('voice_name'),
             voice_enabled=True,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            is_human_handoff=response_data.get('is_human_handoff', False)
         )
     except Exception as e:
         logger.error(f"[API] Error in /voice/chat: {e}", exc_info=True)
@@ -461,14 +518,26 @@ async def voice_chat(message: VoiceChatRequest):
 
 @app.get("/chat/{session_id}")
 async def get_session(session_id: str):
-    """Get conversation history for a session"""
+    """Get conversation history for a session.
+
+    When the session is not in the in-memory store (because the conversation
+    has ended and been persisted, or it never existed), we return a 200 with
+    `ended: true` so the frontend can react explicitly without depending on
+    HTTP 404 as a side-channel.
+    """
     try:
         context = store.get(session_id)
         if not context:
-            raise HTTPException(status_code=404, detail="Session not found")
-        
+            return {
+                "session_id": session_id,
+                "ended": True,
+                "messages": [],
+                "status": "ended"
+            }
+
         return {
             "session_id": session_id,
+            "ended": False,
             "messages": [
                 {
                     "sender": msg.sender,
@@ -481,9 +550,7 @@ async def get_session(session_id: str):
             "sentiment": context.current_sentiment,
             "intent": context.current_intent
         }
-    
-    except HTTPException:
-        raise
+
     except Exception as e:
         logger.error(f"[API] Error getting session: {e}")
         raise HTTPException(status_code=500, detail=str(e))

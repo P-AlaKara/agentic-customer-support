@@ -135,7 +135,7 @@ class ReturnsAgent:
             if not order_id:
                 response = "I can help with your return. Please share your order ID in the format ORD12345 so I can review the return status."
             else:
-                knowledge = self._retrieve_return_policies()
+                knowledge = self._retrieve_return_policies(user_query)
                 response = self._generate_response(
                     user_query=user_query,
                     context=context,
@@ -183,37 +183,57 @@ class ReturnsAgent:
                 return msg.get('text', '')
         return "I want to return an item"
     
-    def _retrieve_return_policies(self) -> str:
-        """
-        Retrieve return policies from knowledge base using RAG.
-        
-        Returns:
-            Concatenated policy text
+    _STATIC_RETURN_POLICY = (
+        "Return Policy:\n"
+        "- Items can be returned within 30 days of purchase\n"
+        "- Items must be in original condition with tags attached\n"
+        "- Refunds processed within 5-7 business days\n"
+        "- Original shipping costs are non-refundable\n"
+        "- Return shipping is free for defective items\n\n"
+        "Return status guidance:\n"
+        "- REQUESTED: return request is under review, allow 1-2 business days.\n"
+        "- APPROVED: provide packaging and drop-off instructions.\n"
+        "- RECEIVED: item received, refund is issued in 5-7 business days.\n"
+        "- REJECTED: explain rejection reason and suggest next steps."
+    )
+
+    def _retrieve_return_policies(self, user_query: str = "") -> str:
+        """Retrieve return policies from the knowledge base via vector search.
+
+        Falls back to a static policy block if RAG is unavailable (no DB,
+        no Gemini, no embedding, or empty results).
         """
         if not self.kb_db:
             return "Standard return policy: Items can be returned within 30 days of purchase."
-        
-        try:
-            # TODO: Implement vector search with embeddings
-            # For now, return static policy
-            self.stats['policies_retrieved'] += 1
-            
-            return """Return Policy:
-- Items can be returned within 30 days of purchase
-- Items must be in original condition with tags attached
-- Refunds processed within 5-7 business days
-- Original shipping costs are non-refundable
-- Return shipping is free for defective items
 
-Return status guidance:
-- REQUESTED: return request is under review, allow 1-2 business days.
-- APPROVED: provide packaging and drop-off instructions.
-- RECEIVED: item received, refund is issued in 5-7 business days.
-- REJECTED: explain rejection reason and suggest next steps."""
-            
+        try:
+            embedding = None
+            if self.gemini and user_query:
+                embedding = self.gemini.generate_embedding(user_query)
+
+            if embedding:
+                results = self.kb_db.search_similar(
+                    embedding=embedding,
+                    category='RETURNS',
+                    limit=5,
+                )
+                if results:
+                    chunks = [
+                        (row.get('text_chunk') or '').strip()
+                        for row in results
+                        if row and row.get('text_chunk')
+                    ]
+                    if chunks:
+                        self.stats['policies_retrieved'] += 1
+                        return "\n\n".join(chunks)
+
+            # No embedding or empty results — use the static fallback
+            self.stats['policies_retrieved'] += 1
+            return self._STATIC_RETURN_POLICY
+
         except Exception as e:
-            logger.error(f"Error retrieving policies: {e}")
-            return "Please contact support for return policy details."
+            logger.error(f"Error retrieving return policies: {e}")
+            return self._STATIC_RETURN_POLICY
     
     def _generate_response(
         self,
@@ -237,8 +257,6 @@ Return status guidance:
         Returns:
             Generated response text
         """
-        # Build enhanced context for Gemini
-        #TODO: Give last 2-3 messages as context & modify template to instruct Gemini to use them
         enhanced_context = {
             'customer_email': context.get('customer_email'),
             'current_intent': context.get('current_intent'),
@@ -249,18 +267,19 @@ Return status guidance:
             'order_details': order_info,
             'return_details': return_info
         }
-        
+
         template = RETURNS_RESPONSE_TEMPLATE
-        
+
         if self.gemini:
+            history = context.get('messages', []) or []
             return self.gemini.generate_response(
                 user_query=user_query,
                 context=enhanced_context,
                 knowledge=knowledge,
-                template=template
+                template=template,
+                conversation_history=history,
             )
         else:
-            # Fallback response
             return self._fallback_response(order_id, order_status, order_info)
     
     def _fallback_response(self, order_id: str, order_status: Optional[str], order_info: Optional[Dict[str, Any]]) -> str:

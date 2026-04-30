@@ -80,13 +80,14 @@ class CoordinatorAgent:
     
     # Intent to agent task mapping
     INTENT_ROUTING = {
-        'track_order': 'TASK_HANDLE_ORDER_TRACKING',      # Shipping Agent
-        'process_return': 'TASK_HANDLE_RETURNS',          # Returns Agent
-        'greeting': 'TASK_HANDLE_GREETING',               # General conversation starter
-        'close_conversation': 'TASK_HANDLE_CLOSING',      # Graceful explicit close
-        'account_issues': 'TASK_ESCALATE',                # Escalate to human for now
-        'onboarding': 'TASK_HANDLE_ONBOARDING',            # Onboarding Agent
-        'general_inquiry': 'TASK_ESCALATE',               # Escalate to human for now
+        'track_order': 'TASK_HANDLE_ORDER_TRACKING',         # Shipping Agent
+        'process_return': 'TASK_HANDLE_RETURNS',             # Returns Agent
+        'greeting': 'TASK_HANDLE_GREETING',                  # General conversation starter
+        'close_conversation': 'TASK_HANDLE_CLOSING',         # Graceful explicit close
+        'account_issues': 'TASK_ESCALATE',                   # Escalate to human for now
+        'onboarding': 'TASK_HANDLE_ONBOARDING',               # Onboarding Agent
+        'request_human': 'TASK_ESCALATE',                    # Customer explicitly asked for a human
+        'general_inquiry': 'TASK_HANDLE_GENERAL_INQUIRY',    # Gemini-first; escalate only on hard failure
     }
     
     def __init__(self, event_bus: EventBus, context_store: ContextStore):
@@ -154,15 +155,18 @@ class CoordinatorAgent:
             session_id = payload['session_id']
             text = payload['text']
             customer_email = payload.get('customer_email')
-            
+            language = payload.get('language') or 'en'
+
             logger.info(f"[GATE 0] New message from session {session_id}")
             self.stats['messages_processed'] += 1
-            
+
             # Get or create context
             context = self.store.get_or_create(
                 session_id=session_id,
                 customer_email=customer_email
             )
+            # Persist language on context so all downstream agents can read it
+            context.metadata['language'] = language
 
             # If a human operator has taken ownership, do not route this
             # message through automated intent/sentiment/BPA workflows.
@@ -265,11 +269,12 @@ class CoordinatorAgent:
             if should_reclassify:
                 logger.info(f"[GATE 1] ✓ Sentiment acceptable: {sentiment}")
                 logger.info(f"[GATE 1] → Publishing TASK_RECOGNIZE_INTENT")
-                
+
                 self.bus.publish('TASK_RECOGNIZE_INTENT', {
                     'session_id': session_id,
                     'text': last_message,
-                    'conversation_history': context.get_user_message_history()
+                    'conversation_history': context.get_user_message_history(),
+                    'language': context.metadata.get('language', 'en')
                 })
             else:
                 # Intent already established, route directly to BPA
@@ -448,7 +453,17 @@ class CoordinatorAgent:
         
         logger.info(f"[ROUTING] Routing session {session_id} to {task_name}")
         self.stats['successful_routes'] += 1
-        
+
+        # Customer explicitly asked for a human — escalate directly with the
+        # MANUAL_REQUEST reason instead of going through a BPA.
+        if intent == 'request_human':
+            self._escalate(
+                session_id=session_id,
+                reason='MANUAL_REQUEST',
+                details={'intent': intent}
+            )
+            return
+
         # Publish task with FULL CONTEXT
         # The BPA will handle the query and respond directly to the user
         enriched_context = self._enrich_context(context.to_dict())
