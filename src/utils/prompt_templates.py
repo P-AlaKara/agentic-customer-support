@@ -2,7 +2,7 @@
 
 RETURNS_RESPONSE_TEMPLATE = """
 1. Acknowledge the return request
-2. If order_id is missing, politely ask for order ID (format ORD12345) and do not proceed.
+2. If order_id is missing, politely ask for order ID (format ORDxxxxx) and do not proceed.
 3. If order_id is present, use only provided order details/return details.
 4. Mention return status explicitly and follow status-specific guidance exactly.
 5. Explain policy and clear next steps.
@@ -13,7 +13,7 @@ RETURNS_RESPONSE_TEMPLATE = """
 
 SHIPPING_RESPONSE_TEMPLATE = """
 1. Acknowledge the tracking inquiry
-2. If order_id is missing, politely ask for order ID (format ORD12345) and do not proceed.
+2. If order_id is missing, politely ask for order ID (format ORDxxxxx) and do not proceed.
 3. If order_id is present, use only provided order details/status.
 4. If order info available, provide specific tracking details:
    - Order number

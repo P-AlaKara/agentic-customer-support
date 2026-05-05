@@ -12,6 +12,21 @@ import logging
 from typing import Dict, Any, List, Optional
 
 try:
+    from .debug_log import agent_debug_log
+    from .localized_messages import (
+        get_message,
+        language_label,
+        normalize_language,
+    )
+except (ImportError, ValueError):
+    from utils.debug_log import agent_debug_log
+    from utils.localized_messages import (
+        get_message,
+        language_label,
+        normalize_language,
+    )
+
+try:
     import google.generativeai as genai
     GENAI_AVAILABLE = True
 except ImportError:
@@ -35,11 +50,15 @@ SCOPE: You only assist with the following topics:
 - Account and login issues
 - Onboarding for new customers
 
-OUT OF SCOPE: Politely decline anything outside that scope (e.g., general knowledge, creative writing, personal advice, financial, legal, or medical guidance). Use this exact redirect phrasing: "I can only help with orders, returns, and account issues. Is there something in those areas I can assist with?"
+OUT OF SCOPE: Politely decline anything outside that scope (e.g., general knowledge, creative writing, personal advice, financial, legal, or medical guidance). Always redirect using the same meaning as: "I can only help with orders, returns, and account issues. Is there something in those areas I can assist with?" Translate the redirect into the active reply language when it is not English.
 
 SAFETY: Do not engage with harmful, abusive, hateful, or sexually explicit content. Stay calm and redirect the customer to a support topic. If the customer becomes abusive, respond once with a calm acknowledgement and ask them to rephrase respectfully.
 
-LANGUAGE: Detect the language used by the customer and respond in that same language. If they write in Swahili, respond in Swahili. If they mix English and Swahili (Sheng), match their style.
+LANGUAGE: The application has a selected reply language (provided in CONTEXT as `Reply Language`). You MUST write the entire customer-visible response in that language.
+- If `Reply Language` is Swahili, respond fully in Swahili, even if the customer wrote in English, the conversation history is English, or the policy/knowledge text is English.
+- If `Reply Language` is English, respond in English.
+- Translate any English policy facts, status names, or template instructions into the reply language when speaking to the customer. Keep order IDs, tracking numbers, and product names verbatim.
+- If `Reply Language` is missing, mirror the customer's most recent message language.
 
 OUTPUT STYLE (TTS-safe):
 - Use plain prose with proper punctuation. Your response may be read aloud by text-to-speech.
@@ -110,6 +129,20 @@ class GeminiClient:
         """
         if not self.model:
             logger.warning("Gemini not available, using fallback")
+            #region agent log
+            agent_debug_log(
+                "src/utils/gemini.py:118",
+                "gemini unavailable fallback selected",
+                {
+                    "model_available": False,
+                    "context_language": context.get('language'),
+                    "metadata_language": (context.get('metadata') or {}).get('language') if isinstance(context.get('metadata'), dict) else None,
+                    "intent": context.get('current_intent'),
+                    "history_count": len(conversation_history or []),
+                },
+                "H4",
+            )
+            #endregion
             return self._fallback_response(user_query, context, knowledge)
 
         try:
@@ -120,6 +153,21 @@ class GeminiClient:
                 template=template,
                 conversation_history=conversation_history,
             )
+            #region agent log
+            agent_debug_log(
+                "src/utils/gemini.py:128",
+                "gemini prompt inputs before generation",
+                {
+                    "model_available": bool(self.model),
+                    "context_language": context.get('language'),
+                    "metadata_language": (context.get('metadata') or {}).get('language') if isinstance(context.get('metadata'), dict) else None,
+                    "intent": context.get('current_intent'),
+                    "history_count": len(conversation_history or []),
+                    "prompt_mentions_ui_language": "UI language" in prompt or "selected language" in prompt,
+                },
+                "H3",
+            )
+            #endregion
 
             response = self.model.generate_content(
                 prompt,
@@ -160,7 +208,11 @@ class GeminiClient:
 
         prompt += f"USER QUERY:\n{user_query}\n\n"
 
+        reply_language_code = self._resolve_reply_language(context)
+        reply_language_label = language_label(reply_language_code)
+
         prompt += "CONTEXT:\n"
+        prompt += f"- Reply Language: {reply_language_label} ({reply_language_code})\n"
         prompt += f"- Intent: {context.get('current_intent', 'Unknown')}\n"
         prompt += f"- Sentiment: {context.get('current_sentiment', 'Neutral')}\n"
         prompt += f"- Order ID: {context.get('order_id', 'Unknown')}\n"
@@ -175,17 +227,30 @@ class GeminiClient:
         if template:
             prompt += f"\nRESPONSE GUIDELINES:\n{template}\n"
 
-        prompt += """
+        prompt += f"""
 INSTRUCTIONS:
 1. Follow the SYSTEM PREAMBLE rules (scope, safety, language, TTS-safe output) at all times.
 2. Address the customer's most recent query directly, using the conversation history for continuity.
 3. Use only the information provided in CONTEXT and RELEVANT POLICY. Do not invent details.
 4. Keep the response concise and TTS-friendly (no Markdown, no asterisks, no headers).
 5. End with a clear next step or question if appropriate.
+6. Write the entire response in {reply_language_label}. Translate policy facts, status names, and any English snippets in CONTEXT or KNOWLEDGE into {reply_language_label}; keep order IDs, tracking numbers, and product names verbatim.
 
 Generate the response:"""
 
         return prompt
+
+    @staticmethod
+    def _resolve_reply_language(context: Dict[str, Any]) -> str:
+        """Pick the reply language from the agent-supplied context."""
+        if not isinstance(context, dict):
+            return "en"
+        metadata = context.get('metadata')
+        if isinstance(metadata, dict):
+            meta_lang = metadata.get('language')
+            if meta_lang:
+                return normalize_language(meta_lang)
+        return normalize_language(context.get('language'))
     
     def generate_embedding(self, text: str) -> Optional[List[float]]:
         """Generate an embedding vector for `text`.
@@ -225,16 +290,18 @@ Generate the response:"""
     ) -> str:
         """Simple fallback when Gemini unavailable"""
         intent = context.get('current_intent', 'general_inquiry')
-        
-        fallback_templates = {
-            'process_return': "I can help you with your return request. Please provide your order number and I'll check the status for you.",
-            'track_order': "I can help you track your order. Please provide your order number and I'll look up the shipping status.",
-            'account_issues': "I can assist you with your account. Please let me know what specific issue you're experiencing.",
-            'onboarding': "Welcome! I can help you create your account, complete first login, and get started quickly. Tell me where you'd like to begin.",
-            'general_inquiry': "I'm here to help! Please provide more details about what you need assistance with."
+        language = self._resolve_reply_language(context)
+
+        fallback_keys = {
+            'process_return': 'gemini.fallback.process_return',
+            'track_order': 'gemini.fallback.track_order',
+            'account_issues': 'gemini.fallback.account_issues',
+            'onboarding': 'gemini.fallback.onboarding',
+            'general_inquiry': 'gemini.fallback.general_inquiry',
         }
-        
-        return fallback_templates.get(intent, "I'm here to help! How can I assist you today?")
+
+        key = fallback_keys.get(intent, 'gemini.fallback.default')
+        return get_message(key, language)
 
 
 # Global instance

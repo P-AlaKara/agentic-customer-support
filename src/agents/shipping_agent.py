@@ -16,7 +16,12 @@ from typing import Dict, Any, Optional
 try:
     from ..event_bus import EventBus, Event
     from ..utils.database import get_db_connection, KnowledgeBaseDB
+    from ..utils.debug_log import agent_debug_log
     from ..utils.gemini import get_gemini_client
+    from ..utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
     from ..utils.prompt_templates import SHIPPING_RESPONSE_TEMPLATE
 except (ImportError, ValueError):
     import sys
@@ -24,7 +29,12 @@ except (ImportError, ValueError):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from event_bus import EventBus, Event
     from utils.database import get_db_connection, KnowledgeBaseDB
+    from utils.debug_log import agent_debug_log
     from utils.gemini import get_gemini_client
+    from utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
     from utils.prompt_templates import SHIPPING_RESPONSE_TEMPLATE
 
 
@@ -126,18 +136,20 @@ class ShippingAgent:
             
             logger.info(f"[Shipping Agent] Handling tracking request for session {session_id}")
             self.stats['requests_handled'] += 1
-            
+
+            language = resolve_language_from_context(context)
+
             # Get user's last message
-            user_query = self._get_last_user_message(context)
-            
+            user_query = self._get_last_user_message(context, language)
+
             order_info = context.get('order_details')
             order_status = context.get('order_status')
 
             if not order_id:
-                response = "I can definitely help with tracking. Could you please share your order ID in the format ORD12345 so I can check the latest status?"
+                response = get_message('shipping.ask_order_id', language)
             else:
                 # Step 1: Retrieve shipping policies/info from KB
-                knowledge = self._retrieve_shipping_info(user_query)
+                knowledge = self._retrieve_shipping_info(user_query, language)
 
                 # Step 2: Generate response using Gemini
                 response = self._generate_response(
@@ -146,8 +158,24 @@ class ShippingAgent:
                     knowledge=knowledge,
                     order_info=order_info,
                     order_id=order_id,
-                    order_status=order_status
+                    order_status=order_status,
+                    language=language,
                 )
+            #region agent log
+            agent_debug_log(
+                "src/agents/shipping_agent.py:154",
+                "shipping agent response language inputs",
+                {
+                    "session_id": session_id,
+                    "metadata_language": (context.get('metadata') or {}).get('language'),
+                    "top_level_language": context.get('language'),
+                    "has_order_id": bool(order_id),
+                    "used_gemini_client": bool(self.gemini),
+                    "response_preview": response[:120],
+                },
+                "H4",
+            )
+            #endregion
             
             # Step 4: Send response to user
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
@@ -172,22 +200,28 @@ class ShippingAgent:
             
         except Exception as e:
             logger.error(f"[Shipping Agent] Error handling tracking request: {e}", exc_info=True)
-            
+
+            language = 'en'
+            try:
+                language = resolve_language_from_context(event.payload)
+            except Exception:
+                language = 'en'
+
             # Send error fallback
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
-                'session_id': context.get('session_id'),
-                'text': "I apologize, but I'm having trouble looking up your order. Please provide your order number and I'll check the tracking status for you.",
+                'session_id': event.payload.get('session_id') if isinstance(event.payload, dict) else None,
+                'text': get_message('shipping.exception_fallback', language),
                 'agent': 'SHIPPING_AGENT',
                 'confidence': 0.5
             })
-    
-    def _get_last_user_message(self, context: Dict[str, Any]) -> str:
+
+    def _get_last_user_message(self, context: Dict[str, Any], language: str = 'en') -> str:
         """Extract the last user message from context"""
         messages = context.get('messages', [])
         for msg in reversed(messages):
             if msg.get('sender') == 'USER':
                 return msg.get('text', '')
-        return "Where is my order?"
+        return get_message('shipping.default_user_query', language)
     
     _STATIC_SHIPPING_POLICY = (
         "Shipping Information:\n"
@@ -204,13 +238,13 @@ class ShippingAgent:
         "- CANCELLED: explain cancellation and recommend checking payment/inventory notices."
     )
 
-    def _retrieve_shipping_info(self, user_query: str = "") -> str:
+    def _retrieve_shipping_info(self, user_query: str = "", language: str = 'en') -> str:
         """Retrieve shipping policies from the KB via vector search.
 
         Falls back to a static policy block if RAG is unavailable.
         """
         if not self.kb_db:
-            return "Standard shipping: 5-7 business days. Express shipping: 2-3 business days."
+            return get_message('shipping.static_kb_short', language)
 
         try:
             embedding = None
@@ -247,17 +281,19 @@ class ShippingAgent:
         knowledge: str,
         order_info: Optional[Dict[str, Any]],
         order_id: str,
-        order_status: Optional[str]
+        order_status: Optional[str],
+        language: str = 'en',
     ) -> str:
         """
         Generate response using Gemini.
-        
+
         Args:
             user_query: User's message
             context: Full conversation context
             knowledge: Retrieved shipping information
             order_info: Order details with tracking (if available)
-        
+            language: Selected reply language ('en' or 'sw')
+
         Returns:
             Generated response text
         """
@@ -268,7 +304,8 @@ class ShippingAgent:
             'order_id': order_id,
             'order_status': order_status,
             'entities': context.get('entities', {}),
-            'order_details': order_info
+            'order_details': order_info,
+            'language': language,
         }
 
         template = SHIPPING_RESPONSE_TEMPLATE
@@ -283,27 +320,40 @@ class ShippingAgent:
                 conversation_history=history,
             )
         else:
-            return self._fallback_response(order_id, order_info, order_status)
+            return self._fallback_response(order_id, order_info, order_status, language)
 
-    def _fallback_response(self, order_id: str, order_info: Optional[Dict[str, Any]], order_status: Optional[str]) -> str:
+    def _fallback_response(
+        self,
+        order_id: str,
+        order_info: Optional[Dict[str, Any]],
+        order_status: Optional[str],
+        language: str = 'en',
+    ) -> str:
         """Simple fallback when Gemini unavailable"""
         if order_info:
             status = (order_status or order_info.get('status') or '').upper()
-            
-            # Build response based on status
+
             if status == 'DELIVERED':
-                return f"Great news! Your order {order_id} has been delivered. If you have any issues, please let us know."
+                return get_message('shipping.fallback.delivered', language, order_id=order_id)
             elif status in {'SHIPPED', 'IN_TRANSIT'}:
-                tracking = order_info.get('tracking_number', 'available in your email')
-                return f"Your order {order_id} is currently in transit. Tracking number: {tracking}. Expected delivery within 2-3 business days."
+                tracking = order_info.get('tracking_number') or get_message(
+                    'shipping.fallback.tracking_via_email', language
+                )
+                return get_message(
+                    'shipping.fallback.in_transit', language,
+                    order_id=order_id, tracking=tracking,
+                )
             elif status == 'PROCESSING':
-                return f"Your order {order_id} is being processed and will ship within 24 hours. You'll receive a tracking number via email once it ships."
+                return get_message('shipping.fallback.processing', language, order_id=order_id)
             elif status == 'CANCELLED':
-                return f"Your order {order_id} has been cancelled. This can happen due to payment authorization issues or stock availability. Please reply if you'd like help placing a new order."
+                return get_message('shipping.fallback.cancelled', language, order_id=order_id)
             else:
-                return f"Your order {order_id} status is: {status}. Please check your email for tracking details."
-        else:
-            return f"I couldn't find details for order {order_id}. Please confirm the ID (format ORD12345) and I'll check again."
+                return get_message(
+                    'shipping.fallback.other_status', language,
+                    order_id=order_id, status=status,
+                )
+
+        return get_message('shipping.fallback.no_order_info', language, order_id=order_id)
     
     def get_stats(self) -> Dict[str, int]:
         """Get agent statistics"""

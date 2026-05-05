@@ -20,6 +20,10 @@ try:
     from ..event_bus import EventBus, Event
     from ..utils.database import get_db_connection, KnowledgeBaseDB
     from ..utils.gemini import get_gemini_client
+    from ..utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
     from ..utils.prompt_templates import ONBOARDING_RESPONSE_TEMPLATE
 except (ImportError, ValueError):
     import sys
@@ -28,6 +32,10 @@ except (ImportError, ValueError):
     from event_bus import EventBus, Event
     from utils.database import get_db_connection, KnowledgeBaseDB
     from utils.gemini import get_gemini_client
+    from utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
     from utils.prompt_templates import ONBOARDING_RESPONSE_TEMPLATE
 
 
@@ -122,9 +130,16 @@ class OnboardingAgent:
             logger.info(f"[Onboarding Agent] Handling onboarding request for session {session_id}")
             self.stats['requests_handled'] += 1
 
-            user_query = self._get_last_user_message(context)
-            knowledge = self._retrieve_onboarding_info()
-            response = self._generate_response(user_query=user_query, context=context, knowledge=knowledge)
+            language = resolve_language_from_context(context)
+
+            user_query = self._get_last_user_message(context, language)
+            knowledge = self._retrieve_onboarding_info(language)
+            response = self._generate_response(
+                user_query=user_query,
+                context=context,
+                knowledge=knowledge,
+                language=language,
+            )
 
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,
@@ -147,22 +162,28 @@ class OnboardingAgent:
         except Exception as e:
             logger.error(f"[Onboarding Agent] Error handling onboarding request: {e}", exc_info=True)
 
+            language = 'en'
+            try:
+                language = resolve_language_from_context(event.payload)
+            except Exception:
+                language = 'en'
+
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
-                'session_id': event.payload.get('session_id'),
-                'text': "I apologize, but I'm having trouble with onboarding guidance right now. I can still help—please tell me if you need account setup, first login, or getting started steps.",
+                'session_id': event.payload.get('session_id') if isinstance(event.payload, dict) else None,
+                'text': get_message('onboarding.exception_fallback', language),
                 'agent': 'ONBOARDING_AGENT',
                 'confidence': 0.5
             })
 
-    def _get_last_user_message(self, context: Dict[str, Any]) -> str:
+    def _get_last_user_message(self, context: Dict[str, Any], language: str = 'en') -> str:
         """Extract the last user message from context."""
         messages = context.get('messages', [])
         for msg in reversed(messages):
             if msg.get('sender') == 'USER':
                 return msg.get('text', '')
-        return "How do I get started?"
+        return get_message('onboarding.default_user_query', language)
 
-    def _retrieve_onboarding_info(self) -> str:
+    def _retrieve_onboarding_info(self, language: str = 'en') -> str:
         """
         Retrieve onboarding guidance from knowledge base using RAG.
 
@@ -170,11 +191,15 @@ class OnboardingAgent:
             Concatenated onboarding guidance text
         """
         if not self.kb_db:
-            return "To get started: create your account, verify your email, complete your profile, and sign in."
+            return get_message('onboarding.static_kb_short', language)
 
         try:
             # TODO: Implement vector search with embeddings
-            # For now, return static onboarding guidance
+            # For now, return static onboarding guidance. We deliberately keep
+            # this static block in English because Gemini is instructed to
+            # restate KB facts in the selected reply language; if the model
+            # is unavailable we fall through to the localized templates in
+            # `_fallback_response`.
             self.stats['policies_retrieved'] += 1
             return """Onboarding Guidance:
 - Account creation: Click Sign Up, provide name/email, create a strong password, and verify your email.
@@ -185,16 +210,23 @@ class OnboardingAgent:
 - Security best practices: enable multi-factor authentication and keep profile contact info up to date."""
         except Exception as e:
             logger.error(f"Error retrieving onboarding info: {e}")
-            return "Please contact support for onboarding guidance."
+            return get_message('onboarding.kb_unavailable_fallback', language)
 
-    def _generate_response(self, user_query: str, context: Dict[str, Any], knowledge: str) -> str:
+    def _generate_response(
+        self,
+        user_query: str,
+        context: Dict[str, Any],
+        knowledge: str,
+        language: str = 'en',
+    ) -> str:
         """Generate onboarding response using Gemini or fallback."""
         enhanced_context = {
             'customer_email': context.get('customer_email'),
             'current_intent': context.get('current_intent'),
             'current_sentiment': context.get('current_sentiment'),
             'entities': context.get('entities', {}),
-            'onboarding_stage': context.get('entities', {}).get('onboarding_stage')
+            'onboarding_stage': context.get('entities', {}).get('onboarding_stage'),
+            'language': language,
         }
 
         if self.gemini:
@@ -205,22 +237,22 @@ class OnboardingAgent:
                 template=ONBOARDING_RESPONSE_TEMPLATE
             )
 
-        return self._fallback_response(user_query)
+        return self._fallback_response(user_query, language)
 
-    def _fallback_response(self, user_query: str) -> str:
+    def _fallback_response(self, user_query: str, language: str = 'en') -> str:
         """Simple fallback when Gemini unavailable."""
-        text = user_query.lower()
+        text = (user_query or '').lower()
 
         if any(phrase in text for phrase in ['create account', 'sign up', 'register']):
-            return "To create an account, click Sign Up, enter your name and email, choose a strong password, and verify your email from the confirmation message."
+            return get_message('onboarding.fallback.create_account', language)
         if any(phrase in text for phrase in ['first login', 'log in', 'sign in']):
-            return "For first login, use the email you verified and your password. If it fails, select Forgot Password to reset and then sign in again."
+            return get_message('onboarding.fallback.first_login', language)
         if any(phrase in text for phrase in ['get started', 'getting started', 'start using']):
-            return "Great question—start by completing your profile, setting preferences, and taking the welcome tour from your dashboard so you can find key features quickly."
+            return get_message('onboarding.fallback.getting_started', language)
         if 'welcome tour' in text:
-            return "You can launch the welcome tour from your dashboard help icon. It walks through navigation, core features, and where to find support resources."
+            return get_message('onboarding.fallback.welcome_tour', language)
 
-        return "Welcome! I can help you get started with account setup, first login, and the welcome tour. Tell me which step you'd like to do first."
+        return get_message('onboarding.fallback.default', language)
 
     def get_stats(self) -> Dict[str, int]:
         """Get agent statistics."""

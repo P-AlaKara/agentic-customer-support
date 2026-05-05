@@ -30,6 +30,11 @@ except Exception:  # pragma: no cover
     get_db_connection = None
     OrdersDB = None
 
+try:
+    from .utils.debug_log import agent_debug_log
+except Exception:  # pragma: no cover
+    from src.utils.debug_log import agent_debug_log
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -467,6 +472,21 @@ class CoordinatorAgent:
         # Publish task with FULL CONTEXT
         # The BPA will handle the query and respond directly to the user
         enriched_context = self._enrich_context(context.to_dict())
+        #region agent log
+        agent_debug_log(
+            "src/coordinator.py:475",
+            "routing context language before BPA publish",
+            {
+                "session_id": session_id,
+                "intent": intent,
+                "task_name": task_name,
+                "metadata_language": (enriched_context.get('metadata') or {}).get('language'),
+                "top_level_language": enriched_context.get('language'),
+                "entity_keys": sorted((enriched_context.get('entities') or {}).keys()),
+            },
+            "H2",
+        )
+        #endregion
         self.bus.publish(task_name, enriched_context)
 
     def _enrich_context(self, context_payload: Dict[str, Any]) -> Dict[str, Any]:

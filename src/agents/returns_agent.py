@@ -14,7 +14,12 @@ from typing import Dict, Any, Optional
 try:
     from ..event_bus import EventBus, Event
     from ..utils.database import get_db_connection, KnowledgeBaseDB
+    from ..utils.debug_log import agent_debug_log
     from ..utils.gemini import get_gemini_client
+    from ..utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
     from ..utils.prompt_templates import RETURNS_RESPONSE_TEMPLATE
 except (ImportError, ValueError):
     import sys
@@ -22,7 +27,12 @@ except (ImportError, ValueError):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from event_bus import EventBus, Event
     from utils.database import get_db_connection, KnowledgeBaseDB
+    from utils.debug_log import agent_debug_log
     from utils.gemini import get_gemini_client
+    from utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
     from utils.prompt_templates import RETURNS_RESPONSE_TEMPLATE
 
 
@@ -124,18 +134,20 @@ class ReturnsAgent:
             
             logger.info(f"[Returns Agent] Handling return for session {session_id}")
             self.stats['requests_handled'] += 1
-            
+
+            language = resolve_language_from_context(context)
+
             # Get user's last message
-            user_query = self._get_last_user_message(context)
-            
+            user_query = self._get_last_user_message(context, language)
+
             order_info = context.get('order_details')
             return_info = context.get('return_details')
             order_status = context.get('order_status')
 
             if not order_id:
-                response = "I can help with your return. Please share your order ID in the format ORD12345 so I can review the return status."
+                response = get_message('returns.ask_order_id', language)
             else:
-                knowledge = self._retrieve_return_policies(user_query)
+                knowledge = self._retrieve_return_policies(user_query, language)
                 response = self._generate_response(
                     user_query=user_query,
                     context=context,
@@ -143,8 +155,24 @@ class ReturnsAgent:
                     order_info=order_info,
                     return_info=return_info,
                     order_id=order_id,
-                    order_status=order_status
+                    order_status=order_status,
+                    language=language,
                 )
+            #region agent log
+            agent_debug_log(
+                "src/agents/returns_agent.py:151",
+                "returns agent response language inputs",
+                {
+                    "session_id": session_id,
+                    "metadata_language": (context.get('metadata') or {}).get('language'),
+                    "top_level_language": context.get('language'),
+                    "has_order_id": bool(order_id),
+                    "used_gemini_client": bool(self.gemini),
+                    "response_preview": response[:120],
+                },
+                "H4",
+            )
+            #endregion
             
             # Step 4: Send response to user
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
@@ -166,22 +194,28 @@ class ReturnsAgent:
             
         except Exception as e:
             logger.error(f"[Returns Agent] Error handling return: {e}", exc_info=True)
-            
+
+            language = 'en'
+            try:
+                language = resolve_language_from_context(event.payload)
+            except Exception:
+                language = 'en'
+
             # Send error fallback
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
-                'session_id': context.get('session_id'),
-                'text': "I apologize, but I'm having trouble processing your return request. Please contact our support team directly for assistance.",
+                'session_id': event.payload.get('session_id') if isinstance(event.payload, dict) else None,
+                'text': get_message('returns.exception_fallback', language),
                 'agent': 'RETURNS_AGENT',
                 'confidence': 0.5
             })
-    
-    def _get_last_user_message(self, context: Dict[str, Any]) -> str:
+
+    def _get_last_user_message(self, context: Dict[str, Any], language: str = 'en') -> str:
         """Extract the last user message from context"""
         messages = context.get('messages', [])
         for msg in reversed(messages):
             if msg.get('sender') == 'USER':
                 return msg.get('text', '')
-        return "I want to return an item"
+        return get_message('returns.default_user_query', language)
     
     _STATIC_RETURN_POLICY = (
         "Return Policy:\n"
@@ -197,14 +231,14 @@ class ReturnsAgent:
         "- REJECTED: explain rejection reason and suggest next steps."
     )
 
-    def _retrieve_return_policies(self, user_query: str = "") -> str:
+    def _retrieve_return_policies(self, user_query: str = "", language: str = 'en') -> str:
         """Retrieve return policies from the knowledge base via vector search.
 
         Falls back to a static policy block if RAG is unavailable (no DB,
         no Gemini, no embedding, or empty results).
         """
         if not self.kb_db:
-            return "Standard return policy: Items can be returned within 30 days of purchase."
+            return get_message('returns.static_kb_short', language)
 
         try:
             embedding = None
@@ -243,17 +277,19 @@ class ReturnsAgent:
         order_info: Optional[Dict[str, Any]],
         return_info: Optional[Dict[str, Any]],
         order_id: str,
-        order_status: Optional[str]
+        order_status: Optional[str],
+        language: str = 'en',
     ) -> str:
         """
         Generate response using Gemini.
-        
+
         Args:
             user_query: User's message
             context: Full conversation context
             knowledge: Retrieved policy information
             order_info: Order details (if available)
-        
+            language: Selected reply language ('en' or 'sw')
+
         Returns:
             Generated response text
         """
@@ -265,7 +301,8 @@ class ReturnsAgent:
             'order_status': order_status,
             'entities': context.get('entities', {}),
             'order_details': order_info,
-            'return_details': return_info
+            'return_details': return_info,
+            'language': language,
         }
 
         template = RETURNS_RESPONSE_TEMPLATE
@@ -280,25 +317,31 @@ class ReturnsAgent:
                 conversation_history=history,
             )
         else:
-            return self._fallback_response(order_id, order_status, order_info)
-    
-    def _fallback_response(self, order_id: str, order_status: Optional[str], order_info: Optional[Dict[str, Any]]) -> str:
+            return self._fallback_response(order_id, order_status, order_info, language)
+
+    def _fallback_response(
+        self,
+        order_id: str,
+        order_status: Optional[str],
+        order_info: Optional[Dict[str, Any]],
+        language: str = 'en',
+    ) -> str:
         """Simple fallback when Gemini unavailable"""
         status = (order_status or '').upper()
 
         if not order_info:
-            return f"I couldn't locate details for order {order_id}. Please confirm the order ID (format ORD12345) so I can help with your return."
+            return get_message('returns.fallback.no_order_info', language, order_id=order_id)
 
         if status == 'REQUESTED':
-            return f"Your return for order {order_id} is currently under review. Please allow 1-2 business days for an update."
+            return get_message('returns.fallback.requested', language, order_id=order_id)
         if status == 'APPROVED':
-            return f"Your return for order {order_id} is approved. Please pack the item securely and use the return label sent to your email."
+            return get_message('returns.fallback.approved', language, order_id=order_id)
         if status == 'RECEIVED':
-            return f"We've received your returned item for order {order_id}. Your refund should appear within 5-7 business days."
+            return get_message('returns.fallback.received', language, order_id=order_id)
         if status == 'REJECTED':
-            return f"Your return for order {order_id} was rejected based on inspection results. Please reply and we can walk through the next available options."
+            return get_message('returns.fallback.rejected', language, order_id=order_id)
 
-        return f"I can help with return options for order {order_id}. Please tell me which item you'd like to return, and I'll guide you through the next steps."
+        return get_message('returns.fallback.default', language, order_id=order_id)
     
     def get_stats(self) -> Dict[str, int]:
         """Get agent statistics"""

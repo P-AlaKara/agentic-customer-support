@@ -6,3 +6,4 @@ __pycache__/
 customer_support_agents.egg-info/
 dist/
 .cursor/
+*.log

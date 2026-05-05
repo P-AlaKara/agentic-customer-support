@@ -50,6 +50,16 @@ try:
 except (ImportError, ValueError):
     from src.utils.logging_handler import setup_inmemory_logging
 
+try:
+    from ..utils.debug_log import agent_debug_log
+except (ImportError, ValueError):
+    from src.utils.debug_log import agent_debug_log
+
+try:
+    from ..utils.localized_messages import get_message, normalize_language
+except (ImportError, ValueError):
+    from src.utils.localized_messages import get_message, normalize_language
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 log_handler = setup_inmemory_logging(max_entries=100)
@@ -287,13 +297,12 @@ class ResponseCollector:
         session_id = payload['session_id']
         reason = payload.get('reason') or ''
 
+        language = _resolve_session_language(session_id)
+
         if reason == 'MANUAL_REQUEST':
-            text = "Connecting you with a human agent now. Please hold on."
+            text = get_message('gateway.escalation.manual_request', language)
         else:
-            text = (
-                "I am connecting you with a human support agent now. "
-                "Please hold on — they will be with you shortly."
-            )
+            text = get_message('gateway.escalation.generic', language)
 
         self.responses[session_id] = {
             'text': text,
@@ -352,6 +361,20 @@ class ResponseCollector:
                 return self.voice_outputs.pop(session_id)
         return None
 
+def _resolve_session_language(session_id: Optional[str]) -> str:
+    """Look up the active language for a session, defaulting to English."""
+    if not session_id:
+        return 'en'
+    try:
+        ctx = store.get(session_id)
+    except Exception:
+        return 'en'
+    if ctx is None:
+        return 'en'
+    metadata = getattr(ctx, 'metadata', None) or {}
+    return normalize_language(metadata.get('language'))
+
+
 response_collector = ResponseCollector()
 
 _worker_pool = ThreadPoolExecutor(max_workers=4)
@@ -388,7 +411,22 @@ async def chat(message: ChatMessage):
         is_operator_controlled = bool(context.metadata.get('controlled_by') == 'OPERATOR')
         # Track language preference on the context so downstream agents (intent,
         # gemini prompt) can adapt without each having to re-receive it.
-        context.metadata['language'] = message.language or 'en'
+        context.metadata['language'] = normalize_language(message.language)
+        #region agent log
+        agent_debug_log(
+            "src/api/gateway.py:392",
+            "chat endpoint captured selected language",
+            {
+                "session_id": session_id,
+                "request_language": message.language or 'en',
+                "metadata_language": context.metadata.get('language'),
+                "activated": bool(context.metadata.get('activated', False)),
+            },
+            "H1",
+        )
+        #endregion
+
+        language = normalize_language(message.language)
 
         # Activation gate — only applies to non-operator sessions that have not
         # yet been activated by the wake phrase.
@@ -397,7 +435,7 @@ async def chat(message: ChatMessage):
                 logger.info(f"[API] Session {session_id} not yet activated — wake phrase required")
                 return ChatResponse(
                     session_id=session_id,
-                    response="To get started, just type or say \"Hey Rehema\".",
+                    response=get_message('gateway.idle_wake_phrase', language),
                     status="idle",
                     final=False,
                     timestamp=datetime.now(timezone.utc).isoformat()
@@ -423,12 +461,12 @@ async def chat(message: ChatMessage):
         if is_operator_controlled:
             return ChatResponse(
                 session_id=session_id,
-                response="Your message was delivered to a human operator.",
+                response=get_message('gateway.operator_delivered', language),
                 status="waiting_operator",
                 final=False,
                 timestamp=datetime.now(timezone.utc).isoformat()
             )
-        
+
         if response_data:
             return ChatResponse(
                 session_id=session_id,
@@ -441,7 +479,7 @@ async def chat(message: ChatMessage):
         else:
             return ChatResponse(
                 session_id=session_id,
-                response="Your message is being processed. Please wait a moment...",
+                response=get_message('gateway.processing_timeout', language),
                 status="processing",
                 final=False,
                 timestamp=datetime.now(timezone.utc).isoformat()
@@ -467,7 +505,7 @@ async def voice_chat(message: VoiceChatRequest):
 
         # Track language preference on the context (parallels /chat).
         ctx_for_voice = store.get_or_create(session_id, customer_email=message.customer_email)
-        ctx_for_voice.metadata['language'] = message.language or 'en'
+        ctx_for_voice.metadata['language'] = normalize_language(message.language)
 
         def _process_voice():
             bus.publish('VOICE_INPUT_RECEIVED', {
@@ -488,9 +526,10 @@ async def voice_chat(message: VoiceChatRequest):
         )
 
         if not response_data:
+            voice_language = normalize_language(message.language)
             return VoiceChatResponse(
                 session_id=session_id,
-                response="I'm still processing your voice message. Please try again in a moment.",
+                response=get_message('gateway.voice_processing_timeout', voice_language),
                 status="processing",
                 final=False,
                 transcript=message.transcript_preview,

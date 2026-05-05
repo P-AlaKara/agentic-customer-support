@@ -2,7 +2,7 @@
 
 ## Baseline Shipping Expectations
 
-Standard shipping usually takes 3–5 business days after dispatch.
+Standard shipping usually takes 4–5 business days after dispatch.
 Expedited shipping takes 1–2 business days, depending on destination.
 Delays may occur due to weather, carrier issues, or peak demand.
 Customers receive a tracking link by email once the order is shipped.

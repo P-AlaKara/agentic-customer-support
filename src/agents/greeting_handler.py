@@ -13,12 +13,20 @@ from pathlib import Path
 try:
     from ..event_bus import EventBus, Event
     from ..utils.gemini import get_gemini_client
+    from ..utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
 except (ImportError, ValueError):
     import sys
     import os
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from event_bus import EventBus, Event
     from utils.gemini import get_gemini_client
+    from utils.localized_messages import (
+        get_message,
+        resolve_language_from_context,
+    )
 
 
 logging.basicConfig(level=logging.INFO)
@@ -86,12 +94,9 @@ class GreetingAgent:
             
             logger.info(f"[Greeting Agent] Handling greeting for session {session_id}")
             self.stats['greetings_handled'] += 1
-            
-            response = (
-                "Hello, I am Rehema, your support assistant. "
-                "I can help you with order tracking, returns and refunds, and account issues. "
-                "What can I help you with today?"
-            )
+
+            language = resolve_language_from_context(context)
+            response = get_message('greeting.initial', language)
             
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,
@@ -120,11 +125,8 @@ class GreetingAgent:
             logger.info(f"[Greeting Agent] Handling closing intent for session {session_id}")
             self.stats['closings_handled'] += 1
 
-            response = (
-                "Thanks for reaching out. "
-                "This conversation is now closed. "
-                "Feel free to start a new chat any time you need help."
-            )
+            language = resolve_language_from_context(context)
+            response = get_message('greeting.closing', language)
 
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,
@@ -158,6 +160,8 @@ class GreetingAgent:
             logger.info(f"[Greeting Agent] Handling general inquiry for session {session_id}")
             self.stats['general_inquiries_handled'] += 1
 
+            language = resolve_language_from_context(context)
+
             # Pull the user's last message out of the context
             messages = context.get('messages', []) or []
             user_query = ''
@@ -174,13 +178,14 @@ class GreetingAgent:
 
             try:
                 response = self.gemini.generate_response(
-                    user_query=user_query or "The customer asked a general question.",
+                    user_query=user_query or get_message('greeting.general_inquiry_default_query', language),
                     context={
                         'current_intent': 'general_inquiry',
                         'current_sentiment': context.get('current_sentiment'),
                         'order_id': context.get('order_id'),
                         'order_status': context.get('order_status'),
                         'entities': context.get('entities', {}),
+                        'language': language,
                     },
                     knowledge="",
                     template=None,
