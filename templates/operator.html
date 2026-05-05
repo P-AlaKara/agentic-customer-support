@@ -10,332 +10,729 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         :root {
-            --bg: #f5f7fb;
+            --bg: #f7f9fc;
             --surface: #ffffff;
-            --surface-soft: #f8faff;
+            --sidebar-bg: #f0f4fb;
             --text: #12253f;
             --text-muted: #5f7191;
             --line: #dde4f0;
+            --line-soft: #e6ecf5;
             --primary: #2454d3;
             --primary-strong: #1c43aa;
+            --primary-soft: #eaf0ff;
             --success: #16a34a;
             --warning: #c2811f;
             --danger: #c23636;
-            --shadow-lg: 0 16px 40px rgba(14, 40, 89, 0.12);
-            --shadow-sm: 0 4px 14px rgba(14, 40, 89, 0.06);
-            --radius-lg: 18px;
-            --radius-md: 12px;
+            --danger-soft: #fff1f1;
+            --bubble-user-bg: #f1f5f9;
+            --bubble-user-text: #12253f;
+            --bubble-agent-bg: #2454d3;
+            --bubble-agent-text: #ffffff;
+            --shadow-md: 0 8px 24px rgba(14, 40, 89, 0.10);
+            --shadow-sm: 0 2px 8px rgba(14, 40, 89, 0.05);
+            --shadow-composer: 0 -2px 12px rgba(14, 40, 89, 0.06);
+            --radius-lg: 14px;
+            --radius-md: 10px;
+            --radius-sm: 8px;
+            --nav-height: 60px;
+            --sidebar-width: 320px;
         }
 
         * { box-sizing: border-box; }
 
         body {
             margin: 0;
-            padding: 24px;
+            height: 100vh;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: radial-gradient(circle at top right, #eef3ff, var(--bg) 45%);
+            background: var(--bg);
             color: var(--text);
             line-height: 1.5;
+            overflow: hidden;
         }
 
-        .dashboard { max-width: 1500px; margin: 0 auto; }
-
-        .hero {
-            background: linear-gradient(120deg, #2454d3 0%, #203da9 100%);
-            color: #fff;
-            border-radius: 22px;
-            padding: 24px 28px;
-            box-shadow: var(--shadow-lg);
+        .app-shell {
+            height: 100vh;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
+            flex-direction: column;
         }
 
-        .hero-left { display: flex; align-items: center; gap: 16px; }
-        .hero-icon {
-            width: 54px;
-            height: 54px;
-            border-radius: 14px;
-            background: rgba(255,255,255,.18);
+        /* ==== Top Navbar ==== */
+        .navbar {
+            height: var(--nav-height);
+            background: var(--surface);
+            border-bottom: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            flex-shrink: 0;
+            z-index: 5;
+        }
+
+        .nav-brand { display: flex; align-items: center; gap: 12px; }
+        .nav-brand-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--primary-soft);
+            color: var(--primary);
             display: grid;
             place-items: center;
-            font-size: 22px;
+            font-size: 16px;
+        }
+        .nav-brand-text {
+            font-weight: 700;
+            font-size: 1.05rem;
+            letter-spacing: -0.01em;
+            color: var(--text);
+        }
+        .nav-brand-sub {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-top: -2px;
         }
 
-        .hero h1 { margin: 0; font-size: 2rem; letter-spacing: -.02em; }
-        .hero p { margin: 6px 0 0; font-size: 1rem; color: rgba(235,241,255,.92); }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
 
-        .hero-right { display: flex; align-items: center; gap: 12px; }
         .chip {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: rgba(255,255,255,.14);
-            border: 1px solid rgba(255,255,255,.28);
+            background: var(--bg);
+            border: 1px solid var(--line);
             border-radius: 999px;
-            padding: 9px 14px;
+            padding: 7px 12px;
             font-weight: 600;
-            font-size: .95rem;
+            font-size: 0.88rem;
+            color: var(--text);
+        }
+        .chip-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
         }
 
-        .chip-dot { width: 10px; height: 10px; border-radius: 50%; background: #52d084; }
-
+        /* ==== Buttons ==== */
         .btn {
             border: none;
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             font: inherit;
             font-weight: 600;
+            font-size: 0.9rem;
             cursor: pointer;
-            transition: transform .15s ease, box-shadow .2s ease, background-color .2s ease;
+            transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            padding: 10px 14px;
+            padding: 9px 14px;
+            white-space: nowrap;
+        }
+        .btn:active:not(:disabled) { transform: translateY(1px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-strong); }
+
+        .btn-secondary {
+            background: #fff;
+            color: var(--text);
+            border: 1px solid var(--line);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg);
+            border-color: #c5d2e8;
         }
 
-        .btn:hover { transform: translateY(-1px); }
-        .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            padding: 7px 10px;
+        }
+        .btn-ghost:hover:not(:disabled) {
+            background: rgba(36, 84, 211, 0.08);
+            color: var(--primary);
+        }
 
-        .btn-primary { background: #fff; color: var(--primary-strong); }
-        .btn-secondary { background: var(--surface-soft); border: 1px solid var(--line); color: var(--text-muted); }
         .btn-send { background: var(--primary); color: #fff; }
-        .btn-end { background: var(--danger); color: #fff; }
+        .btn-send:hover:not(:disabled) { background: var(--primary-strong); }
 
-        .grid {
-            margin-top: 18px;
-            display: grid;
-            grid-template-columns: 390px minmax(0, 1fr);
-            gap: 16px;
-            align-items: start;
+        .btn-end {
+            background: #fff;
+            color: var(--danger);
+            border: 1px solid #fecaca;
+        }
+        .btn-end:hover:not(:disabled) {
+            background: var(--danger-soft);
+            border-color: #fca5a5;
         }
 
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: var(--radius-lg);
-            padding: 18px;
-            box-shadow: var(--shadow-sm);
+        /* ==== App Body Layout ==== */
+        .app-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
         }
 
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-        .card-title { margin: 0; font-size: 1.3rem; font-weight: 700; }
+        /* ==== Sidebar ==== */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--line);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            min-height: 0;
+        }
 
-        .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
-        .stat-box {
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 12px;
+        .sidebar-header {
+            padding: 18px 20px 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sidebar-title {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+
+        .sidebar-stats {
             display: flex;
             align-items: center;
-            gap: 10px;
-            background: var(--surface-soft);
+            padding: 8px 20px 14px;
+            gap: 18px;
+            border-bottom: 1px solid var(--line-soft);
         }
-
-        .stat-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
-            display: grid;
-            place-items: center;
-            color: var(--primary);
-            background: #edf2ff;
+        .stat-block { display: flex; flex-direction: column; }
+        .stat-num {
+            font-size: 1.4rem;
+            font-weight: 800;
+            line-height: 1.05;
+            color: var(--text);
         }
-
-        .stat-box.wait .stat-icon { color: var(--warning); background: #fff5e6; }
-        .stat-number { font-size: 1.55rem; font-weight: 800; line-height: 1; }
-        .stat-label { font-size: .78rem; color: var(--text-muted); letter-spacing: .06em; font-weight: 700; }
+        .stat-lbl {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            letter-spacing: 0.09em;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: 3px;
+        }
+        .stat-divider {
+            width: 1px;
+            height: 30px;
+            background: var(--line);
+        }
 
         .queue-list {
-            border: 1px dashed #cfd9ea;
-            border-radius: 14px;
-            background: var(--surface-soft);
-            max-height: 64vh;
-            min-height: 440px;
-            overflow: auto;
-            padding: 10px;
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 14px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .queue-item {
-            border: 1px solid #d7e0ef;
-            border-radius: 10px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
             background: #fff;
-            padding: 10px;
-            margin-bottom: 9px;
+            padding: 12px 13px;
             cursor: pointer;
+            transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+        }
+        .queue-item.priority-high {
+            background: #fff1f1;
+            border-color: #fca5a5;
+        }
+        .queue-item.priority-normal {
+            background: #fffbeb;
+            border-color: #fcd34d;
+        }
+        .queue-item.priority-low {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+        .queue-item:hover { box-shadow: var(--shadow-sm); }
+        .queue-item.selected {
+            box-shadow: inset 0 0 0 2px var(--primary), var(--shadow-sm);
         }
 
-        .queue-item:hover { border-color: #aac0f2; }
-        .queue-item.selected { border-color: var(--primary); background: #f3f7ff; }
-        .queue-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px; }
-        .priority { font-size: .72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
-        .priority.HIGH { background: #fee2e2; color: #991b1b; }
-        .priority.NORMAL { background: #fff3cd; color: #85590d; }
-        .small { font-size: .85rem; color: var(--text-muted); margin: 2px 0; }
+        .queue-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .queue-position {
+            font-weight: 700;
+            color: var(--text);
+            font-size: 0.86rem;
+            letter-spacing: -0.01em;
+        }
+        .queue-priority-tag {
+            font-size: 0.66rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .queue-priority-tag.HIGH { color: #b91c1c; }
+        .queue-priority-tag.NORMAL { color: #a16207; }
+        .queue-reason {
+            font-size: 0.84rem;
+            color: var(--text);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .queue-time {
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .queue-time i { font-size: 0.78em; }
+
+        /* ==== Main Panel ==== */
+        .main-panel {
+            flex: 1;
+            background: var(--surface);
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .conversation-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        /* ==== Slim meta bar (no card) ==== */
+        .meta-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 14px 24px;
+            border-bottom: 1px solid var(--line);
+            flex-shrink: 0;
+            background: var(--surface);
+        }
+        .meta-info {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+        .meta-customer {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .meta-customer i { color: var(--text-muted); font-size: 0.9em; }
+        .meta-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .pill {
+            background: var(--primary-soft);
+            color: var(--primary-strong);
+            font-size: 0.74rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
 
         .live-status {
-            margin-left: 8px;
-            border-radius: 999px;
-            padding: 4px 10px;
-            background: #f2f5fb;
-            border: 1px solid var(--line);
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: var(--bg);
+            border: 1px solid var(--line);
             color: var(--text-muted);
-            font-size: .86rem;
+            font-size: 0.84rem;
             font-weight: 600;
+            flex-shrink: 0;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #94a3b8;
+        }
+        .dot.pulse {
+            background: var(--success);
+            animation: pulseRing 1.6s ease-out infinite;
+        }
+        @keyframes pulseRing {
+            0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55); }
+            70%  { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
         }
 
-        .dot { width: 8px; height: 8px; border-radius: 999px; background: #94a3b8; }
-        .conversation-wrap { min-height: 70vh; }
-
-        .conv-meta { border: 1px solid var(--line); background: var(--surface-soft); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-        .meta-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 7px; }
-        .pill { background: #eaf0ff; color: #3459b4; font-size: .78rem; font-weight: 600; padding: 5px 10px; border-radius: 999px; }
-
+        /* ==== Chat bubbles ==== */
         .messages {
-            border: 1px dashed #d6deec;
-            border-radius: 12px;
-            background: var(--surface-soft);
-            padding: 10px;
-            height: 48vh;
-            overflow: auto;
-            margin-bottom: 12px;
+            flex: 1;
+            overflow-y: auto;
+            padding: 22px 24px;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
         }
 
-        .message { background: #fff; border: 1px solid #d9e2f2; border-radius: 10px; padding: 9px 11px; margin-bottom: 8px; }
-        .message.operator { border-color: #bed0fc; background: #f3f7ff; }
-        .message-head { font-size: .78rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 4px; }
-        .message-text { font-size: .94rem; color: var(--text); white-space: pre-wrap; }
+        .bubble-row {
+            display: flex;
+            flex-direction: column;
+            max-width: 70%;
+        }
+        .bubble-row.user {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+        .bubble-row.agent {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+        .bubble-row.system {
+            align-self: center;
+            align-items: center;
+            max-width: 80%;
+        }
+        .bubble-sender {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            padding: 0 8px;
+        }
+        .bubble {
+            border-radius: 14px;
+            padding: 10px 14px;
+            font-size: 0.94rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-shadow: var(--shadow-sm);
+        }
+        .bubble-row.user .bubble {
+            background: var(--bubble-user-bg);
+            color: var(--bubble-user-text);
+            border-bottom-left-radius: 4px;
+        }
+        .bubble-row.agent .bubble {
+            background: var(--bubble-agent-bg);
+            color: var(--bubble-agent-text);
+            border-bottom-right-radius: 4px;
+        }
+        .bubble-row.system .bubble {
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-style: italic;
+            border: 1px dashed var(--line);
+            border-radius: 999px;
+            padding: 5px 14px;
+            box-shadow: none;
+        }
+        .bubble-time {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            padding: 0 8px;
+        }
 
-        .composer { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
-        textarea {
+        /* ==== Composer bar ==== */
+        .composer-bar {
+            flex-shrink: 0;
+            background: var(--surface);
+            border-top: 1px solid var(--line);
+            box-shadow: var(--shadow-composer);
+            padding: 12px 20px;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }
+        .canned-wrap {
+            position: relative;
+            flex-shrink: 0;
+        }
+        .canned-btn { padding: 9px 12px; }
+        .canned-btn .chev {
+            font-size: 0.65em;
+            margin-left: 2px;
+            transition: transform 0.15s ease;
+        }
+        .canned-btn.open .chev { transform: rotate(180deg); }
+
+        .canned-popover {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 0;
+            width: 340px;
+            max-height: 320px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            padding: 6px;
+            z-index: 20;
+            display: none;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        .canned-popover.open {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .canned-item {
+            padding: 8px 10px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: background 0.12s ease;
+        }
+        .canned-item:hover { background: var(--primary-soft); }
+        .canned-item-label {
+            font-weight: 700;
+            font-size: 0.8rem;
+            color: var(--primary-strong);
+            margin-bottom: 2px;
+        }
+        .canned-item-text {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .composer-textarea-wrap { flex: 1; min-width: 0; }
+        .composer-bar textarea {
             width: 100%;
-            min-height: 84px;
-            padding: 10px 11px;
-            border-radius: 10px;
+            min-height: 56px;
+            max-height: 180px;
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
             border: 1px solid var(--line);
             background: #fff;
             font: inherit;
-            font-size: .95rem;
+            font-size: 0.95rem;
             resize: vertical;
+            color: var(--text);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .composer-bar textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(36, 84, 211, 0.12);
+        }
+        .composer-bar textarea:disabled {
+            background: var(--bg);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+        .composer-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .composer-actions .btn { min-width: 96px; }
+
+        .composer-hint {
+            padding: 8px 24px 0;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            background: var(--surface);
         }
 
-        textarea:focus { outline: 2px solid #c7d6ff; border-color: #aec4ff; }
-        .hint { margin: 8px 0 0; color: var(--text-muted); font-size: .86rem; }
-
+        /* ==== Empty state ==== */
         .empty-state {
-            min-height: 60vh;
+            flex: 1;
             display: grid;
             place-content: center;
             text-align: center;
             color: var(--text-muted);
-            gap: 6px;
-            padding: 20px;
+            gap: 8px;
+            padding: 40px 24px;
+        }
+        .empty-state i { font-size: 2.4rem; color: #b8c4dc; }
+        .empty-state h3 {
+            margin: 6px 0 0;
+            font-size: 1.1rem;
+            color: var(--text);
+            font-weight: 700;
+        }
+        .empty-state p {
+            margin: 0;
+            font-size: 0.9rem;
+            max-width: 380px;
         }
 
-        .empty-state i { font-size: 2rem; color: #9db0d2; }
-        .empty-state h3 { margin: 0; font-size: 1.2rem; color: var(--text); }
-
+        /* ==== Modal ==== */
         .modal-backdrop {
             position: fixed;
             inset: 0;
             display: none;
             align-items: center;
             justify-content: center;
-            background: rgba(15, 30, 63, .52);
-            padding: 20px;
+            background: rgba(15, 30, 63, 0.5);
+            padding: 24px;
             z-index: 50;
+            opacity: 0;
+            transition: opacity 0.2s ease;
         }
-
-        .modal-backdrop.open { display: flex; }
+        .modal-backdrop.open {
+            display: flex;
+            opacity: 1;
+        }
         .modal {
             width: min(920px, 100%);
             background: #fff;
             border-radius: 16px;
             border: 1px solid var(--line);
-            box-shadow: 0 24px 60px rgba(10, 25, 64, .28);
-            padding: 16px;
+            box-shadow: 0 24px 60px rgba(10, 25, 64, 0.28);
+            padding: 20px;
+            transform: translateY(8px);
+            transition: transform 0.2s ease;
+        }
+        .modal-backdrop.open .modal { transform: translateY(0); }
+
+        .modal-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .modal-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
+        .modal-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .modal-card {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--bg);
+            padding: 12px;
+        }
+        .modal-card h4 {
+            margin: 0 0 8px;
+            font-size: 0.78rem;
+            color: var(--primary-strong);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .kv { font-size: 0.86rem; margin-bottom: 4px; }
+        .kv strong { color: var(--text); }
+
+        .transcript-preview {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px;
+            background: #fff;
+            white-space: pre-wrap;
+            max-height: 240px;
+            overflow: auto;
+            font-size: 0.88rem;
+            color: var(--text);
+            line-height: 1.5;
         }
 
-        .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
-        .modal-title { margin: 0; font-size: 1.2rem; }
-        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .modal-card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); padding: 10px; }
-        .modal-card h4 { margin: 0 0 6px; font-size: .84rem; color: #2f4d8f; }
-        .kv { font-size: .87rem; margin-bottom: 3px; }
-
-        .transcript-preview { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #fff; white-space: pre-wrap; max-height: 240px; overflow: auto; font-size: .9rem; }
-
-        @media (max-width: 1200px) {
-            .grid { grid-template-columns: 1fr; }
-            .queue-list { min-height: 280px; max-height: 340px; }
-            .conversation-wrap { min-height: auto; }
-            .messages { height: 38vh; }
-            .composer { grid-template-columns: 1fr; }
+        /* ==== Responsive ==== */
+        @media (max-width: 980px) {
+            body { overflow: auto; }
+            .app-shell { height: auto; min-height: 100vh; }
+            .app-body { flex-direction: column; }
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--line);
+                max-height: 50vh;
+            }
+            .composer-bar { flex-wrap: wrap; }
+            .composer-actions { flex-direction: row; width: 100%; }
+            .composer-actions .btn { flex: 1; }
         }
 
-        @media (max-width: 700px) {
-            body { padding: 14px; }
-            .hero { flex-direction: column; align-items: flex-start; }
-            .hero-right { width: 100%; justify-content: space-between; }
+        @media (max-width: 600px) {
+            .navbar { padding: 0 14px; }
+            .nav-brand-sub { display: none; }
+            .meta-bar { flex-direction: column; align-items: flex-start; }
             .modal-grid { grid-template-columns: 1fr; }
+            .bubble-row { max-width: 86%; }
         }
     </style>
 </head>
 <body>
-<div class="dashboard">
-    <header class="hero">
-        <div class="hero-left">
-            <div class="hero-icon"><i class="fa-solid fa-headset"></i></div>
+<div class="app-shell">
+    <header class="navbar">
+        <div class="nav-brand">
+            <div class="nav-brand-icon"><i class="fa-solid fa-headset"></i></div>
             <div>
-                <h1>Operator Dashboard</h1>
-                <p>Manage escalations with clarity, speed, and context.</p>
+                <div class="nav-brand-text">Operator Dashboard</div>
+                <div class="nav-brand-sub">Manage escalations with clarity and speed</div>
             </div>
         </div>
-        <div class="hero-right">
+        <div class="nav-right">
             <div class="chip"><span class="chip-dot"></span><span id="operatorName">Alice (op-001)</span></div>
             <button class="btn btn-primary" onclick="assignNext()"><i class="fa-solid fa-bolt"></i> Take Next</button>
         </div>
     </header>
 
-    <section class="grid">
-        <article class="card">
-            <div class="card-header">
-                <h2 class="card-title">Escalation Queue</h2>
-                <button class="btn btn-secondary" onclick="loadQueue()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+    <div class="app-body">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">Escalation Queue</h2>
+                <button class="btn btn-ghost" onclick="loadQueue()" title="Refresh queue"><i class="fa-solid fa-rotate"></i></button>
             </div>
 
-            <div class="stats">
-                <div class="stat-box queue">
-                    <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
-                    <div>
-                        <div class="stat-number" id="queueSize">0</div>
-                        <div class="stat-label">IN QUEUE</div>
-                    </div>
+            <div class="sidebar-stats">
+                <div class="stat-block">
+                    <div class="stat-num" id="queueSize">0</div>
+                    <div class="stat-lbl">In Queue</div>
                 </div>
-                <div class="stat-box wait">
-                    <div class="stat-icon"><i class="fa-regular fa-clock"></i></div>
-                    <div>
-                        <div class="stat-number" id="waitTime">0</div>
-                        <div class="stat-label">WAIT (MIN)</div>
-                    </div>
+                <div class="stat-divider"></div>
+                <div class="stat-block">
+                    <div class="stat-num" id="waitTime">0m</div>
+                    <div class="stat-lbl">Avg Wait</div>
                 </div>
             </div>
 
             <div id="queueList" class="queue-list"></div>
-        </article>
+        </aside>
 
-        <article class="card">
-            <div class="card-header">
-                <h2 class="card-title">Live Conversation <span class="live-status"><span class="dot" id="statusDot"></span><span id="statusText">Idle</span></span></h2>
-            </div>
-
+        <main class="main-panel">
             <div id="conversationView" class="conversation-wrap"></div>
-        </article>
-    </section>
+        </main>
+    </div>
 </div>
 
 <div class="modal-backdrop" id="previewModal" onclick="onBackdropClick(event)">
@@ -354,7 +751,7 @@
         </div>
         <div style="display:flex; justify-content:flex-end; gap:10px;">
             <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-            <button class="btn btn-primary" style="font-size:16px; padding:12px 16px;" onclick="acceptTakeover()"><i class="fa-solid fa-user-check"></i> Accept Takeover</button>
+            <button class="btn btn-primary" onclick="acceptTakeover()"><i class="fa-solid fa-user-check"></i> Accept Takeover</button>
         </div>
     </div>
 </div>
@@ -365,6 +762,15 @@ const EAT_TIMEZONE = 'Africa/Nairobi';
 const OPERATOR_ID = 'op-001';
 const OPERATOR_NAME = 'Alice';
 const TRANSCRIPT_PREVIEW_LIMIT = 650;
+
+const CANNED_RESPONSES = [
+    { label: "Greeting",        text: "Hi! I'm here to help you. Could you please share more details about your issue?" },
+    { label: "On hold",         text: "Thank you for your patience. I'm looking into this for you right now." },
+    { label: "Escalate up",     text: "I'll need to escalate this to our specialist team. You'll hear back within 24 hours." },
+    { label: "Return approved", text: "I've approved your return request. You'll receive a confirmation email shortly." },
+    { label: "Tracking update", text: "Your order is currently in transit. Please allow 1-2 more business days for delivery." },
+    { label: "Close politely",  text: "Is there anything else I can help you with today? If not, I'll go ahead and close this chat." },
+];
 
 let selectedSession = null;
 let selectedData = null;
@@ -407,8 +813,43 @@ function formatTimeOnly(value, fallback = 'Unknown time') {
         : fallback;
 }
 
+function relativeTime(value) {
+    const parsed = parseAsUtcDate(value);
+    if (!parsed) return 'Unknown';
+    const diffMs = Date.now() - parsed.getTime();
+    const diffSec = Math.round(diffMs / 1000);
+    if (diffSec < 5) return 'just now';
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.round(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return parsed.toLocaleDateString('en-US', { timeZone: EAT_TIMEZONE, month: 'short', day: 'numeric' });
+}
+
+function priorityClass(priority) {
+    const p = String(priority || '').toUpperCase();
+    if (p === 'HIGH') return 'priority-high';
+    if (p === 'NORMAL') return 'priority-normal';
+    return 'priority-low';
+}
+
+function bubbleClassForSender(sender) {
+    const s = String(sender || '').toUpperCase();
+    if (s === 'AGENT' || s === 'HUMAN_OPERATOR' || s === 'OPERATOR') return 'agent';
+    if (s === 'SYSTEM') return 'system';
+    return 'user';
+}
+
+function senderLabelFor(klass, rawSender) {
+    if (klass === 'agent') {
+        return String(rawSender || '').toUpperCase() === 'HUMAN_OPERATOR' ? 'Operator' : 'Agent';
+    }
+    if (klass === 'system') return 'System';
+    return 'Customer';
+}
+
 function renderEmptyConversation() {
-    document.getElementById('statusText').textContent = 'Idle';
     document.getElementById('conversationView').innerHTML = `
         <div class="empty-state">
             <i class="fa-regular fa-message"></i>
@@ -420,10 +861,10 @@ function renderEmptyConversation() {
 
 function renderEmptyQueue() {
     document.getElementById('queueList').innerHTML = `
-        <div class="empty-state" style="min-height:420px;">
+        <div class="empty-state" style="padding: 40px 16px;">
             <i class="fa-regular fa-inbox"></i>
-            <h3>No escalations waiting</h3>
-            <p>New escalations will appear here automatically.</p>
+            <h3>All clear</h3>
+            <p>No escalations waiting. New ones will appear here automatically.</p>
         </div>
     `;
 }
@@ -435,7 +876,8 @@ async function loadQueue() {
         const data = await response.json();
 
         document.getElementById('queueSize').textContent = data.queue_size;
-        document.getElementById('waitTime').textContent = Math.round(data.estimated_wait_time / 60);
+        const minutes = Math.round((data.estimated_wait_time || 0) / 60);
+        document.getElementById('waitTime').textContent = `${minutes}m`;
 
         if (!data.queue || data.queue.length === 0) {
             renderEmptyQueue();
@@ -445,15 +887,17 @@ async function loadQueue() {
         const queueHtml = data.queue.map(item => {
             const escapedSession = escapeHtml(item.session_id);
             const escapedReason = escapeHtml((item.reason || 'UNKNOWN').replace(/_/g, ' '));
-            const escalatedAt = item.escalated_at ? formatDateTime(item.escalated_at) : 'Unknown';
+            const relTime = item.escalated_at ? relativeTime(item.escalated_at) : 'Unknown';
+            const pClass = priorityClass(item.priority);
+            const priorityText = escapeHtml(item.priority || 'LOW');
             return `
-                <div class="queue-item ${selectedSession === item.session_id ? 'selected' : ''}" data-session-id="${escapedSession}">
+                <div class="queue-item ${pClass} ${selectedSession === item.session_id ? 'selected' : ''}" data-session-id="${escapedSession}">
                     <div class="queue-head">
-                        <strong>#${item.position} ${escapedSession.slice(0, 12)}...</strong>
-                        <span class="priority ${item.priority}">${escapeHtml(item.priority)}</span>
+                        <span class="queue-position">#${item.position} &middot; ${escapedSession.slice(0, 10)}&hellip;</span>
+                        <span class="queue-priority-tag ${priorityText}">${priorityText}</span>
                     </div>
-                    <div class="small"><strong>Reason:</strong> ${escapedReason}</div>
-                    <div class="small"><strong>Escalated:</strong> ${escapeHtml(escalatedAt)}</div>
+                    <div class="queue-reason">${escapedReason}</div>
+                    <div class="queue-time"><i class="fa-regular fa-clock"></i> ${escapeHtml(relTime)}</div>
                 </div>
             `;
         }).join('');
@@ -525,15 +969,15 @@ function openPreviewModal(data) {
             <h4>Conversation Metadata</h4>
             <div class="kv"><strong>Session:</strong> ${escapeHtml(data.session_id)}</div>
             <div class="kv"><strong>User ID:</strong> ${escapeHtml(data.customer_id || data.customer_email || 'Unknown')}</div>
-            <div class="kv"><strong>Timestamp:</strong> ${escapeHtml(startedAt)}</div>
+            <div class="kv"><strong>Started:</strong> ${escapeHtml(startedAt)}</div>
             <div class="kv"><strong>Status:</strong> ${escapeHtml(data.status || 'UNKNOWN')}</div>
         </div>
         <div class="modal-card">
-            <h4>Intent & Entities</h4>
+            <h4>Intent &amp; Entities</h4>
             <div class="kv"><strong>Detected Intent:</strong> ${escapeHtml(data.intent || 'N/A')}</div>
             <div class="kv"><strong>Escalation Reason:</strong> ${escapeHtml((data.escalation_reason || 'N/A').replace(/_/g, ' '))}</div>
             <div class="kv"><strong>Entities:</strong></div>
-            <pre class="small" style="white-space:pre-wrap; margin:0;">${escapeHtml(entities)}</pre>
+            <pre class="kv" style="white-space:pre-wrap; margin:0;">${escapeHtml(entities)}</pre>
         </div>
     `;
 
@@ -584,41 +1028,80 @@ async function renderConversation(sessionId) {
         if (!response.ok) throw new Error('Failed to load active conversation');
         const data = await response.json();
 
-        document.getElementById('statusText').textContent = data.controlled_by === 'OPERATOR' ? 'Live' : 'Preview';
-        const canRespond = data.controlled_by === 'OPERATOR';
+        const isLive = data.controlled_by === 'OPERATOR';
+        const canRespond = isLive;
+        const statusLabel = isLive ? 'Live' : 'Preview';
 
         const messagesHtml = (data.messages || []).map(msg => {
-            const isOperator = msg.sender === 'AGENT' && msg.text;
+            const klass = bubbleClassForSender(msg.sender);
+            const senderLabel = senderLabelFor(klass, msg.sender);
+            const time = msg.timestamp ? relativeTime(msg.timestamp) : 'Unknown time';
+            const senderLine = klass !== 'system'
+                ? `<div class="bubble-sender">${escapeHtml(senderLabel)}</div>`
+                : '';
             return `
-                <div class="message ${isOperator ? 'operator' : ''}">
-                    <div class="message-head">
-                        <span><strong>${escapeHtml(msg.sender)}</strong></span>
-                        <span>${msg.timestamp ? formatDateTime(msg.timestamp) : 'Unknown time'}</span>
-                    </div>
-                    <div class="message-text">${escapeHtml(msg.text)}</div>
+                <div class="bubble-row ${klass}">
+                    ${senderLine}
+                    <div class="bubble">${escapeHtml(msg.text)}</div>
+                    <div class="bubble-time">${escapeHtml(time)}</div>
                 </div>
             `;
         }).join('');
 
+        const cannedItemsHtml = CANNED_RESPONSES.map((item, idx) => `
+            <div class="canned-item" data-canned-index="${idx}">
+                <div class="canned-item-label">${escapeHtml(item.label)}</div>
+                <div class="canned-item-text">${escapeHtml(item.text)}</div>
+            </div>
+        `).join('');
+
+        const emptyMessages = `
+            <div class="empty-state" style="padding: 32px 20px;">
+                <i class="fa-regular fa-comments"></i>
+                <h3>No messages yet</h3>
+                <p>Once the customer responds, messages will appear here.</p>
+            </div>
+        `;
+
         document.getElementById('conversationView').innerHTML = `
-            <div class="conv-meta">
-                <div><strong>Customer:</strong> ${escapeHtml(data.customer_email || 'Unknown')}</div>
-                <div class="meta-row">
-                    <span class="pill">Status: ${escapeHtml(data.status || 'UNKNOWN')}</span>
-                    <span class="pill">Intent: ${escapeHtml(data.intent || 'N/A')}</span>
-                    <span class="pill">Sentiment: ${escapeHtml(data.sentiment || 'N/A')}</span>
-                    <span class="pill">Controlled By: ${escapeHtml(data.controlled_by || 'AUTOMATION')}</span>
+            <div class="meta-bar">
+                <div class="meta-info">
+                    <div class="meta-customer"><i class="fa-regular fa-user"></i> ${escapeHtml(data.customer_email || 'Unknown customer')}</div>
+                    <div class="meta-pills">
+                        <span class="pill">Status: ${escapeHtml(data.status || 'UNKNOWN')}</span>
+                        <span class="pill">Intent: ${escapeHtml(data.intent || 'N/A')}</span>
+                        <span class="pill">Sentiment: ${escapeHtml(data.sentiment || 'N/A')}</span>
+                    </div>
+                </div>
+                <span class="live-status">
+                    <span class="dot ${isLive ? 'pulse' : ''}" id="statusDot"></span>
+                    <span id="statusText">${escapeHtml(statusLabel)}</span>
+                </span>
+            </div>
+
+            <div class="messages">
+                ${messagesHtml || emptyMessages}
+            </div>
+
+            ${canRespond ? '' : '<div class="composer-hint"><i class="fa-regular fa-circle-question"></i> Accept takeover from the preview modal before responding.</div>'}
+
+            <div class="composer-bar">
+                <div class="canned-wrap">
+                    <button class="btn btn-secondary canned-btn" id="cannedBtn" type="button" ${canRespond ? '' : 'disabled'}>
+                        <i class="fa-solid fa-bolt"></i> Canned <i class="fa-solid fa-chevron-down chev"></i>
+                    </button>
+                    <div class="canned-popover" id="cannedPopover">
+                        ${cannedItemsHtml}
+                    </div>
+                </div>
+                <div class="composer-textarea-wrap">
+                    <textarea id="responseText" placeholder="${canRespond ? 'Type a response to the user...' : 'Accept takeover to start replying'}" ${canRespond ? '' : 'disabled'}></textarea>
+                </div>
+                <div class="composer-actions">
+                    <button class="btn btn-send" onclick="sendResponse()" ${canRespond ? '' : 'disabled'}><i class="fa-regular fa-paper-plane"></i> Send</button>
+                    <button class="btn btn-end" onclick="endConversation()" ${canRespond ? '' : 'disabled'}><i class="fa-solid fa-phone-slash"></i> End</button>
                 </div>
             </div>
-
-            <div class="messages">${messagesHtml || '<div class="small">No messages yet.</div>'}</div>
-
-            <div class="composer">
-                <textarea id="responseText" placeholder="Type a response to the user..." ${canRespond ? '' : 'disabled'}></textarea>
-                <button class="btn btn-send" onclick="sendResponse()" ${canRespond ? '' : 'disabled'}><i class="fa-regular fa-paper-plane"></i> Send</button>
-                <button class="btn btn-end" onclick="endConversation()" ${canRespond ? '' : 'disabled'}><i class="fa-solid fa-phone-slash"></i> End Conversation</button>
-            </div>
-            ${canRespond ? '' : '<p class="hint">Accept takeover from preview modal before responding.</p>'}
         `;
 
         const responseText = document.getElementById('responseText');
@@ -628,7 +1111,6 @@ async function renderConversation(sessionId) {
             if (shouldAutoScrollMessages) {
                 messagesEl.scrollTop = messagesEl.scrollHeight;
             }
-
             messagesEl.addEventListener('scroll', () => {
                 shouldAutoScrollMessages = isNearBottom(messagesEl);
             });
@@ -644,10 +1126,57 @@ async function renderConversation(sessionId) {
                 }
             });
         }
+
+        setupCannedHandlers();
     } catch (error) {
         console.error('Render conversation error:', error);
     }
 }
+
+function setupCannedHandlers() {
+    const btn = document.getElementById('cannedBtn');
+    const popover = document.getElementById('cannedPopover');
+    if (!btn || !popover) return;
+
+    btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (btn.disabled) return;
+        const isOpen = popover.classList.toggle('open');
+        btn.classList.toggle('open', isOpen);
+    });
+
+    popover.querySelectorAll('.canned-item').forEach(node => {
+        node.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const idx = parseInt(node.getAttribute('data-canned-index'), 10);
+            const entry = CANNED_RESPONSES[idx];
+            if (!entry) return;
+            const textArea = document.getElementById('responseText');
+            if (!textArea || textArea.disabled) return;
+
+            const current = textArea.value;
+            let separator = '';
+            if (current.length > 0 && !/\s$/.test(current)) {
+                separator = current.endsWith('.') || current.endsWith('!') || current.endsWith('?') ? ' ' : ' ';
+            }
+            textArea.value = current + separator + entry.text;
+            operatorDraftText = textArea.value;
+            popover.classList.remove('open');
+            btn.classList.remove('open');
+            textArea.focus();
+            textArea.setSelectionRange(textArea.value.length, textArea.value.length);
+        });
+    });
+}
+
+document.addEventListener('mousedown', (event) => {
+    const popover = document.getElementById('cannedPopover');
+    const btn = document.getElementById('cannedBtn');
+    if (!popover || !popover.classList.contains('open')) return;
+    if (popover.contains(event.target) || (btn && btn.contains(event.target))) return;
+    popover.classList.remove('open');
+    if (btn) btn.classList.remove('open');
+});
 
 function isNearBottom(container) {
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -730,6 +1259,11 @@ async function poll() {
     const active = document.activeElement;
     const typingInComposer = active && active.id === 'responseText';
     if (typingInComposer || operatorDraftText.trim()) {
+        return;
+    }
+
+    const popover = document.getElementById('cannedPopover');
+    if (popover && popover.classList.contains('open')) {
         return;
     }
 
