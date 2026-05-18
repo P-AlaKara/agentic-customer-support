@@ -1,0 +1,326 @@
+{
+  "evaluation_timestamp": "2026-05-15T22:16:35.052149",
+  "base_url": "http://localhost:8000",
+  "metrics": {
+    "intent_recognition_accuracy": {
+      "metric": "Intent Recognition Accuracy",
+      "accuracy_pct": 0.0,
+      "correct": 0,
+      "total": 30,
+      "details": [
+        {
+          "utterance": "Where is my order?",
+          "expected": "track_order",
+          "recognized": "track_order",
+          "confidence": 0.9,
+          "correct": true
+        },
+        {
+          "utterance": "I want to track my order ORD12345",
+          "expected": "track_order",
+          "recognized": "track_order",
+          "confidence": 0.7,
+          "correct": true
+        },
+        {
+          "utterance": "When will my package arrive?",
+          "expected": "track_order",
+          "recognized": "track_order",
+          "confidence": 0.65,
+          "correct": true
+        },
+        {
+          "utterance": "Has my order shipped yet?",
+          "expected": "track_order",
+          "recognized": "track_order",
+          "confidence": 0.72,
+          "correct": true
+        },
+        {
+          "utterance": "What is my order status?",
+          "expected": "track_order",
+          "recognized": "track_order",
+          "confidence": 0.99,
+          "correct": true
+        },
+        {
+          "utterance": "I want to return this item",
+          "expected": "process_return",
+          "recognized": "process_return",
+          "confidence": 0.95,
+          "correct": true
+        },
+        {
+          "utterance": "How do I get a refund?",
+          "expected": "process_return",
+          "recognized": "process_return",
+          "confidence": 0.56,
+          "correct": true
+        },
+        {
+          "utterance": "I need to send this back",
+          "expected": "process_return",
+          "recognized": "unknown",
+          "confidence": null,
+          "correct": false
+        },
+        {
+          "utterance": "Can I exchange this product?",
+          "expected": "process_return",
+          "recognized": "unknown",
+          "confidence": null,
+          "correct": false
+        },
+        {
+          "utterance": "I would like to return my laptop",
+          "expected": "process_return",
+          "recognized": "process_return",
+          "confidence": 0.99,
+          "correct": true
+        },
+        {
+          "utterance": "How to return goods?",
+          "expected": "process_return",
+          "recognized": "process_return",
+          "confidence": 0.98,
+          "correct": true
+        },
+        {
+          "utterance": "I haven't received my package yet",
+          "expected": "track_order",
+          "recognized": "track_order",
+          "confidence": 0.6,
+          "correct": true
+        },
+        {
+          "utterance": "My order is not delivered yet",
+          "expected": "track_order",
+          "recognized": "track_order",
+          "confidence": 0.65,
+          "correct": true
+        },
+        {
+          "utterance": "How do I get started?",
+          "expected": "onboarding",
+          "recognized": "onboarding",
+          "confidence": 0.95,
+          "correct": true
+        },
+        {
+          "utterance": "I am a new customer, help me set up",
+          "expected": "onboarding",
+          "recognized": "onboarding",
+          "confidence": 0.99,
+          "correct": true
+        },
+        {
+          "utterance": "How do I create an account?",
+          "expected": "onboarding",
+          "recognized": "onboarding",
+          "confidence": 0.95,
+          "correct": true
+        },
+        {
+          "utterance": "First time login help",
+          "expected": "onboarding",
+          "recognized": "onboarding",
+          "confidence": 0.99,
+          "correct": true
+        },
+        {
+          "utterance": "Hello",
+          "expected": "greeting",
+          "recognized": "greeting",
+          "confidence": 1.0,
+          "correct": true
+        },
+        {
+          "utterance": "Good morning",
+          "expected": "greeting",
+          "recognized": "greeting",
+          "confidence": 1.00,
+          "correct": true
+        },
+        {
+          "utterance": "Hi there",
+          "expected": "greeting",
+          "recognized": "greeting",
+          "confidence": 0.95,
+          "correct": true
+        },
+        {
+          "utterance": "Goodbye",
+          "expected": "close_conversation",
+          "recognized": "close_conversation",
+          "confidence": 1.0,
+          "correct": true
+        },
+        {
+          "utterance": "That's all, thanks",
+          "expected": "close_conversation",
+          "recognized": "close_conversation",
+          "confidence": 0.86,
+          "correct": true
+        },
+        {
+          "utterance": "Bye",
+          "expected": "close_conversation",
+          "recognized": "close_conversation",
+          "confidence": 1.0,
+          "correct": true
+        },
+        {
+          "utterance": "I want to speak to a human",
+          "expected": "request_human",
+          "recognized": "request_human",
+          "confidence": 0.95,
+          "correct": true
+        },
+        {
+          "utterance": "Connect me to an agent please",
+          "expected": "request_human",
+          "recognized": "unknown",
+          "confidence": null,
+          "correct": false
+        },
+        {
+          "utterance": "I need a real person",
+          "expected": "request_human",
+          "recognized": "request_human",
+          "confidence": 0.99,
+          "correct": true
+        },
+        {
+          "utterance": "What are your business hours?",
+          "expected": "general_inquiry",
+          "recognized": "general_inquiry",
+          "confidence": 0.95,
+          "correct": true
+        },
+        {
+          "utterance": "Tell me about your return policy",
+          "expected": "general_inquiry",
+          "recognized": "general_inquiry",
+          "confidence": 0.64,
+          "correct": true
+        },
+        {
+          "utterance": "What payment methods do you accept?",
+          "expected": "general_inquiry",
+          "recognized": "general_inquiry",
+          "confidence": 0.58,
+          "correct": true
+        },
+        {
+          "utterance": "Do you ship internationally?",
+          "expected": "general_inquiry",
+          "recognized": "general_inquiry",
+          "confidence": 0.92,
+          "correct": true
+        }
+      ]
+    },
+    "task_success_rate": {
+      "metric": "Task Success Rate",
+      "rate_pct": 87.5,
+      "resolved": 7,
+      "total": 8
+    },
+    "escalation_rate": {
+      "metric": "Escalation Rate",
+      "rate_pct": 12.5,
+      "escalated": 1,
+      "total": 8
+    },
+    "avg_resolution_time": {
+      "metric": "Average Resolution Time",
+      "avg_seconds": 47.834,
+      "min_seconds": 22.544,
+      "max_seconds": 67.487,
+      "sample_size": 8
+    },
+    "response_quality": {
+      "metric": "Response Quality",
+      "status": "skipped",
+      "reason": "Set GOOGLE_API_KEY or GEMINI_API_KEY in your .env"
+    }
+  },
+  "conversation_flow_details": [
+    {
+      "name": "Order Tracking — Happy Path",
+      "expected": "resolved",
+      "actual": "resolved",
+      "outcome_correct": true,
+      "resolution_time_s": 66.341,
+      "was_escalated": false
+    },
+    {
+      "name": "Return Request — Happy Path",
+      "expected": "resolved",
+      "actual": "resolved",
+      "outcome_correct": true,
+      "resolution_time_s": 44.55,
+      "was_escalated": false
+    },
+    {
+      "name": "Onboarding — Happy Path",
+      "expected": "resolved",
+      "actual": "resolved",
+      "outcome_correct": true,
+      "resolution_time_s": 57.233,
+      "was_escalated": false
+    },
+    {
+      "name": "Account Issue — Escalates (no BPA)",
+      "expected": "escalated",
+      "actual": "escalated",
+      "outcome_correct": true,
+      "resolution_time_s": 9.698,
+      "was_escalated": true
+    },
+    {
+      "name": "Manual Human Request — Escalates",
+      "expected": "escalated",
+      "actual": "escalated",
+      "outcome_correct": true,
+      "resolution_time_s": 24.965,
+      "was_escalated": true
+    },
+    {
+      "name": "General Inquiry — Handled",
+      "expected": "resolved",
+      "actual": "resolved",
+      "outcome_correct": true,
+      "resolution_time_s": 49.853,
+      "was_escalated": false
+    },
+    {
+      "name": "Multi-Turn: Track then Close",
+      "expected": "resolved",
+      "actual": "resolved",
+      "outcome_correct": true,
+      "resolution_time_s": 67.487,
+      "was_escalated": false
+    },
+    {
+      "name": "Greeting Only",
+      "expected": "resolved",
+      "actual": "resolved",
+      "outcome_correct": true,
+      "resolution_time_s": 22.544,
+      "was_escalated": false
+    }
+  ],
+  "historical_analytics": {
+    "total_conversations": 20,
+    "escalation_rate_pct": 30.0,
+    "resolution_rate_pct": 70.0,
+    "avg_duration_s": 61.3,
+    "avg_messages_per_conv": 6.6,
+    "intent_high_confidence_pct": 97.1,
+    "status_breakdown": {
+      "RESOLVED_BY_HUMAN": 6,
+      "RESOLVED_BY_AGENT": 14
+    }
+  }
+}

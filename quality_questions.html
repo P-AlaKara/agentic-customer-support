@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM-as-a-Judge Evaluation Questions</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        .header p {
+            font-size: 14px;
+            opacity: 0.95;
+        }
+        .content {
+            padding: 40px;
+        }
+        .intro {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 40px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .questions-list {
+            display: grid;
+            gap: 24px;
+        }
+        .question-item {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+        .question-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        .question-number {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 32px;
+            font-weight: 700;
+            margin-right: 12px;
+            font-size: 14px;
+        }
+        .question-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        .question-category {
+            display: inline-block;
+            background: #f0f4ff;
+            color: #667eea;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-top: 12px;
+        }
+        .question-guidance {
+            font-size: 13px;
+            color: #666;
+            margin-top: 10px;
+            line-height: 1.5;
+            font-style: italic;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 24px 40px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            .header {
+                padding: 24px;
+            }
+            .header h1 {
+                font-size: 22px;
+            }
+            .content {
+                padding: 20px;
+            }
+            .question-item {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Quality Evaluation Questions</h1>
+            <p>LLM-as-a-Judge Framework for Agentic Customer Support System</p>
+        </div>
+        
+        <div class="content">
+            <div class="intro">
+                <strong>Evaluation Approach:</strong> These 12 questions are designed for LLM-as-a-judge evaluation. 
+                Use these prompts to have an LLM evaluate system responses across multiple quality dimensions: intent recognition accuracy, 
+                sentiment analysis appropriateness, policy compliance, response relevance, routing decisions, empathy, 
+                and escalation necessity. Each question targets a specific aspect of your multi-agent customer support system.
+            </div>
+            
+            <div class="questions-list">
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">1</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Did the system correctly identify the customer's intent (e.g., returns, shipping, onboarding) with high confidence?</div>
+                            <div class="question-guidance">Evaluate whether the intent agent properly classified the customer's request. Should assess confidence scores and whether the classification was appropriate for the context.</div>
+                            <span class="question-category">Intent Recognition</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">2</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Was the customer's sentiment (neutral, positive, negative, angry) accurately detected and appropriately factored into the response strategy?</div>
+                            <div class="question-guidance">Judge whether sentiment analysis was accurate and whether the response tone matched the detected sentiment. Consider if escalation was appropriate for negative/angry sentiment.</div>
+                            <span class="question-category">Sentiment Analysis</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">3</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Was the customer routed to the correct agent/business process (returns, shipping, onboarding, etc.) based on their intent?</div>
+                            <div class="question-guidance">Evaluate the routing decision made by the coordinator. Assess if the customer was directed to the appropriate specialized agent for their specific need.</div>
+                            <span class="question-category">Routing Accuracy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">4</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Did the response accurately cite and follow the relevant policy (returns, shipping, onboarding) for the customer's request?</div>
+                            <div class="question-guidance">Check if the business process agent correctly applied the relevant policy document. Verify that policy details were accurate and correctly integrated into the response.</div>
+                            <span class="question-category">Policy Compliance</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">5</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Is the response factually accurate and grounded in the retrieved context/knowledge base, or are there hallucinations or unsupported claims?</div>
+                            <div class="question-guidance">Evaluate RAG performance. Determine if the response is factually correct and properly supported by retrieved context, without fabrications or misleading information.</div>
+                            <span class="question-category">Factual Accuracy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">6</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Does the response directly address the customer's specific question and request with relevant, actionable information?</div>
+                            <div class="question-guidance">Assess whether the response is on-topic and provides useful, actionable guidance for the customer's situation. Judge relevance and usefulness.</div>
+                            <span class="question-category">Response Relevance</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">7</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Is the tone empathetic, professional, and appropriate to the customer's sentiment and situation?</div>
+                            <div class="question-guidance">Evaluate the response tone. Judge if it conveys empathy where needed, maintains professionalism, and matches the customer's emotional state appropriately.</div>
+                            <span class="question-category">Tone & Empathy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">8</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Did the system appropriately recognize when escalation to a human operator was necessary?</div>
+                            <div class="question-guidance">Evaluate escalation logic. Judge if the system correctly identified situations requiring human intervention (low confidence, angry sentiment, complex issues) and escalated appropriately.</div>
+                            <span class="question-category">Escalation Logic</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">9</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Is the response coherent, well-structured, and easy for the customer to understand and follow?</div>
+                            <div class="question-guidance">Assess response clarity and structure. Judge if the message is well-organized, uses clear language, and provides step-by-step guidance where needed.</div>
+                            <span class="question-category">Coherence & Clarity</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">10</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Did the system maintain conversation context and reference relevant information from the customer's history or earlier messages?</div>
+                            <div class="question-guidance">Evaluate context awareness. Judge if the response incorporates prior conversation context appropriately and maintains coherence across the conversation flow.</div>
+                            <span class="question-category">Context Awareness</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">11</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Does the response anticipate follow-up questions or provide proactive guidance to prevent future issues?</div>
+                            <div class="question-guidance">Evaluate proactivity. Judge if the response goes beyond the immediate question to help prevent future issues or provides guidance for next steps.</div>
+                            <span class="question-category">Proactivity</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="question-item">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span class="question-number">12</span>
+                        <div style="flex: 1;">
+                            <div class="question-text">Is the overall response quality likely to improve customer satisfaction and resolve the issue effectively?</div>
+                            <div class="question-guidance">Holistic evaluation. Judge the overall quality and likelihood that the response will satisfy the customer and effectively resolve their issue without requiring escalation.</div>
+                            <span class="question-category">Overall Quality</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <strong>Usage:</strong> Use these questions with an LLM evaluator to assess system responses. 
+            Each question can be scored on a scale (e.g., 1-5 or binary pass/fail) to generate quantitative quality metrics.
+        </div>
+    </div>
+</body>
+</html>
