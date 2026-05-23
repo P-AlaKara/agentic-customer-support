@@ -29,13 +29,13 @@
             --primary-on-tint: #1E40AF;
 
             /* Sidebar */
-            --sidebar-bg: #0F172A;
+            --sidebar-bg: linear-gradient(180deg, #26215C 0%, #3C3489 60%, #534AB7 100%);
             --sidebar-border: rgba(255, 255, 255, 0.06);
-            --sidebar-text: #94A3B8;
+            --sidebar-text: rgba(255, 255, 255, 0.55);
             --sidebar-text-strong: #CBD5E1;
             --sidebar-text-active: #FFFFFF;
-            --sidebar-hover-bg: rgba(255, 255, 255, 0.04);
-            --sidebar-active-bg: rgba(255, 255, 255, 0.08);
+            --sidebar-hover-bg: rgba(255, 255, 255, 0.12);
+            --sidebar-active-bg: rgba(255, 255, 255, 0.18);
 
             /* Warm complementary accent — status only, never CTAs */
             --accent: #F59E0B;
@@ -238,24 +238,23 @@
         }
 
         .content-header {
-            background: var(--bg-app);
+            background: linear-gradient(135deg, #3C3489 0%, #534AB7 50%, #7F77DD 100%);
             padding: 32px 36px 20px;
             position: sticky;
             top: 0;
             z-index: 10;
-            backdrop-filter: saturate(1.1);
         }
 
         .content-header h2 {
             font-size: 22px;
             font-weight: 600;
             letter-spacing: -0.015em;
-            color: var(--text-primary);
+            color: #ffffff;
             margin-bottom: 4px;
         }
 
         .content-header p {
-            color: var(--text-muted);
+            color: rgba(255, 255, 255, 0.65);
             font-size: 13.5px;
         }
 
@@ -701,6 +700,19 @@
         /* ================================================================
            Agent Cards
            ================================================================ */
+        .agent-group {
+            margin-bottom: 28px;
+        }
+
+        .agent-group-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #534AB7;
+            margin-bottom: 12px;
+        }
+
         .agent-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -728,12 +740,14 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 14px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
         }
 
         .agent-name {
             font-size: 14px;
             font-weight: 600;
-            color: var(--text-primary);
+            color: #26215C;
             letter-spacing: -0.005em;
         }
 
@@ -754,9 +768,8 @@
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 14px;
-            margin-top: 14px;
-            padding-top: 14px;
-            border-top: 1px solid var(--border);
+            margin-top: 0;
+            padding-top: 0;
         }
 
         .agent-stat {
@@ -768,13 +781,13 @@
         .agent-stat-value {
             font-size: 18px;
             font-weight: 600;
-            color: var(--text-primary);
+            color: #26215C;
             letter-spacing: -0.01em;
         }
 
         .agent-stat-label {
             font-size: 11px;
-            color: var(--text-muted);
+            color: #7F77DD;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -4108,40 +4121,110 @@
         }
 
         // Agents
+        const AGENT_GROUPS = [
+            {
+                label: 'Core Agents',
+                names: ['Coordinator', 'Sentiment Agent', 'Intent Agent', 'Escalation Agent']
+            },
+            {
+                label: 'Processing Agents',
+                names: ['Transcription Agent', 'Returns Agent', 'Shipping Agent', 'Onboarding Agent']
+            },
+            {
+                label: 'Services',
+                names: ['STT Service', 'Voice Router', 'TTS Service']
+            }
+        ];
+
+        const AGENT_CARD_STYLES = {
+            'Coordinator':        { bg: 'rgba(127,119,221,0.08)', border: 'rgba(127,119,221,0.2)' },
+            'Onboarding Agent':   { bg: 'rgba(127,119,221,0.08)', border: 'rgba(127,119,221,0.2)' },
+            'Sentiment Agent':    { bg: 'rgba(29,158,117,0.08)',  border: 'rgba(29,158,117,0.2)'  },
+            'Returns Agent':      { bg: 'rgba(29,158,117,0.08)',  border: 'rgba(29,158,117,0.2)'  },
+            'TTS Service':        { bg: 'rgba(29,158,117,0.08)',  border: 'rgba(29,158,117,0.2)'  },
+            'Intent Agent':       { bg: 'rgba(216,90,48,0.08)',   border: 'rgba(216,90,48,0.2)'   },
+            'Voice Router':       { bg: 'rgba(216,90,48,0.08)',   border: 'rgba(216,90,48,0.2)'   },
+            'Escalation Agent':   { bg: 'rgba(212,83,126,0.08)',  border: 'rgba(212,83,126,0.2)'  },
+            'Transcription Agent':{ bg: 'rgba(55,138,221,0.08)',  border: 'rgba(55,138,221,0.2)'  },
+            'STT Service':        { bg: 'rgba(55,138,221,0.08)',  border: 'rgba(55,138,221,0.2)'  },
+            'Shipping Agent':     { bg: 'rgba(186,117,23,0.08)',  border: 'rgba(186,117,23,0.2)'  },
+        };
+
+        function buildAgentCard(agent) {
+            const normalizedName = agent.name.replace(' Agent', '').toLowerCase();
+            const statsEntries = Object.entries(agent.stats || {});
+            const style = AGENT_CARD_STYLES[agent.name] || {};
+            const inlineStyle = style.bg
+                ? `style="background:${style.bg};border-color:${style.border};"`
+                : '';
+            return `
+                <div class="agent-card" ${inlineStyle} onclick="showAgentDetail('${normalizedName}', '${agent.name}')">
+                    <div class="agent-header">
+                        <div class="agent-name">${agent.name}</div>
+                        <div class="agent-status"></div>
+                    </div>
+                    <div class="agent-stats">
+                        <div class="agent-stat">
+                            <div class="agent-stat-value">${agent.event_count || 0}</div>
+                            <div class="agent-stat-label">events captured</div>
+                        </div>
+                        ${statsEntries.slice(0, 3).map(([key, value]) => `
+                            <div class="agent-stat">
+                                <div class="agent-stat-value">${value}</div>
+                                <div class="agent-stat-label">${key.replace(/_/g, ' ')}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         async function loadAgentDetails() {
             try {
                 const response = await fetch(`${API_URL}/admin/agents`);
                 const data = await response.json();
+                const agents = data.agents || [];
 
-                const html = (data.agents || []).map(agent => {
-                    const normalizedName = agent.name.replace(' Agent', '').toLowerCase();
-                    const statsEntries = Object.entries(agent.stats || {});
+                if (agents.length === 0) {
+                    document.getElementById('agentDetails').innerHTML =
+                        '<div class="empty-state"><i class="fas fa-inbox"></i><p>No agents available</p></div>';
+                    return;
+                }
 
-                    return `
-                        <div class="agent-card" onclick="showAgentDetail('${normalizedName}', '${agent.name}')">
-                            <div class="agent-header">
-                                <div class="agent-name">${agent.name}</div>
-                                <div class="agent-status"></div>
-                            </div>
-                            <div class="agent-stats">
-                                <div class="agent-stat">
-                                    <div class="agent-stat-value">${agent.event_count || 0}</div>
-                                    <div class="agent-stat-label">events captured</div>
-                                </div>
-                                ${statsEntries.slice(0, 3).map(([key, value]) => `
-                                    <div class="agent-stat">
-                                        <div class="agent-stat-value">${value}</div>
-                                        <div class="agent-stat-label">${key.replace(/_/g, ' ')}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
+                const agentsByName = {};
+                agents.forEach(a => { agentsByName[a.name] = a; });
+
+                let html = '';
+                AGENT_GROUPS.forEach(group => {
+                    const groupAgents = group.names
+                        .map(n => agentsByName[n])
+                        .filter(Boolean);
+                    if (groupAgents.length === 0) return;
+
+                    html += `<div class="agent-group">
+                        <div class="agent-group-label">${group.label}</div>
+                        <div class="agent-grid">
+                            ${groupAgents.map(buildAgentCard).join('')}
                         </div>
-                    `;
-                }).join('');
+                    </div>`;
+                });
 
-                document.getElementById('agentDetails').innerHTML = html || '<div class="empty-state"><i class="fas fa-inbox"></i><p>No agents available</p></div>';
+                // Append any agents not covered by the defined groups
+                const groupedNames = new Set(AGENT_GROUPS.flatMap(g => g.names));
+                const ungrouped = agents.filter(a => !groupedNames.has(a.name));
+                if (ungrouped.length > 0) {
+                    html += `<div class="agent-group">
+                        <div class="agent-group-label">Other</div>
+                        <div class="agent-grid">
+                            ${ungrouped.map(buildAgentCard).join('')}
+                        </div>
+                    </div>`;
+                }
+
+                document.getElementById('agentDetails').innerHTML = html;
             } catch (error) {
-                document.getElementById('agentDetails').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading agents</p></div>';
+                document.getElementById('agentDetails').innerHTML =
+                    '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading agents</p></div>';
             }
         }
 
