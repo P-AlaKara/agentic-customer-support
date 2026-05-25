@@ -827,7 +827,8 @@
 
         .agent-group { margin-bottom: 28px; }
         .agent-group-label-wrap { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
-        .agent-group-dot { width:9px; height:9px; border-radius:50%; }
+        .agent-group-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; align-self:center; }
+        .agent-group-label-wrap .agent-group-label { margin-bottom:0; display:flex; align-items:center; gap:6px; line-height:1; }
         .agent-group-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: #534AB7; }
 
         .agent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
@@ -4203,7 +4204,7 @@
         ];
 
         const AGENT_ICONS = {
-            'Coordinator': 'sitemap', 'Sentiment Agent': 'heart-handshake', 'Intent Agent': 'target',
+            'Coordinator': 'network', 'Sentiment Agent': 'heart-handshake', 'Intent Agent': 'target',
             'Transcription Agent': 'audio-lines', 'Returns Agent': 'rotate-ccw', 'Shipping Agent': 'truck',
             'Onboarding Agent': 'user-plus', 'STT Service': 'mic', 'TTS Service': 'volume-2'
         };
@@ -6098,6 +6099,7 @@
 
         // Same-name forwards (e.g. <i data-lucide="x"> tags from agent registry)
         const LUCIDE_ALIASES = {
+            'sitemap': 'network',
             'fa-sitemap': 'network',
             'fa-heart': 'heart',
             'fa-crosshairs': 'crosshair',
@@ -6207,7 +6209,8 @@
             // 2. Convert <i data-lucide="name"> tags that haven't rendered yet
             const lucideNodes = root.querySelectorAll('i[data-lucide]:not([data-lucide-rendered])');
             lucideNodes.forEach(function(el) {
-                _renderIconInPlace(el, el.getAttribute('data-lucide'));
+                const name = el.getAttribute('data-lucide');
+                _renderIconInPlace(el, LUCIDE_ALIASES[name] || name);
             });
         }
 
