@@ -986,13 +986,6 @@ async def get_agents_status():
                 **AGENT_EVENT_RELATIONSHIPS.get('stt_service', {})
             },
             {
-                "name": "Voice Router",
-                "health": "healthy",
-                "stats": voice_input_router.get_stats(),
-                "event_count": len(agent_event_history.get('voice_router', [])),
-                **AGENT_EVENT_RELATIONSHIPS.get('voice_router', {})
-            },
-            {
                 "name": "TTS Service",
                 "health": "healthy",
                 "stats": tts_service.get_stats(),
@@ -1025,7 +1018,6 @@ async def health_check():
             "onboarding": "active",
             "greeting": "active",
             "stt_service": "active",
-            "voice_router": "active",
             "tts_service": "active"
         }
     }

@@ -2727,9 +2727,9 @@
                 </div>
             </div>
             <nav class="nav-menu">
-                <div class="nav-item active" onclick="showSection('overview', this)">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Overview</span>
+                <div class="nav-item active" onclick="showSection('agents', this)">
+                    <i class="fas fa-robot"></i>
+                    <span>Agents</span>
                 </div>
                 <div class="nav-item" onclick="showSection('reports', this)">
                     <i class="fas fa-table"></i>
@@ -2742,10 +2742,6 @@
                 <div class="nav-item" onclick="showSection('logs', this)">
                     <i class="fas fa-terminal"></i>
                     <span>System Logs</span>
-                </div>
-                <div class="nav-item" onclick="showSection('agents', this)">
-                    <i class="fas fa-robot"></i>
-                    <span>Agents</span>
                 </div>
                 <div class="nav-item" onclick="showSection('tracer', this)">
                     <i class="fas fa-route"></i>
@@ -2772,26 +2768,6 @@
 
         <!-- Main Content -->
         <div class="main-content">
-            <!-- Overview Section -->
-            <div id="overview-section" class="section">
-                <div class="content-header">
-                    <h2>System Overview</h2>
-                    <p>Real-time metrics and system health</p>
-                </div>
-                <div class="content-body">
-                    <div class="stats-grid" id="statsGrid">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                            <p>Loading statistics...</p>
-                        </div>
-                    </div>
-
-                    <div class="agent-grid" id="agentGrid">
-                        <div class="loading">Loading agents...</div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Database Reports Section -->
             <div id="reports-section" class="section" style="display: none;">
                 <div class="content-header">
@@ -2977,7 +2953,7 @@
             </div>
 
             <!-- Agents Section -->
-            <div id="agents-section" class="section" style="display: none;">
+            <div id="agents-section" class="section">
                 <div class="content-header">
                     <h2>Agent Management</h2>
                     <p>Monitor agent health and performance</p>
@@ -2985,15 +2961,15 @@
                 <div class="content-body">
                     <div class="agents-layout">
                         <div class="summary-strip">
-                            <div class="summary-cell purple"><div class="summary-label">Total agents</div><div class="summary-value">9</div></div>
-                            <div class="summary-cell green"><div class="summary-label">Healthy</div><div class="summary-value">9</div></div>
+                            <div class="summary-cell purple"><div class="summary-label">Total agents</div><div class="summary-value">10</div></div>
+                            <div class="summary-cell green"><div class="summary-label">Healthy</div><div class="summary-value">10</div></div>
                             <div class="summary-cell gray"><div class="summary-label">Idle</div><div class="summary-value">0</div></div>
                             <div class="summary-cell red"><div class="summary-label">Degraded / Failing</div><div class="summary-value">0</div></div>
                         </div>
                         <div class="agent-filter-bar">
                             <div class="agent-tabs">
-                                <button class="agent-tab active">All agents<span class="agent-tab-count">9</span></button>
-                                <button class="agent-tab">Healthy<span class="agent-tab-count">9</span></button>
+                                <button class="agent-tab active">All agents<span class="agent-tab-count">10</span></button>
+                                <button class="agent-tab">Healthy<span class="agent-tab-count">10</span></button>
                                 <button class="agent-tab">Idle<span class="agent-tab-count">0</span></button>
                                 <button class="agent-tab">Degraded<span class="agent-tab-count">0</span></button>
                                 <button class="agent-tab">Failing<span class="agent-tab-count">0</span></button>
@@ -3131,15 +3107,6 @@
                     </div>
 
                     <div class="chart-grid">
-                        <div class="chart-card chart-card-wide">
-                            <div class="card-title"><i class="fas fa-robot"></i> Agent Performance</div>
-                            <div class="table-container" id="agentPerfTable">
-                                <div class="empty-state"><p>Load analytics to view agent performance</p></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="chart-grid">
                         <div class="chart-card">
                             <div class="card-title"><i class="fas fa-tags"></i> Intent Breakdown</div>
                             <canvas id="intentChart"></canvas>
@@ -3240,8 +3207,8 @@
                             <canvas id="perfSuccessChart" style="max-height:280px;"></canvas>
                         </div>
                         <div class="chart-card">
-                            <div class="card-title"><i class="fas fa-spider"></i> Confidence Score Radar</div>
-                            <canvas id="perfRadarChart" style="max-height:280px;"></canvas>
+                            <div class="card-title"><i class="fas fa-braille"></i> Agent Performance Map</div>
+                            <canvas id="perfBubbleChart" style="max-height:280px;"></canvas>
                         </div>
                     </div>
 
@@ -3649,9 +3616,6 @@
 
             // Load section data
             switch(sectionName) {
-                case 'overview':
-                    loadOverview();
-                    break;
                 case 'transcripts':
                     loadConversationList();
                     break;
@@ -3677,62 +3641,6 @@
                 case 'settings':
                     loadSettings();
                     break;
-            }
-        }
-
-        // Overview
-        async function loadOverview() {
-            try {
-                const response = await fetch(`${API_URL}/admin/stats`);
-                const data = await response.json();
-
-                // Stats Grid
-                const statsHtml = `
-                    <div class="stat-card">
-                        <div class="stat-value">${data.coordinator.messages_processed}</div>
-                        <div class="stat-label">Messages Processed</div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-up"></i> Active
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.context_store.sessions_active}</div>
-                        <div class="stat-label">Active Sessions</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.escalation.total_escalations}</div>
-                        <div class="stat-label">Total Escalations</div>
-                        <div class="stat-change ${data.escalation.queued > 0 ? 'negative' : 'positive'}">
-                            ${data.escalation.queued} in queue
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${Math.round((data.coordinator.successful_routes / data.coordinator.messages_processed) * 100)}%</div>
-                        <div class="stat-label">Success Rate</div>
-                    </div>
-                `;
-                document.getElementById('statsGrid').innerHTML = statsHtml;
-
-                // Agent Grid
-                const agentsHtml = Object.entries(data).slice(0, 6).map(([name, stats]) => `
-                    <div class="agent-card">
-                        <div class="agent-header">
-                            <div class="agent-name">${name.charAt(0).toUpperCase() + name.slice(1)}</div>
-                            <div class="agent-status"></div>
-                        </div>
-                        <div class="agent-stats">
-                            ${Object.entries(stats).slice(0, 4).map(([key, value]) => `
-                                <div class="agent-stat">
-                                    <div class="agent-stat-value">${value}</div>
-                                    <div class="agent-stat-label">${key.replace(/_/g, ' ')}</div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `).join('');
-                document.getElementById('agentGrid').innerHTML = agentsHtml;
-            } catch (error) {
-                console.error('Error loading overview:', error);
             }
         }
 
@@ -4198,15 +4106,16 @@
 
         // Agents
         const AGENT_GROUPS = [
-            { label: 'CORE AGENTS', dot: '#534AB7', category: 'CORE AGENT', names: ['Coordinator', 'Sentiment Agent', 'Intent Agent'] },
-            { label: 'PROCESSING AGENTS', dot: '#1D9E75', category: 'PROCESSING AGENT', names: ['Transcription Agent', 'Returns Agent', 'Shipping Agent'] },
-            { label: 'SERVICES', dot: '#0EA5A4', category: 'SERVICE', names: ['Onboarding Agent', 'STT Service', 'TTS Service'] }
+            { label: 'CORE AGENTS', dot: '#534AB7', category: 'CORE AGENT', names: ['Coordinator', 'Sentiment Agent', 'Intent Agent', 'Transcription Agent'] },
+            { label: 'PROCESSING AGENTS', dot: '#1D9E75', category: 'PROCESSING AGENT', names: ['Shipping Agent', 'Returns Agent', 'Onboarding Agent'] },
+            { label: 'SERVICES', dot: '#0EA5A4', category: 'SERVICE', names: ['Escalation Agent', 'STT Service', 'TTS Service'] }
         ];
 
         const AGENT_ICONS = {
             'Coordinator': 'network', 'Sentiment Agent': 'heart-handshake', 'Intent Agent': 'target',
-            'Transcription Agent': 'audio-lines', 'Returns Agent': 'rotate-ccw', 'Shipping Agent': 'truck',
-            'Onboarding Agent': 'user-plus', 'STT Service': 'mic', 'TTS Service': 'volume-2'
+            'Transcription Agent': 'audio-lines',
+            'Shipping Agent': 'truck', 'Returns Agent': 'rotate-ccw', 'Onboarding Agent': 'user-plus',
+            'Escalation Agent': 'alert-circle', 'STT Service': 'mic', 'TTS Service': 'volume-2'
         };
 
         function prettyStatLabel(key) { return key.replace(/_/g, ' ').toUpperCase(); }
@@ -4430,7 +4339,6 @@
             transcription:   { icon: 'fa-file-alt',           color: '#6b7280' },
             stt_service:     { icon: 'fa-microphone',         color: '#14b8a6' },
             tts_service:     { icon: 'fa-volume-up',          color: '#a855f7' },
-            voice_router:    { icon: 'fa-random',             color: '#0ea5e9' },
             user:            { icon: 'fa-user',               color: '#475569' },
             human_operator:  { icon: 'fa-headset',            color: '#f97316' },
             unknown:         { icon: 'fa-question-circle',    color: '#6b7280' }
@@ -4795,7 +4703,7 @@
                 laneMap[agent].push(e);
             });
 
-            var priorityOrder = ['user', 'coordinator', 'sentiment', 'intent', 'shipping', 'returns', 'greeting', 'onboarding', 'escalation', 'transcription', 'stt_service', 'voice_router', 'tts_service', 'human_operator'];
+            var priorityOrder = ['user', 'coordinator', 'sentiment', 'intent', 'shipping', 'returns', 'greeting', 'onboarding', 'escalation', 'transcription', 'stt_service', 'tts_service', 'human_operator'];
             laneOrder.sort(function(a, b) {
                 var ia = priorityOrder.indexOf(a);
                 var ib = priorityOrder.indexOf(b);
@@ -5015,15 +4923,18 @@
             document.getElementById('kpiGrid').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading analytics...</p></div>';
 
             try {
-                const [conversations, painPoints, agentPerf, businessMetrics, textInsights] = await Promise.all([
+                const [conversations, painPoints, businessMetrics] = await Promise.all([
                     fetch(`${API_URL}/admin/analytics/conversations?${params}`).then(r => r.json()).catch(() => null),
                     fetch(`${API_URL}/admin/analytics/pain-points?${params}`).then(r => r.json()).catch(() => null),
-                    fetch(`${API_URL}/admin/analytics/agent-performance?${params}`).then(r => r.json()).catch(() => null),
-                    fetch(`${API_URL}/admin/analytics/business-metrics?${params}`).then(r => r.json()).catch(() => null),
-                    fetch(`${API_URL}/admin/analytics/text-insights?${params}`).then(r => r.json()).catch(() => null)
+                    fetch(`${API_URL}/admin/analytics/business-metrics?${params}`).then(r => r.json()).catch(() => null)
+                    // Live text-insights fetch disabled — using mock keyword data until we have enough
+                    // production sentiment data to populate meaningful word clouds. Restore when ready:
+                    // fetch(`${API_URL}/admin/analytics/text-insights?${params}`).then(r => r.json()).catch(() => null)
                 ]);
 
-                analyticsData = { conversations, painPoints, agentPerf, businessMetrics, textInsights };
+                const textInsights = getKeywordMockData();
+
+                analyticsData = { conversations, painPoints, businessMetrics, textInsights };
 
                 renderKPICards(conversations, businessMetrics);
                 renderInsights(businessMetrics ? businessMetrics.insights : []);
@@ -5031,7 +4942,6 @@
                 renderResolutionDonut(conversations);
                 renderPainPointsChart(painPoints);
                 renderSentimentChart(businessMetrics);
-                renderAgentTable(agentPerf);
                 renderIntentPie(painPoints);
                 renderHeatmap(businessMetrics);
                 renderWordClouds(textInsights);
@@ -5214,7 +5124,11 @@
             destroyChart('painPoints');
             var theme = getThemeColors();
             var ctx = document.getElementById('painPointsChart').getContext('2d');
-            var items = data.intent_distribution.slice(0, 8);
+            // Filter out non-pain-point intents (greeting/close_conversation are flow markers, not pain points)
+            var EXCLUDED_PAIN_POINTS = ['greeting', 'close_conversation'];
+            var items = data.intent_distribution
+                .filter(function(d) { return EXCLUDED_PAIN_POINTS.indexOf(d.label) === -1; })
+                .slice(0, 8);
 
             analyticsCharts.painPoints = new Chart(ctx, {
                 type: 'bar',
@@ -5364,6 +5278,30 @@
             container.innerHTML = html;
         }
 
+        // Placeholder keyword data used while real positive/negative word clouds are gated
+        // on having enough production sentiment data. The live extraction path (server-side
+        // `_extract_words` in get_text_insights) remains intact and can be re-enabled by
+        // restoring the text-insights fetch in loadAnalytics().
+        function getKeywordMockData() {
+            return {
+                negative_word_cloud: [
+                    { word: 'refund', count: 34 }, { word: 'delayed', count: 28 },
+                    { word: 'broken', count: 22 }, { word: 'missing', count: 19 },
+                    { word: 'cancel', count: 16 }, { word: 'wrong', count: 14 },
+                    { word: 'damaged', count: 12 }, { word: 'late', count: 11 },
+                    { word: 'unhappy', count: 9 }, { word: 'complaint', count: 8 },
+                    { word: 'frustrated', count: 7 }, { word: 'lost', count: 6 }
+                ],
+                positive_word_cloud: [
+                    { word: 'thanks', count: 31 }, { word: 'helpful', count: 24 },
+                    { word: 'resolved', count: 20 }, { word: 'quick', count: 17 },
+                    { word: 'great', count: 15 }, { word: 'appreciate', count: 13 },
+                    { word: 'easy', count: 11 }, { word: 'smooth', count: 9 },
+                    { word: 'perfect', count: 8 }, { word: 'friendly', count: 7 }
+                ]
+            };
+        }
+
         function renderWordClouds(data) {
             var container = document.getElementById('wordCloudContainer');
             if (!data) {
@@ -5403,6 +5341,13 @@
             '#3b82f6','#10b981','#f59e0b','#8b5cf6',
             '#ef4444','#ec4899','#06b6d4','#84cc16'
         ];
+
+        function hexToRgba(hex, alpha) {
+            var r = parseInt(hex.slice(1, 3), 16);
+            var g = parseInt(hex.slice(3, 5), 16);
+            var b = parseInt(hex.slice(5, 7), 16);
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+        }
 
         function setPerfDateRange(days, btn) {
             document.querySelectorAll('#performance-section .analytics-preset').forEach(function(b){ b.classList.remove('active'); });
@@ -5450,21 +5395,29 @@
             var rng = _perfRng(seed);
             var jitter = function(base, pct) { return base * (1 + (rng() - 0.5) * 2 * pct); };
 
-            // Base stats calibrated for a 30-day window; scale linearly with days
-            var scale = days / 30;
+            // Pre-production mock totals calibrated to 50–200 actions per agent so the
+            // dashboard reads as plausible demo data rather than production-scale traffic.
+            // Scale is bounded so short ranges (e.g. 1 day) don't collapse below the floor.
+            //
+            // Success rates are intentionally fixed (no jitter) so the agent comparison table
+            // shows exact values: intent at 92.3% (only agent with a sub-perfect rate) and all
+            // others at 100%. Combined with intent's lower action count, the weighted system
+            // success rate KPI in the top-left card lands in the 99.x range.
+            var scale = Math.min(1, Math.max(0.6, days / 30));
             var AGENTS_BASE = [
-                { name: 'coordinator',   total: 6840,  successRate: 94.4, conf: 0.89, trend: +1.8, health: 'online', icon: 'sitemap' },
-                { name: 'sentiment',     total: 4102,  successRate: 97.9, conf: 0.94, trend: +0.4, health: 'online', icon: 'heart' },
-                { name: 'intent',        total: 4098,  successRate: 93.0, conf: 0.87, trend: -0.7, health: 'online', icon: 'tag' },
-                { name: 'shipping',      total: 1876,  successRate: 97.0, conf: 0.93, trend: +0.9, health: 'online', icon: 'truck' },
-                { name: 'transcription', total: 1247,  successRate: 88.9, conf: 0.82, trend: +2.1, health: 'online', icon: 'microphone' },
-                { name: 'returns',       total: 984,   successRate: 94.3, conf: 0.91, trend: -1.2, health: 'online', icon: 'undo' },
-                { name: 'onboarding',    total: 412,   successRate: 95.6, conf: 0.88, trend: +3.4, health: 'online', icon: 'user-plus' }
+                { name: 'coordinator',   total: 200, successRate: 100,  conf: 0.89, trend: +1.8, health: 'online', icon: 'sitemap' },
+                { name: 'sentiment',     total: 175, successRate: 100,  conf: 0.94, trend: +0.4, health: 'online', icon: 'heart' },
+                { name: 'intent',        total: 100, successRate: 92.3, conf: 0.87, trend: -0.7, health: 'online', icon: 'tag' },
+                { name: 'shipping',      total: 142, successRate: 100,  conf: 0.93, trend: +0.9, health: 'online', icon: 'truck' },
+                { name: 'transcription', total: 118, successRate: 100,  conf: 0.82, trend: +2.1, health: 'online', icon: 'microphone' },
+                { name: 'returns',       total:  95, successRate: 100,  conf: 0.91, trend: -1.2, health: 'online', icon: 'undo' },
+                { name: 'onboarding',    total:  52, successRate: 100,  conf: 0.88, trend: +3.4, health: 'online', icon: 'user-plus' }
             ];
 
             var agents = AGENTS_BASE.map(function(a) {
                 var total      = Math.round(jitter(a.total * scale, 0.08));
-                var rate       = Math.min(100, Math.max(50, jitter(a.successRate, 0.03)));
+                total          = Math.max(50, Math.min(200, total));
+                var rate       = a.successRate;
                 var successful = Math.round(total * rate / 100);
                 var conf       = Math.min(1, Math.max(0.5, jitter(a.conf, 0.04)));
                 var trend      = parseFloat((a.trend + (rng() - 0.5) * 0.6).toFixed(1));
@@ -5590,7 +5543,7 @@
             renderPerfKPIs(agentPerf);
             renderAgentStatusStrip(liveAgents, agentPerf);
             renderSuccessBar(agentPerf);
-            renderRadarChart(agentPerf);
+            renderBubbleChart(agentPerf);
             renderTimelineChart(timeline);
             renderEscalationBar(agentPerf);
             renderComparisonTable(agentPerf, liveAgents);
@@ -5711,50 +5664,109 @@
             });
         }
 
-        function renderRadarChart(data) {
-            destroyPerfChart('radar');
+        function renderBubbleChart(data) {
+            destroyPerfChart('bubble');
             if (!data || !data.agents || !data.agents.length) return;
             var theme  = getThemeColors();
-            var agents = data.agents;
 
-            // Metrics: success_rate (0-100), avg_confidence (0-1 → ×100), total_actions (normalise to 100)
-            var maxActions = Math.max.apply(null, agents.map(function(a){ return a.total_actions||0; })) || 1;
+            // Focus the perf map on customer-facing decision agents.
+            // Coordinator, transcription and onboarding are excluded from the chart and legend
+            // (they still appear in other perf widgets like the comparison table and timeline).
+            var BUBBLE_EXCLUDED = ['coordinator', 'transcription', 'onboarding'];
 
-            var datasets = agents.map(function(a, i) {
-                var color = AGENT_COLORS[i % AGENT_COLORS.length];
+            // Pair each agent with its palette color BEFORE filtering so visible agents
+            // keep the same colour they have everywhere else on this page.
+            var visibleAgents = data.agents
+                .map(function(a, i) { return { agent: a, color: AGENT_COLORS[i % AGENT_COLORS.length] }; })
+                .filter(function(x) { return BUBBLE_EXCLUDED.indexOf(x.agent.name) === -1; });
+
+            if (!visibleAgents.length) return;
+
+            // Map total_actions to a pixel radius so overplotting stays readable.
+            // Smaller minimum keeps dense areas distinguishable; semi-transparent fills
+            // make overlapping bubbles visible.
+            var maxActions = Math.max.apply(null, visibleAgents.map(function(x){ return x.agent.total_actions||0; })) || 1;
+            var minR = 8, maxR = 28;
+
+            var datasets = visibleAgents.map(function(x) {
+                var a = x.agent;
+                var color = x.color;
+                var actions = a.total_actions || 0;
+                var radius  = minR + (actions / maxActions) * (maxR - minR);
                 return {
                     label: a.name,
-                    data: [
-                        a.success_rate || 0,
-                        (a.avg_confidence || 0) * 100,
-                        Math.round(((a.total_actions||0) / maxActions) * 100)
-                    ],
+                    data: [{
+                        x: a.success_rate || 0,
+                        y: (a.avg_confidence || 0) * 100,
+                        r: radius,
+                        actions: actions
+                    }],
+                    backgroundColor: hexToRgba(color, 0.5),
                     borderColor: color,
-                    backgroundColor: color.replace(')', ',0.12)').replace('rgb', 'rgba'),
-                    borderWidth: 2,
-                    pointRadius: 4
+                    borderWidth: 1.5,
+                    hoverBackgroundColor: hexToRgba(color, 0.7),
+                    hoverBorderWidth: 2
                 };
             });
 
-            var ctx = document.getElementById('perfRadarChart');
+            // Zoom each axis to the visible data so bubbles aren't squashed into a corner
+            // of a 0–100 grid. Pad lightly on the numeric range and add pixel padding via
+            // layout so high-value bubbles (near 100%) still render fully.
+            function axisRange(values, padding, hardMin, hardMax, minSpan) {
+                if (!values.length) return { min: hardMin, max: hardMax };
+                var lo = Math.min.apply(null, values);
+                var hi = Math.max.apply(null, values);
+                var min = Math.max(hardMin, Math.floor(lo - padding));
+                var max = Math.min(hardMax, Math.ceil(hi + padding));
+                if ((max - min) < minSpan) {
+                    var c = (min + max) / 2;
+                    min = Math.max(hardMin, Math.floor(c - minSpan / 2));
+                    max = Math.min(hardMax, Math.ceil(c + minSpan / 2));
+                }
+                return { min: min, max: max };
+            }
+            var xVals = visibleAgents.map(function(x){ return x.agent.success_rate || 0; });
+            var yVals = visibleAgents.map(function(x){ return (x.agent.avg_confidence || 0) * 100; });
+            var xRange = axisRange(xVals, 4, 0, 100, 14);
+            var yRange = axisRange(yVals, 4, 0, 100, 14);
+
+            var ctx = document.getElementById('perfBubbleChart');
             if (!ctx) return;
-            perfCharts.radar = new Chart(ctx.getContext('2d'), {
-                type: 'radar',
-                data: {
-                    labels: ['Success Rate', 'Confidence', 'Relative Volume'],
-                    datasets: datasets
-                },
+            perfCharts.bubble = new Chart(ctx.getContext('2d'), {
+                type: 'bubble',
+                data: { datasets: datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: { legend: { position: 'bottom', labels: { color: theme.subtext, boxWidth: 12 } } },
+                    layout: { padding: { top: 16, right: 24, bottom: 8, left: 8 } },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: theme.subtext, boxWidth: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var d = ctx.raw;
+                                    return [
+                                        ctx.dataset.label,
+                                        'Success: ' + d.x.toFixed(1) + '%',
+                                        'Confidence: ' + d.y.toFixed(1) + '%',
+                                        'Actions: ' + (d.actions || 0).toLocaleString()
+                                    ];
+                                }
+                            }
+                        }
+                    },
                     scales: {
-                        r: {
-                            min: 0, max: 100,
-                            ticks: { display: false },
+                        x: {
+                            min: xRange.min, max: xRange.max,
+                            title: { display: true, text: 'Success Rate (%)', color: theme.subtext },
                             grid:  { color: theme.grid },
-                            angleLines: { color: theme.grid },
-                            pointLabels: { color: theme.subtext, font: { size: 11 } }
+                            ticks: { color: theme.subtext, callback: function(v){ return v + '%'; } }
+                        },
+                        y: {
+                            min: yRange.min, max: yRange.max,
+                            title: { display: true, text: 'Confidence (%)', color: theme.subtext },
+                            grid:  { color: theme.grid },
+                            ticks: { color: theme.subtext, callback: function(v){ return v + '%'; } }
                         }
                     }
                 }
@@ -5866,9 +5878,6 @@
                 var barCls = a.success_rate >= 80 ? 'good' : a.success_rate >= 60 ? 'medium' : 'poor';
                 var confBarCls = (a.avg_confidence * 100) >= 80 ? 'good' : (a.avg_confidence * 100) >= 60 ? 'medium' : 'poor';
 
-                var trendArrow = a.trend > 0 ? '▲' : a.trend < 0 ? '▼' : '—';
-                var trendCls   = a.trend > 0 ? 'perf-trend-up' : a.trend < 0 ? 'perf-trend-down' : 'perf-trend-flat';
-
                 return '<tr class="perf-row" onclick="openPerfModal(\'' + escapeHtml(a.name) + '\')">' +
                     '<td><strong>' + escapeHtml(a.name) + '</strong></td>' +
                     '<td><span style="display:inline-flex;align-items:center;gap:6px;">' +
@@ -5884,7 +5893,6 @@
                         '<div class="perf-bar"><div class="perf-bar-fill ' + confBarCls + '" style="width:' + ((a.avg_confidence||0)*100).toFixed(1) + '%"></div></div>' +
                         '<span class="perf-bar-label">' + (a.avg_confidence||0).toFixed(2) + '</span>' +
                     '</div></td>' +
-                    '<td class="' + trendCls + '">' + trendArrow + ' ' + Math.abs(a.trend||0).toFixed(1) + '%</td>' +
                     '</tr>';
             }).join('');
 
@@ -5892,7 +5900,7 @@
                 '<table class="table">' +
                 '<thead><tr>' +
                 '<th>Agent</th><th>Live Status</th><th>Actions</th>' +
-                '<th>Success Rate</th><th>Confidence</th><th>WoW Trend</th>' +
+                '<th>Success Rate</th><th>Confidence</th>' +
                 '</tr></thead>' +
                 '<tbody>' + rows + '</tbody>' +
                 '</table>';
@@ -6256,7 +6264,7 @@
         } else {
             bootstrapIcons();
         }
-        loadOverview();
+        showSection('agents');
     </script>
 </body>
 </html>
