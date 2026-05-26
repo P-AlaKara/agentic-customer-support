@@ -3671,7 +3671,7 @@
 
             statusFilter.innerHTML = `
                 <option value="">All</option>
-                <option value="ESCALATED_TO_HUMAN">Escalated</option>
+                <option value="RESOLVED_BY_HUMAN">Resolved by Human</option>
                 <option value="RESOLVED_BY_AGENT">Resolved by Agent</option>
             `;
         }
@@ -5236,7 +5236,7 @@
                 { label: 'Total Conversations', value: conv.total_conversations || 0, change: cmp.conversations_change || 0, format: 'number', icon: 'comments', goodDir: 'neutral' },
                 { label: 'Resolution Rate', value: conv.resolution_rate || 0, change: cmp.resolution_change || 0, format: 'percent', icon: 'check-circle', goodDir: 'up' },
                 { label: 'Avg Handle Time', value: conv.avg_duration_seconds || 0, change: cmp.duration_change || 0, format: 'duration', icon: 'clock', goodDir: 'down' },
-                { label: 'Escalation Rate', value: conv.escalation_rate || 0, change: cmp.escalation_change || 0, format: 'percent', icon: 'exclamation-triangle', goodDir: 'down' }
+                { label: 'Human Resolved', value: conv.human_resolved_rate || 0, change: cmp.human_resolved_change || 0, format: 'percent', icon: 'user', goodDir: 'neutral' }
             ];
 
             const html = cards.map(function(card, i) {
@@ -5344,24 +5344,37 @@
             destroyChart('resolution');
             var theme = getThemeColors();
             var ctx = document.getElementById('resolutionChart').getContext('2d');
-            var breakdown = data.status_breakdown || {};
-            var labels = Object.keys(breakdown);
-            var values = Object.values(breakdown);
-            if (!labels.length) return;
 
-            var colors = labels.map(function(l) {
-                var u = l.toUpperCase();
-                if (u.indexOf('RESOLVED') >= 0 && u.indexOf('OPERATOR') < 0) return '#10b981';
-                if (u.indexOf('OPERATOR') >= 0 || u.indexOf('HUMAN') >= 0) return '#3b82f6';
-                if (u.indexOf('ESCALATED') >= 0) return '#f59e0b';
-                return '#6b7280';
+            // Merge ESCALATED_TO_HUMAN into RESOLVED_BY_HUMAN
+            var rawBreakdown = data.status_breakdown || {};
+            var breakdown = {};
+            Object.keys(rawBreakdown).forEach(function(k) {
+                var key = k.toUpperCase() === 'ESCALATED_TO_HUMAN' ? 'RESOLVED_BY_HUMAN' : k;
+                breakdown[key] = (breakdown[key] || 0) + rawBreakdown[k];
             });
+
+            var LABEL_MAP = {
+                'RESOLVED_BY_AGENT': 'Resolved by Agent',
+                'RESOLVED_BY_HUMAN': 'Resolved by Human',
+                'UNKNOWN': 'Unknown'
+            };
+            var COLOR_MAP = {
+                'RESOLVED_BY_AGENT': '#10b981',  // green
+                'RESOLVED_BY_HUMAN': '#3b82f6'   // blue
+            };
+
+            var keys = Object.keys(breakdown);
+            var labels = keys.map(function(k) { return LABEL_MAP[k] || k.replace(/_/g, ' '); });
+            var values = keys.map(function(k) { return breakdown[k]; });
+            var colors = keys.map(function(k) { return COLOR_MAP[k] || '#6b7280'; });
+
+            if (!keys.length) return;
 
             var resRate = data.resolution_rate;
             analyticsCharts.resolution = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: labels.map(function(l) { return l.replace(/_/g, ' '); }),
+                    labels: labels,
                     datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }]
                 },
                 options: {

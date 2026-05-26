@@ -1996,21 +1996,21 @@ def _safe_pct(numerator, denominator):
 def _generate_insights(current, previous):
     insights = []
 
-    cur_esc = current.get('escalation_rate', 0)
-    prev_esc = previous.get('escalation_rate', 0)
-    if prev_esc and cur_esc > prev_esc * 1.1:
-        diff = round(cur_esc - prev_esc, 1)
+    cur_human = current.get('human_resolved_rate', 0)
+    prev_human = previous.get('human_resolved_rate', 0)
+    if prev_human and cur_human > prev_human * 1.1:
+        diff = round(cur_human - prev_human, 1)
         insights.append({
             "type": "warning", "icon": "exclamation-triangle",
-            "title": f"Escalation rate increased {diff}%",
-            "detail": "More conversations are being escalated to human operators",
+            "title": f"Human-resolved rate increased {diff}%",
+            "detail": "More conversations are being resolved by human operators",
             "recommendation": "Review escalation triggers and agent training data"
         })
-    elif prev_esc and cur_esc < prev_esc * 0.9:
-        diff = round(prev_esc - cur_esc, 1)
+    elif prev_human and cur_human < prev_human * 0.9:
+        diff = round(prev_human - cur_human, 1)
         insights.append({
             "type": "success", "icon": "check-circle",
-            "title": f"Escalation rate decreased {diff}%",
+            "title": f"Human-resolved rate decreased {diff}%",
             "detail": "Agents are resolving more issues independently",
             "recommendation": "Document current practices as baseline"
         })
@@ -2055,7 +2055,7 @@ def _generate_insights(current, previous):
         insights.append({
             "type": "warning", "icon": "chart-line",
             "title": f"Low resolution rate ({round(res_rate, 1)}%)",
-            "detail": "Many conversations require escalation",
+            "detail": "Many conversations require human intervention",
             "recommendation": "Review knowledge base coverage and agent training"
         })
 
@@ -2091,6 +2091,7 @@ async def get_conversation_analytics(
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
+                    COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved,
                     AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
@@ -2102,6 +2103,7 @@ async def get_conversation_analytics(
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
+                    COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved,
                     AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
@@ -2145,21 +2147,33 @@ async def get_conversation_analytics(
         total = summary['total'] or 0
         resolved = summary['resolved'] or 0
         escalated = summary['escalated'] or 0
+        human_resolved = summary['human_resolved'] or 0
         prev_total = prev_summary['total'] or 0
         prev_resolved = prev_summary['resolved'] or 0
+        prev_human_resolved = prev_summary['human_resolved'] or 0
 
         resolution_rate = _safe_pct(resolved, total)
         escalation_rate = _safe_pct(escalated, total)
+        human_resolved_rate = _safe_pct(human_resolved, total)
         prev_resolution_rate = _safe_pct(prev_resolved, prev_total)
         prev_escalation_rate = _safe_pct(prev_summary['escalated'] or 0, prev_total)
+        prev_human_resolved_rate = _safe_pct(prev_human_resolved, prev_total)
+
+        # Merge ESCALATED_TO_HUMAN into RESOLVED_BY_HUMAN in the breakdown
+        raw_breakdown = {row['status']: row['count'] for row in status_rows}
+        merged_breakdown = {}
+        for status, count in raw_breakdown.items():
+            key = 'RESOLVED_BY_HUMAN' if status == 'ESCALATED_TO_HUMAN' else status
+            merged_breakdown[key] = merged_breakdown.get(key, 0) + count
 
         return {
             "total_conversations": total,
             "avg_duration_seconds": round(summary['avg_duration'] or 0, 1),
             "resolution_rate": resolution_rate,
             "escalation_rate": escalation_rate,
+            "human_resolved_rate": human_resolved_rate,
             "avg_messages_per_conversation": round(msg_stats['avg_messages'] or 0, 1),
-            "status_breakdown": {row['status']: row['count'] for row in status_rows},
+            "status_breakdown": merged_breakdown,
             "conversations_over_time": [
                 {
                     "date": row['date'].strftime('%Y-%m-%d') if row['date'] else None,
@@ -2173,7 +2187,8 @@ async def get_conversation_analytics(
                 "conversations_change": round(((total - prev_total) / prev_total * 100) if prev_total else 0, 1),
                 "resolution_change": round(resolution_rate - prev_resolution_rate, 1),
                 "duration_change": round((summary['avg_duration'] or 0) - (prev_summary['avg_duration'] or 0), 1),
-                "escalation_change": round(escalation_rate - prev_escalation_rate, 1)
+                "escalation_change": round(escalation_rate - prev_escalation_rate, 1),
+                "human_resolved_change": round(human_resolved_rate - prev_human_resolved_rate, 1)
             }
         }
     except HTTPException:
@@ -2453,7 +2468,8 @@ async def get_business_metrics(
                 SELECT
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s AND operator_id IS NULL) as first_contact,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
+                    COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
             """, ('%RESOLVED%', '%ESCALATED%', d_from, d_to))
@@ -2509,7 +2525,8 @@ async def get_business_metrics(
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
                     AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s AND operator_id IS NULL) as first_contact
+                    COUNT(*) FILTER (WHERE final_status ILIKE %s AND operator_id IS NULL) as first_contact,
+                    COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
             """, ('%RESOLVED%', '%ESCALATED%', '%RESOLVED%', prev_from, prev_to))
@@ -2530,6 +2547,8 @@ async def get_business_metrics(
         fcr_rate = _safe_pct(fcr['first_contact'] or 0, fcr_total)
         prev_fcr_rate = _safe_pct(prev_metrics['first_contact'] or 0, prev_metrics['total'] or 0)
         cur_esc_rate = _safe_pct(fcr['escalated'] or 0, fcr_total)
+        cur_human_resolved_rate = _safe_pct(fcr['human_resolved'] or 0, fcr_total)
+        prev_human_resolved_rate = _safe_pct(prev_metrics['human_resolved'] or 0, prev_metrics['total'] or 0)
 
         hour_volumes = {}
         for row in heatmap_data:
@@ -2542,6 +2561,7 @@ async def get_business_metrics(
 
         current_insight_data = {
             'escalation_rate': cur_esc_rate,
+            'human_resolved_rate': cur_human_resolved_rate,
             'resolution_rate': _safe_pct(fcr['first_contact'] or 0, fcr_total) if fcr_total else 0,
             'negative_pct': cur_neg_pct,
             'total_conversations': fcr_total,
@@ -2552,6 +2572,7 @@ async def get_business_metrics(
         }
         previous_insight_data = {
             'escalation_rate': _safe_pct(prev_metrics['escalated'] or 0, prev_metrics['total'] or 0),
+            'human_resolved_rate': prev_human_resolved_rate,
             'resolution_rate': prev_fcr_rate,
             'avg_duration': prev_metrics['avg_duration'] or 0
         }
