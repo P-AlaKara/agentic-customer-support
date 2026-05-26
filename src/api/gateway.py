@@ -620,6 +620,19 @@ async def submit_review(review: ReviewRequest):
         if not row:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
+        # Continuous-improvement pipeline: poorly-rated conversations get a
+        # background critique. Wrapped so any failure here never affects the
+        # user-facing review response.
+        if review.review_score <= 3:
+            try:
+                try:
+                    from ..improvement.trigger import enqueue as enqueue_critique
+                except (ImportError, ValueError):
+                    from src.improvement.trigger import enqueue as enqueue_critique
+                asyncio.create_task(enqueue_critique(conv_uuid, review.review_score))
+            except Exception as e:
+                logger.error(f"[API] Failed to enqueue improvement critique: {e}", exc_info=True)
+
         return {
             "status": "success",
             "conversation_id": str(row["conversation_id"]),
@@ -1297,33 +1310,48 @@ async def list_conversations(
         from ..utils.database import get_db_connection
         db_conn = get_db_connection()
 
+        # LEFT JOIN with a lateral subquery picks each conversation's most-recent
+        # critique (if any) so the UI can render the Critique column without
+        # making N follow-up requests.
         query = """
             SELECT
-                conversation_id,
-                customer_id,
-                start_time,
-                end_time,
-                final_status,
-                review_score,
-                operator_id
-            FROM completed_conversations
+                c.conversation_id,
+                c.customer_id,
+                c.start_time,
+                c.end_time,
+                c.final_status,
+                c.review_score,
+                c.operator_id,
+                cc.critique_id,
+                cc.severity AS critique_severity,
+                cc.root_cause_agent AS critique_root_cause_agent,
+                cc.rating_seems_fair AS critique_rating_seems_fair,
+                cc.error AS critique_error
+            FROM completed_conversations c
+            LEFT JOIN LATERAL (
+                SELECT critique_id, severity, root_cause_agent, rating_seems_fair, error
+                FROM conversation_critiques
+                WHERE conversation_id = c.conversation_id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) cc ON true
             WHERE 1=1
         """
         params: list = []
 
         if session_id:
-            query += " AND conversation_id::text ILIKE %s"
+            query += " AND c.conversation_id::text ILIKE %s"
             params.append(f"%{session_id}%")
 
         if final_status:
-            query += " AND final_status ILIKE %s"
+            query += " AND c.final_status ILIKE %s"
             params.append(f"%{final_status}%")
 
         if review_score is not None:
-            query += " AND review_score = %s"
+            query += " AND c.review_score = %s"
             params.append(review_score)
 
-        query += " ORDER BY start_time DESC NULLS LAST LIMIT %s"
+        query += " ORDER BY c.start_time DESC NULLS LAST LIMIT %s"
         params.append(limit)
 
         with db_conn.get_cursor() as cursor:
@@ -1338,12 +1366,216 @@ async def list_conversations(
                 row_dict['start_time'] = row_dict['start_time'].isoformat()
             if row_dict.get('end_time'):
                 row_dict['end_time'] = row_dict['end_time'].isoformat()
+            if row_dict.get('critique_id'):
+                row_dict['critique_id'] = str(row_dict['critique_id'])
             data.append(row_dict)
 
         return {"count": len(data), "data": data}
 
     except Exception as e:
         logger.error(f"[API] Error listing conversations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Critique Endpoints (continuous improvement pipeline)
+# ============================================================================
+
+def _serialize_critique_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a conversation_critiques row to a JSON-friendly dict."""
+    out = dict(row)
+    for k in ("critique_id", "conversation_id"):
+        if out.get(k) is not None:
+            out[k] = str(out[k])
+    if out.get("created_at"):
+        out["created_at"] = out["created_at"].isoformat()
+    return out
+
+
+@app.get("/admin/critiques/by-conversation/{conversation_id}")
+async def get_critique_by_conversation(conversation_id: str):
+    """Return the most-recent critique for a conversation (with applied-fix decisions joined)."""
+    try:
+        try:
+            from ..improvement.store import get_latest_for_conversation
+            from ..utils.database import get_db_connection, ensure_uuid
+        except (ImportError, ValueError):
+            from src.improvement.store import get_latest_for_conversation
+            from src.utils.database import get_db_connection, ensure_uuid
+
+        row = get_latest_for_conversation(conversation_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="No critique found")
+
+        critique = _serialize_critique_row(row)
+
+        # Pull fix decisions so the UI can render Applied/Dismissed state per fix.
+        with get_db_connection().get_cursor() as cur:
+            cur.execute(
+                """SELECT fix_index, status, note, updated_at
+                   FROM fix_application_log
+                   WHERE critique_id = %s""",
+                (str(ensure_uuid(critique["critique_id"])),),
+            )
+            decisions = cur.fetchall()
+        critique["fix_decisions"] = {
+            d["fix_index"]: {
+                "status": d["status"],
+                "note": d.get("note"),
+                "updated_at": d["updated_at"].isoformat() if d.get("updated_at") else None,
+            }
+            for d in decisions
+        }
+        return critique
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error getting critique: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/critiques/by-conversation/{conversation_id}/run")
+async def run_critique_for_conversation(conversation_id: str):
+    """Run the improvement pipeline synchronously for an arbitrary conversation.
+
+    Used by the dashboard's per-row "Critique" button. This blocks for ~5-15s
+    while Claude judges the conversation, so the caller gets the result back
+    in one response. Offloaded to a worker thread so the API event loop stays
+    free to serve other requests.
+    """
+    try:
+        try:
+            from ..improvement import ingest, judge, store
+            from ..utils.database import get_db_connection, ensure_uuid
+        except (ImportError, ValueError):
+            from src.improvement import ingest, judge, store
+            from src.utils.database import get_db_connection, ensure_uuid
+
+        conv_uuid = str(ensure_uuid(conversation_id))
+
+        with get_db_connection().get_cursor() as cur:
+            cur.execute(
+                "SELECT review_score FROM completed_conversations WHERE conversation_id = %s",
+                (conv_uuid,),
+            )
+            r = cur.fetchone()
+        if not r:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        review_score = r.get("review_score")
+        if review_score is None or review_score > 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Critiques are only meaningful for conversations rated <= 3 stars",
+            )
+
+        def _do_work():
+            payload = ingest.build_payload(conv_uuid)
+            if payload is None:
+                return None, None, "no payload could be built"
+            critique_obj, raw, error = judge.critique(payload)
+            critique_id = store.write_critique(
+                conversation_id=conv_uuid,
+                review_score=review_score,
+                prompt_version=os.getenv("JUDGE_PROMPT_VERSION", "judge-v1"),
+                model=os.getenv("JUDGE_MODEL", "claude-sonnet-4-6"),
+                critique=critique_obj,
+                raw_response=raw,
+                error=error,
+            )
+            return critique_id, critique_obj, error
+
+        critique_id, critique_obj, error = await asyncio.to_thread(_do_work)
+        if critique_id is None:
+            raise HTTPException(status_code=500, detail=error or "failed to write critique")
+
+        # Return the freshly-written critique so the UI can update without a follow-up GET.
+        row = store.get_critique(critique_id)
+        if not row:
+            raise HTTPException(status_code=500, detail="critique written but could not be re-read")
+        result = _serialize_critique_row(row)
+        result["fix_decisions"] = {}
+        if error:
+            result["judge_error"] = error
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error running critique: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/critiques/{critique_id}/rerun")
+async def rerun_critique(critique_id: str):
+    """Re-run the judge against the same conversation with the current prompt version.
+
+    The previous critique is deleted first, so re-runs don't accumulate.
+    """
+    try:
+        try:
+            from ..improvement.store import get_critique, delete_critique
+            from ..utils.database import ensure_uuid
+        except (ImportError, ValueError):
+            from src.improvement.store import get_critique, delete_critique
+            from src.utils.database import ensure_uuid
+
+        old = get_critique(critique_id)
+        if not old:
+            raise HTTPException(status_code=404, detail="Critique not found")
+        conv_id = str(old["conversation_id"])
+        delete_critique(critique_id)
+        return await run_critique_for_conversation(conv_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error rerunning critique: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/admin/critiques/{critique_id}")
+async def delete_critique_endpoint(critique_id: str):
+    """Delete a single critique (and its fix-application log via ON DELETE CASCADE)."""
+    try:
+        try:
+            from ..improvement.store import delete_critique
+        except (ImportError, ValueError):
+            from src.improvement.store import delete_critique
+
+        ok = delete_critique(critique_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Critique not found")
+        return {"status": "deleted", "critique_id": critique_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error deleting critique: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class FixDecisionRequest(BaseModel):
+    status: str = Field(..., description="'applied' or 'dismissed'")
+    note: Optional[str] = None
+
+
+@app.post("/admin/critiques/{critique_id}/fixes/{fix_index}")
+async def mark_critique_fix(critique_id: str, fix_index: int, decision: FixDecisionRequest):
+    """Record operator decision (applied/dismissed) on a single suggested fix."""
+    try:
+        try:
+            from ..improvement.store import mark_fix
+        except (ImportError, ValueError):
+            from src.improvement.store import mark_fix
+
+        ok = mark_fix(critique_id, fix_index, decision.status, decision.note)
+        if not ok:
+            raise HTTPException(status_code=500, detail="Failed to record fix decision")
+        return {"status": decision.status, "critique_id": critique_id, "fix_index": fix_index}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error marking fix: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

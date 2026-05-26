@@ -12,5 +12,6 @@ setup(
         "python-dotenv",
         "faster-whisper",
         "edge-tts",
+        "anthropic",
     ],
 )

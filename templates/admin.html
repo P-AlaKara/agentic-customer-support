@@ -3801,17 +3801,19 @@
                     const shortId = String(row.conversation_id || '').substring(0, 8);
                     const score = row.review_score;
                     const stars = score ? renderStars(score) : '<span style="color:var(--text-muted);">-</span>';
-                    return `<tr class="clickable" onclick="loadTranscriptById('${escapeHtml(row.conversation_id)}')">
-                        <td><code style="font-size:11px;" title="${escapeHtml(row.conversation_id)}">${escapeHtml(shortId)}...</code></td>
+                    const convIdAttr = escapeHtml(row.conversation_id);
+                    return `<tr class="clickable" onclick="loadTranscriptById('${convIdAttr}')">
+                        <td><code style="font-size:11px;" title="${convIdAttr}">${escapeHtml(shortId)}...</code></td>
                         <td>${formatDateTime(row.start_time)}</td>
                         <td>${row.end_time ? formatDateTime(row.end_time) : '<span style="color:var(--text-muted);">-</span>'}</td>
                         <td><span class="badge badge-${getStatusBadgeClass(row.final_status)}">${escapeHtml(row.final_status || 'UNKNOWN')}</span></td>
                         <td>${stars}</td>
+                        <td data-critique-cell="${convIdAttr}">${renderCritiqueCell(row)}</td>
                     </tr>`;
                 }).join('');
 
                 table.innerHTML = `<table>
-                    <thead><tr><th>Session ID</th><th>Start</th><th>End</th><th>Status</th><th>Review</th></tr></thead>
+                    <thead><tr><th>Session ID</th><th>Start</th><th>End</th><th>Status</th><th>Review</th><th>Critique</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;
             } catch (error) {
@@ -3827,6 +3829,76 @@
             }
             html += '</span>';
             return html;
+        }
+
+        // ===================================================================
+        // Continuous-improvement critique UI
+        // ===================================================================
+
+        function severityBadgeClass(sev) {
+            switch ((sev || '').toLowerCase()) {
+                case 'critical': return 'error';
+                case 'high':     return 'error';
+                case 'medium':   return 'warning';
+                case 'low':      return 'info';
+                default:         return 'neutral';
+            }
+        }
+
+        function renderCritiqueCell(row) {
+            const score = row.review_score;
+            const convIdAttr = escapeHtml(row.conversation_id);
+            // Not applicable: no rating, or rating > 3
+            if (score == null || score > 3) {
+                return '<span style="color:var(--text-muted);">-</span>';
+            }
+            // Critique exists
+            if (row.critique_id) {
+                if (row.critique_error) {
+                    return `<span class="badge badge-neutral" title="${escapeHtml(row.critique_error)}" onclick="event.stopPropagation();">Failed</span>`;
+                }
+                const sev = row.critique_severity || 'unknown';
+                const fair = row.critique_rating_seems_fair;
+                const fairTag = fair === false ? ' <span style="color:var(--text-muted); font-size:10px;">(unfair)</span>' : '';
+                return `<span class="badge badge-${severityBadgeClass(sev)}" onclick="event.stopPropagation();" title="Click the row to see full critique">${escapeHtml(sev)}</span>${fairTag}`;
+            }
+            // Eligible but not yet critiqued: show button
+            return `<button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;"
+                            onclick="event.stopPropagation(); runCritique('${convIdAttr}', this);">
+                <i class="fas fa-magic"></i> Critique
+            </button>`;
+        }
+
+        async function runCritique(convId, btnEl) {
+            const cell = btnEl.closest('td');
+            if (cell) cell.innerHTML = '<span class="loading" style="display:inline-block;"><span class="spinner" style="width:14px;height:14px;border-width:2px;"></span></span>';
+            try {
+                const resp = await fetch(`${API_URL}/admin/critiques/by-conversation/${encodeURIComponent(convId)}/run`, {
+                    method: 'POST',
+                });
+                if (!resp.ok) {
+                    const detail = (await resp.json().catch(() => ({}))).detail || resp.statusText;
+                    throw new Error(detail);
+                }
+                const critique = await resp.json();
+                // Update the cell to a severity badge, mirroring renderCritiqueCell's success branch
+                const fakeRow = {
+                    conversation_id: convId,
+                    review_score: critique.review_score,
+                    critique_id: critique.critique_id,
+                    critique_severity: critique.severity,
+                    critique_rating_seems_fair: critique.rating_seems_fair,
+                    critique_error: critique.error,
+                };
+                if (cell) cell.innerHTML = renderCritiqueCell(fakeRow);
+            } catch (err) {
+                console.error('runCritique failed:', err);
+                if (cell) {
+                    cell.innerHTML = `<span style="color: var(--error, #b91c1c); font-size:11px;" title="${escapeHtml(String(err.message || err))}">Failed</span>
+                        <button class="btn btn-secondary" style="padding:2px 8px; font-size:11px; margin-left:6px;"
+                                onclick="event.stopPropagation(); runCritique('${escapeHtml(convId)}', this);">Retry</button>`;
+                }
+            }
         }
 
         async function loadTranscriptById(convId) {
@@ -3878,6 +3950,8 @@
                             </div>` : ''}
                         </div>
 
+                        <div id="critiqueContent" data-conv-id="${escapeHtml(convId)}"></div>
+
                         <div class="card">
                             <div class="card-title"><i class="fas fa-comments"></i> Message Transcript</div>
                             <div class="transcript-messages">
@@ -3886,14 +3960,14 @@
                                         <i class="fas fa-inbox"></i>
                                         <p>No messages found for this conversation.</p>
                                     </div>
-                                ` : transcriptMessages.map(msg => `
-                                    <div class="transcript-message">
+                                ` : transcriptMessages.map((msg, idx) => `
+                                    <div class="transcript-message" data-turn="${idx + 1}">
                                         <div class="message-avatar">
                                             <i class="fas fa-${['USER', 'CUSTOMER'].includes(String(msg.sender || '').toUpperCase()) ? 'user' : 'robot'}"></i>
                                         </div>
                                         <div class="message-content">
                                             <div class="message-header">
-                                                <div class="message-sender">${escapeHtml(msg.sender || 'UNKNOWN')}</div>
+                                                <div class="message-sender">Turn ${idx + 1} &middot; ${escapeHtml(msg.sender || 'UNKNOWN')}</div>
                                                 <div class="message-time">${formatTime(msg.timestamp)}</div>
                                             </div>
                                             <div class="message-text">${escapeHtml(msg.text || '')}</div>
@@ -3921,9 +3995,206 @@
                 if (txSection && txSection.style.display === 'none') {
                     showSection('transcripts', document.querySelector(".nav-item[onclick*=\"showSection('transcripts')\"]"));
                 }
+
+                // Fire-and-forget critique fetch — only relevant for poorly-rated convos,
+                // but the endpoint cheaply returns 404 when there's nothing to show.
+                loadCritiqueForTranscript(convId);
             } catch (error) {
                 console.error('Error loading transcript:', error);
                 container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Transcript not found or error loading</p></div>';
+            }
+        }
+
+        async function loadCritiqueForTranscript(convId) {
+            const slot = document.getElementById('critiqueContent');
+            if (!slot) return;
+            slot.innerHTML = '';
+            try {
+                const resp = await fetch(`${API_URL}/admin/critiques/by-conversation/${encodeURIComponent(convId)}`);
+                if (resp.status === 404) {
+                    return; // no critique for this conversation — leave the slot empty
+                }
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const critique = await resp.json();
+                slot.innerHTML = renderCritiquePanel(critique);
+            } catch (e) {
+                console.warn('Critique fetch failed:', e);
+                // Silent on the UI — the transcript is still usable
+            }
+        }
+
+        function renderCritiquePanel(c) {
+            if (c.error) {
+                return `<div class="card" style="border-left: 4px solid var(--warning, #b45309);">
+                    <div class="card-title"><i class="fas fa-exclamation-triangle"></i> Critique Failed</div>
+                    <p style="font-size:13px; color: var(--text-secondary);">${escapeHtml(c.error)}</p>
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="rerunCritique('${escapeHtml(c.critique_id)}')"><i class="fas fa-redo"></i> Re-run</button>
+                        <button class="btn btn-secondary" onclick="deleteCritique('${escapeHtml(c.critique_id)}')"><i class="fas fa-trash"></i> Delete</button>
+                    </div>
+                </div>`;
+            }
+
+            const sev = c.severity || 'unknown';
+            const failureModes = Array.isArray(c.failure_modes) ? c.failure_modes : [];
+            const policyViolations = Array.isArray(c.policy_violations) ? c.policy_violations : [];
+            const fixes = Array.isArray(c.suggested_fixes) ? c.suggested_fixes : [];
+            const fixDecisions = c.fix_decisions || {};
+
+            const fairBanner = c.rating_seems_fair === false ? `
+                <div style="background: var(--bg-subtle); border-left: 3px solid var(--text-muted); padding: 10px 14px; margin-bottom: 12px; font-size: 13px;">
+                    <i class="fas fa-info-circle"></i> <strong>Judge flagged this rating as unfair</strong> &mdash; the failure appears to be outside the system's control.
+                </div>` : '';
+
+            const failureModesHtml = failureModes.length === 0
+                ? '<p style="color: var(--text-muted); font-size: 13px;">No failure modes identified.</p>'
+                : failureModes.map(fm => `
+                    <div style="margin-bottom: 10px; padding: 10px; background: var(--bg-subtle); border-radius: 6px;">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                            <span class="badge badge-error">${escapeHtml(fm.code || '')}</span>
+                            ${fm.at_turn != null ? `<a href="javascript:void(0)" onclick="highlightTurn(${fm.at_turn})" style="font-size:12px;">&rarr; Turn ${fm.at_turn}</a>` : ''}
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-secondary); font-style: italic;">"${escapeHtml(fm.evidence || '')}"</div>
+                    </div>
+                `).join('');
+
+            const policyHtml = policyViolations.length === 0 ? '' : `
+                <div style="margin-top: 14px;">
+                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">Policy violations</div>
+                    ${policyViolations.map(pv => `
+                        <div style="margin-bottom: 10px; padding: 10px; background: var(--bg-subtle); border-radius: 6px;">
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">${escapeHtml(pv.policy_file || '')}</div>
+                            <div style="font-size: 13px; margin-bottom: 4px;"><strong>Policy:</strong> <span style="font-style: italic;">"${escapeHtml(pv.policy_quote || '')}"</span></div>
+                            <div style="font-size: 13px; margin-bottom: 4px;"><strong>Agent said:</strong> <span style="font-style: italic;">"${escapeHtml(pv.agent_action_quote || '')}"</span></div>
+                            <div style="font-size: 13px;">${escapeHtml(pv.explanation || '')}</div>
+                        </div>
+                    `).join('')}
+                </div>`;
+
+            const fixesHtml = fixes.length === 0 ? '' : `
+                <div style="margin-top: 14px;">
+                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">Suggested fixes</div>
+                    ${fixes.map((fx, i) => {
+                        const decision = fixDecisions[i] || fixDecisions[String(i)];
+                        const statusBadge = decision
+                            ? `<span class="badge badge-${decision.status === 'applied' ? 'success' : 'neutral'}">${escapeHtml(decision.status)}</span>`
+                            : '';
+                        const actionBtns = decision ? '' : `
+                            <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="markFix('${escapeHtml(c.critique_id)}', ${i}, 'applied', this)"><i class="fas fa-check"></i> Mark applied</button>
+                            <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="markFix('${escapeHtml(c.critique_id)}', ${i}, 'dismissed', this)"><i class="fas fa-times"></i> Dismiss</button>`;
+                        return `
+                        <div style="margin-bottom: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px;" data-fix-index="${i}">
+                            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
+                                <span class="badge badge-info">${escapeHtml(fx.target || '')}: ${escapeHtml(fx.target_name || '')}</span>
+                                <span class="badge badge-neutral">confidence: ${escapeHtml(fx.confidence || '')}</span>
+                                ${statusBadge}
+                            </div>
+                            <div style="font-size: 13px; margin-bottom: 6px;"><strong>Change:</strong> ${escapeHtml(fx.change || '')}</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;"><em>${escapeHtml(fx.rationale || '')}</em></div>
+                            <div style="display: flex; gap: 8px;">${actionBtns}</div>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+
+            return `<div class="card" style="background: rgba(185, 28, 28, 0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom: 12px;">
+                    <div>
+                        <div class="card-title" style="margin-bottom: 4px; cursor: pointer; user-select: none;" onclick="toggleCritiquePanel()" title="Show/hide critique details">
+                            <i class="fas fa-chevron-down" id="critiqueToggleIcon" style="font-size: 11px; width: 12px;"></i>
+                            <i class="fas fa-magic"></i> Critique
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                            <span class="badge badge-${severityBadgeClass(sev)}">${escapeHtml(sev)}</span>
+                            ${c.root_cause_agent ? `<span class="badge badge-neutral">root cause: ${escapeHtml(c.root_cause_agent)}</span>` : ''}
+                            <span style="color: var(--text-muted); font-size: 11px;">model: ${escapeHtml(c.model || '')} &middot; ${escapeHtml(c.prompt_version || '')}</span>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="rerunCritique('${escapeHtml(c.critique_id)}')"><i class="fas fa-redo"></i> Re-run</button>
+                        <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="deleteCritique('${escapeHtml(c.critique_id)}')"><i class="fas fa-trash"></i> Delete</button>
+                    </div>
+                </div>
+                <div id="critiqueBody">
+                    ${fairBanner}
+                    ${c.overall_summary ? `<p style="font-size: 13px; margin-bottom: 14px;">${escapeHtml(c.overall_summary)}</p>` : ''}
+                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">Failure modes</div>
+                    ${failureModesHtml}
+                    ${policyHtml}
+                    ${fixesHtml}
+                </div>
+            </div>`;
+        }
+
+        function toggleCritiquePanel() {
+            const body = document.getElementById('critiqueBody');
+            const icon = document.getElementById('critiqueToggleIcon');
+            if (!body || !icon) return;
+            const collapsed = body.style.display === 'none';
+            body.style.display = collapsed ? '' : 'none';
+            icon.className = collapsed ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
+        }
+
+        function highlightTurn(turnNum) {
+            document.querySelectorAll('.transcript-message[data-turn]').forEach(el => {
+                el.style.outline = '';
+                el.style.background = '';
+            });
+            const el = document.querySelector(`.transcript-message[data-turn="${turnNum}"]`);
+            if (el) {
+                el.style.outline = '2px solid var(--accent, #d97706)';
+                el.style.background = 'var(--bg-highlight, rgba(217, 119, 6, 0.08))';
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        async function markFix(critiqueId, fixIndex, status, btnEl) {
+            try {
+                const resp = await fetch(`${API_URL}/admin/critiques/${encodeURIComponent(critiqueId)}/fixes/${fixIndex}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status }),
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                // Re-render the panel so the fix shows its new state and the buttons disappear
+                const slot = document.getElementById('critiqueContent');
+                const convId = slot ? slot.getAttribute('data-conv-id') : null;
+                if (convId) await loadCritiqueForTranscript(convId);
+            } catch (err) {
+                console.error('markFix failed:', err);
+                alert('Failed to record fix decision: ' + (err.message || err));
+            }
+        }
+
+        async function rerunCritique(critiqueId) {
+            const slot = document.getElementById('critiqueContent');
+            if (slot) slot.innerHTML = '<div class="loading"><div class="spinner"></div><p>Re-running critique...</p></div>';
+            try {
+                const resp = await fetch(`${API_URL}/admin/critiques/${encodeURIComponent(critiqueId)}/rerun`, { method: 'POST' });
+                if (!resp.ok) {
+                    const detail = (await resp.json().catch(() => ({}))).detail || resp.statusText;
+                    throw new Error(detail);
+                }
+                const convId = slot ? slot.getAttribute('data-conv-id') : null;
+                if (convId) await loadCritiqueForTranscript(convId);
+                // Reload the conversation list so the cell reflects the new critique state
+                if (typeof loadConversationList === 'function') loadConversationList();
+            } catch (err) {
+                console.error('rerunCritique failed:', err);
+                if (slot) slot.innerHTML = `<div class="card" style="border-left:4px solid var(--error,#b91c1c);"><p>Re-run failed: ${escapeHtml(String(err.message || err))}</p></div>`;
+            }
+        }
+
+        async function deleteCritique(critiqueId) {
+            if (!confirm('Delete this critique? Fix decisions on it will also be removed.')) return;
+            try {
+                const resp = await fetch(`${API_URL}/admin/critiques/${encodeURIComponent(critiqueId)}`, { method: 'DELETE' });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const slot = document.getElementById('critiqueContent');
+                if (slot) slot.innerHTML = '';
+                if (typeof loadConversationList === 'function') loadConversationList();
+            } catch (err) {
+                console.error('deleteCritique failed:', err);
+                alert('Failed to delete critique: ' + (err.message || err));
             }
         }
 
