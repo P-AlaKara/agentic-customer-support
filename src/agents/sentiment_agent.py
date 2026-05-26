@@ -20,12 +20,14 @@ import re
 try:
     # Try relative import (when run as part of package)
     from ..event_bus import EventBus, Event
+    from ..utils.claude import get_claude_client
 except (ImportError, ValueError):
     # Fall back to direct import (when run standalone)
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from event_bus import EventBus, Event
+    from utils.claude import get_claude_client
 
 
 logging.basicConfig(level=logging.INFO)
@@ -133,7 +135,13 @@ class SentimentAgent:
         """
         self.bus = event_bus
         self.use_ml = use_ml
-        
+
+        try:
+            self.claude = get_claude_client()
+        except Exception as e:
+            logger.warning(f"SentimentAgent: Claude initialization failed: {e}")
+            self.claude = None
+
         # Statistics
         self.stats = {
             'total_analyzed': 0,
@@ -175,12 +183,23 @@ class SentimentAgent:
             logger.info(f"[Sentiment Agent] Analyzing message from session {session_id}")
             logger.debug(f"[Sentiment Agent] Text: '{text}'")
             
-            # Analyze sentiment
+            # Analyze sentiment. Primary path: rule-based keyword matching
+            # (or the transformer model when use_ml=True). Secondary path:
+            # Claude is invoked only when the primary classifier produces a
+            # no-confident-match sentinel. If Claude itself fails, the
+            # rule-based NEUTRAL @ 0.88 result is kept.
             if self.use_ml:
                 result = self._analyze_with_ml(text)
             else:
                 result = self._analyze_with_rules(text)
-            
+
+            if result.get('_no_match'):
+                claude_result = self._classify_with_claude(text)
+                if claude_result is not None:
+                    result = claude_result
+
+            result.pop('_no_match', None)
+
             sentiment = result['sentiment']
             confidence = result['confidence']
             
@@ -288,7 +307,16 @@ class SentimentAgent:
         else:
             sentiment = 'NEUTRAL'
             confidence = 0.88  # High confidence in neutrality if no keywords found
-        
+
+        # `_no_match` signals to the dispatcher that no keyword fired so the
+        # Claude fallback should be attempted. Stripped before publishing.
+        no_match = (
+            angry_count == 0
+            and negative_count == 0
+            and urgent_count == 0
+            and positive_count == 0
+        )
+
         return {
             'sentiment': sentiment,
             'confidence': confidence,
@@ -300,7 +328,8 @@ class SentimentAgent:
                 'has_intensifier': has_intensifier,
                 'has_negation': has_negation,
                 'emotion_boost': emotion_boost
-            }
+            },
+            '_no_match': no_match,
         }
     
     def _analyze_with_ml(self, text: str) -> Dict[str, Any]:
@@ -375,7 +404,38 @@ class SentimentAgent:
         except Exception as e:
             logger.error(f"[Sentiment Agent] ML inference error: {e}, falling back to rules")
             return self._analyze_with_rules(text)
-    
+
+    def _classify_with_claude(self, text: str) -> Optional[Dict[str, Any]]:
+        """Claude-backed sentiment classification, used only as a no-match fallback.
+
+        Returns None on any failure (no key, API error, unparseable JSON), so
+        the dispatcher keeps the rule-based NEUTRAL @ 0.88 result.
+        """
+        if not self.claude:
+            return None
+
+        logger.info("[Sentiment Agent] Invoking Claude fallback classifier")
+        parsed = self.claude.classify_sentiment(text)
+        if parsed is None:
+            logger.warning("[Sentiment Agent] Claude fallback failed; keeping rule-based NEUTRAL")
+            return None
+
+        label = (parsed.get('sentiment') or 'NEUTRAL').upper()
+        if label not in {'POSITIVE', 'NEUTRAL', 'NEGATIVE', 'ANGRY', 'URGENT'}:
+            label = 'NEUTRAL'
+
+        try:
+            confidence = float(parsed.get('confidence', 0.7))
+        except (TypeError, ValueError):
+            confidence = 0.7
+        confidence = max(0.0, min(confidence, 1.0))
+
+        return {
+            'sentiment': label,
+            'confidence': confidence,
+            'details': {'source': 'claude_fallback'},
+        }
+
     def get_stats(self) -> Dict[str, int]:
         """Get sentiment analysis statistics"""
         return self.stats.copy()

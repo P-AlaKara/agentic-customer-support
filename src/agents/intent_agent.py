@@ -26,12 +26,14 @@ from typing import Dict, Any, List, Tuple, Optional
 try:
     from ..event_bus import EventBus, Event
     from ..utils.gemini import get_gemini_client
+    from ..utils.claude import get_claude_client
 except (ImportError, ValueError):
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from event_bus import EventBus, Event
     from utils.gemini import get_gemini_client
+    from utils.claude import get_claude_client
 
 
 logging.basicConfig(level=logging.INFO)
@@ -369,6 +371,12 @@ class IntentAgent:
         except Exception as e:
             logger.warning(f"IntentAgent: Gemini initialization failed: {e}")
             self.gemini = None
+
+        try:
+            self.claude = get_claude_client()
+        except Exception as e:
+            logger.warning(f"IntentAgent: Claude initialization failed: {e}")
+            self.claude = None
         
         # Statistics
         self.stats = {
@@ -418,15 +426,26 @@ class IntentAgent:
             logger.info(f"[Intent Agent] Analyzing message from session {session_id} (lang={language})")
             logger.debug(f"[Intent Agent] Text: '{text}'")
 
-            # Classify intent. Use ML when forced, or whenever the language is
-            # not English (rule-based keyword lists are tuned for English/SW
-            # but Gemini is more reliable for arbitrary phrasing).
+            # Classify intent. Primary path: keyword rules for English,
+            # Gemini ML for non-English (or when explicitly forced via use_ml).
+            # Secondary path: Claude is invoked only when the primary classifier
+            # produces a no-confident-match sentinel.
             use_ml = self.use_ml or language != 'en'
             if use_ml:
                 result = self._classify_with_ml(text, history)
+                if result.get('_no_match') or result.get('intent') == 'general_inquiry':
+                    claude_result = self._classify_with_claude(text, history)
+                    if claude_result is not None:
+                        result = claude_result
             else:
                 result = self._classify_with_rules(text)
-            
+                if result.get('_no_match'):
+                    claude_result = self._classify_with_claude(text, history)
+                    if claude_result is not None:
+                        result = claude_result
+
+            result.pop('_no_match', None)
+
             intent = result['intent']
             confidence = result['confidence']
             entities = result.get('entities', {})
@@ -558,11 +577,14 @@ class IntentAgent:
                 'entities': self._extract_entities(text_lower, best_intent)
             }
         
-        # Default: general_inquiry with low confidence
+        # Default: general_inquiry with low confidence. The `_no_match` flag
+        # signals to the dispatcher that no rule fired so the Claude fallback
+        # should be attempted. The flag is stripped before publishing.
         return {
             'intent': 'general_inquiry',
             'confidence': 0.60,
-            'entities': {}
+            'entities': {},
+            '_no_match': True
         }
     
     def _extract_entities(self, text: str, intent: str) -> Dict[str, Any]:
@@ -688,6 +710,35 @@ class IntentAgent:
         except Exception as e:
             logger.error(f"[Intent Agent] ML classification error: {e}")
             return self._classify_with_rules(text)
+
+    def _classify_with_claude(self, text: str, history: List[str]) -> Optional[Dict[str, Any]]:
+        """Claude-backed classification, used only as a no-match fallback.
+
+        Returns None if the Claude client is unavailable or fails to parse —
+        the dispatcher then keeps the keyword-sentinel result, which carries a
+        sub-0.7 confidence and causes the coordinator to escalate.
+        """
+        if not self.claude:
+            return None
+
+        logger.info("[Intent Agent] Invoking Claude fallback classifier")
+        parsed = self.claude.classify_intent(text, history)
+        if parsed is None:
+            logger.warning("[Intent Agent] Claude fallback failed; will escalate via low-confidence sentinel")
+            return None
+
+        intent = parsed.get('intent') or 'general_inquiry'
+        if intent not in self.ML_VALID_INTENTS:
+            intent = 'general_inquiry'
+
+        try:
+            confidence = float(parsed.get('confidence', 0.7))
+        except (TypeError, ValueError):
+            confidence = 0.7
+        confidence = max(0.0, min(confidence, 1.0))
+
+        entities = self._extract_entities(text.lower(), intent)
+        return {'intent': intent, 'confidence': confidence, 'entities': entities}
 
     @staticmethod
     def _parse_ml_response(raw: str) -> Optional[Dict[str, Any]]:
