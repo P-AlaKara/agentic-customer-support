@@ -3918,9 +3918,14 @@
                     <div class="transcript-container">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                             <h3 style="font-size:16px; font-weight:600;"><i class="fas fa-comments"></i> Transcript Detail</h3>
-                            <button class="btn btn-secondary" onclick="document.getElementById('transcriptContent').style.display='none'">
-                                <i class="fas fa-times"></i> Close
-                            </button>
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn btn-secondary" style="color: var(--error); border-color: var(--error);" onclick="deleteTranscript('${escapeHtml(transcript.conversation_id || convId)}', this)">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                                <button class="btn btn-secondary" onclick="document.getElementById('transcriptContent').style.display='none'">
+                                    <i class="fas fa-times"></i> Close
+                                </button>
+                            </div>
                         </div>
                         <div class="transcript-metadata">
                             <div class="metadata-item">
@@ -4002,6 +4007,42 @@
             } catch (error) {
                 console.error('Error loading transcript:', error);
                 container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Transcript not found or error loading</p></div>';
+            }
+        }
+
+        async function deleteTranscript(convId, btnEl) {
+            if (!convId) return;
+            if (!confirm(`Permanently delete this conversation?\n\nThis removes the transcript, messages, event trace, and any critique data for ${convId}. This cannot be undone.`)) {
+                return;
+            }
+            const originalHtml = btnEl ? btnEl.innerHTML : null;
+            if (btnEl) {
+                btnEl.disabled = true;
+                btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+            }
+            try {
+                const resp = await fetch(`${API_URL}/admin/transcript/${encodeURIComponent(convId)}`, {
+                    method: 'DELETE'
+                });
+                if (!resp.ok) {
+                    const detail = (await resp.json().catch(() => ({}))).detail || resp.statusText;
+                    throw new Error(detail);
+                }
+                const container = document.getElementById('transcriptContent');
+                if (container) {
+                    container.style.display = 'none';
+                    container.innerHTML = '';
+                }
+                if (typeof loadConversationList === 'function') {
+                    loadConversationList();
+                }
+            } catch (e) {
+                console.error('Failed to delete transcript:', e);
+                alert(`Failed to delete conversation: ${e.message || e}`);
+                if (btnEl && originalHtml != null) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = originalHtml;
+                }
             }
         }
 
@@ -5234,7 +5275,7 @@
             const cmp = conv.period_comparison || {};
             const cards = [
                 { label: 'Total Conversations', value: conv.total_conversations || 0, change: cmp.conversations_change || 0, format: 'number', icon: 'comments', goodDir: 'neutral' },
-                { label: 'Resolution Rate', value: conv.resolution_rate || 0, change: cmp.resolution_change || 0, format: 'percent', icon: 'check-circle', goodDir: 'up' },
+                { label: 'Agent Resolution Rate', value: conv.resolution_rate || 0, change: cmp.resolution_change || 0, format: 'percent', icon: 'check-circle', goodDir: 'up' },
                 { label: 'Avg Handle Time', value: conv.avg_duration_seconds || 0, change: cmp.duration_change || 0, format: 'duration', icon: 'clock', goodDir: 'down' },
                 { label: 'Human Resolved', value: conv.human_resolved_rate || 0, change: cmp.human_resolved_change || 0, format: 'percent', icon: 'user', goodDir: 'neutral' }
             ];

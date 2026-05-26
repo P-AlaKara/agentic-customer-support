@@ -1298,6 +1298,68 @@ async def get_conversation_transcript(conversation_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/admin/transcript/{conversation_id}")
+async def delete_conversation_transcript(conversation_id: str):
+    """Completely remove a conversation and all of its derived data.
+
+    Wipes the conversation header, messages, critiques (and fix log via
+    CASCADE), event trace rows, and any in-memory state still held by the
+    live context/trace stores. Returns 404 only if nothing was found in any
+    persistence layer.
+    """
+    try:
+        from ..utils.database import get_db_connection, ensure_uuid
+        try:
+            from ..trace_store import get_trace_store
+        except (ImportError, ValueError):
+            from src.trace_store import get_trace_store
+
+        conv_uuid = str(ensure_uuid(conversation_id))
+        db_conn = get_db_connection()
+
+        with db_conn.get_cursor() as cursor:
+            # conversation_events has no FK CASCADE — wipe it explicitly first.
+            cursor.execute(
+                "DELETE FROM conversation_events WHERE conversation_id = %s",
+                (conv_uuid,),
+            )
+            events_deleted = cursor.rowcount or 0
+
+            # completed_conversations cascades to completed_messages,
+            # conversation_critiques, and fix_application_log.
+            cursor.execute(
+                "DELETE FROM completed_conversations WHERE conversation_id = %s RETURNING conversation_id",
+                (conv_uuid,),
+            )
+            row = cursor.fetchone()
+
+        # Drop any in-memory state keyed by the same id.
+        trace_store = get_trace_store()
+        trace_store.delete(conv_uuid)
+        trace_store.delete(conversation_id)
+
+        store.delete(conv_uuid)
+        store.delete(conversation_id)
+        response_collector.responses.pop(conv_uuid, None)
+        response_collector.responses.pop(conversation_id, None)
+
+        if not row and events_deleted == 0:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {
+            "status": "deleted",
+            "conversation_id": conv_uuid,
+            "events_deleted": events_deleted,
+            "conversation_deleted": bool(row),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] Error deleting conversation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/admin/conversations")
 async def list_conversations(
     session_id: Optional[str] = None,
@@ -2047,14 +2109,14 @@ def _generate_insights(current, previous):
     if res_rate > 90:
         insights.append({
             "type": "success", "icon": "chart-line",
-            "title": f"Strong resolution rate ({round(res_rate, 1)}%)",
-            "detail": "System handles most issues without human intervention",
+            "title": f"Strong agent resolution rate ({round(res_rate, 1)}%)",
+            "detail": "The AI agent handles most issues without human intervention",
             "recommendation": "Set this as the performance baseline"
         })
     elif res_rate < 70 and current.get('total_conversations', 0) > 0:
         insights.append({
             "type": "warning", "icon": "chart-line",
-            "title": f"Low resolution rate ({round(res_rate, 1)}%)",
+            "title": f"Low agent resolution rate ({round(res_rate, 1)}%)",
             "detail": "Many conversations require human intervention",
             "recommendation": "Review knowledge base coverage and agent training"
         })
@@ -2089,25 +2151,25 @@ async def get_conversation_analytics(
             cursor.execute("""
                 SELECT
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status = 'RESOLVED_BY_AGENT') as resolved,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
                     COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved,
                     AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
-            """, ('%RESOLVED%', '%ESCALATED%', d_from, d_to))
+            """, ('%ESCALATED%', d_from, d_to))
             summary = cursor.fetchone()
 
             cursor.execute("""
                 SELECT
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status = 'RESOLVED_BY_AGENT') as resolved,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
                     COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved,
                     AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
-            """, ('%RESOLVED%', '%ESCALATED%', prev_from, prev_to))
+            """, ('%ESCALATED%', prev_from, prev_to))
             prev_summary = cursor.fetchone()
 
             trunc_expr = f"DATE_TRUNC('{trunc}', start_time)"
@@ -2115,13 +2177,13 @@ async def get_conversation_analytics(
                 SELECT
                     {trunc_expr} as date,
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status = 'RESOLVED_BY_AGENT') as resolved,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
                 GROUP BY {trunc_expr}
                 ORDER BY date
-            """, ('%RESOLVED%', '%ESCALATED%', d_from, d_to))
+            """, ('%ESCALATED%', d_from, d_to))
             over_time = cursor.fetchall()
 
             cursor.execute("""
@@ -2467,12 +2529,12 @@ async def get_business_metrics(
             cursor.execute("""
                 SELECT
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s AND operator_id IS NULL) as first_contact,
+                    COUNT(*) FILTER (WHERE final_status = 'RESOLVED_BY_AGENT') as first_contact,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
                     COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
-            """, ('%RESOLVED%', '%ESCALATED%', d_from, d_to))
+            """, ('%ESCALATED%', d_from, d_to))
             fcr = cursor.fetchone()
 
             cursor.execute("""
@@ -2522,14 +2584,14 @@ async def get_business_metrics(
             cursor.execute("""
                 SELECT
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s) as resolved,
+                    COUNT(*) FILTER (WHERE final_status = 'RESOLVED_BY_AGENT') as resolved,
                     COUNT(*) FILTER (WHERE final_status ILIKE %s) as escalated,
                     AVG(EXTRACT(EPOCH FROM (end_time - start_time))) as avg_duration,
-                    COUNT(*) FILTER (WHERE final_status ILIKE %s AND operator_id IS NULL) as first_contact,
+                    COUNT(*) FILTER (WHERE final_status = 'RESOLVED_BY_AGENT') as first_contact,
                     COUNT(*) FILTER (WHERE final_status IN ('RESOLVED_BY_HUMAN', 'ESCALATED_TO_HUMAN')) as human_resolved
                 FROM completed_conversations
                 WHERE start_time >= %s AND start_time < %s
-            """, ('%RESOLVED%', '%ESCALATED%', '%RESOLVED%', prev_from, prev_to))
+            """, ('%ESCALATED%', prev_from, prev_to))
             prev_metrics = cursor.fetchone()
 
             cursor.execute("""
@@ -2562,7 +2624,7 @@ async def get_business_metrics(
         current_insight_data = {
             'escalation_rate': cur_esc_rate,
             'human_resolved_rate': cur_human_resolved_rate,
-            'resolution_rate': _safe_pct(fcr['first_contact'] or 0, fcr_total) if fcr_total else 0,
+            'resolution_rate': _safe_pct(fcr['first_contact'] or 0, fcr_total),
             'negative_pct': cur_neg_pct,
             'total_conversations': fcr_total,
             'avg_duration': aht['avg_handle_time'] or 0,

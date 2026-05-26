@@ -55,6 +55,15 @@ class TraceStore:
                 return None
             return list(buf)
 
+    def delete(self, session_id: str) -> bool:
+        """Drop the in-memory trace for a session without persisting it.
+
+        Used when a conversation is being purged from the system entirely.
+        Returns True if an in-memory trace was actually dropped.
+        """
+        with self._lock:
+            return self._traces.pop(session_id, None) is not None
+
     def finalize(self, session_id: str):
         """Persist the in-memory trace to DB, then drop it from memory."""
         with self._lock:
