@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Hardcoded here to keep the agent persona consistent. If you rename the agent
 # in the UI (templates/chat.html AGENT_NAME), update this constant too.
-AGENT_NAME = "Rehema"
+AGENT_NAME = "Eva"
 
 SYSTEM_PREAMBLE = f"""You are {AGENT_NAME}, an AI customer support agent for an e-commerce platform.
 

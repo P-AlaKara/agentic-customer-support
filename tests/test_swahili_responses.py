@@ -101,7 +101,7 @@ def test_greeting_agent_returns_english_by_default():
     })
 
     assert responses
-    assert 'Hello, I am Rehema' in responses[0]['text']
+    assert 'Hello, I am Eva' in responses[0]['text']
 
 
 def test_greeting_agent_closing_localized_to_swahili():

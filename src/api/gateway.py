@@ -386,7 +386,7 @@ logger.info("✅ API Gateway initialized with all agents")
 # User Chat Endpoints
 # ============================================================================
 
-_WAKE_PHRASE_RE = re.compile(r'\bhey\s+rehema\b', re.IGNORECASE)
+_WAKE_PHRASE_RE = re.compile(r'\bhello\s+eva\b', re.IGNORECASE)
 
 
 @app.post("/chat", response_model=ChatResponse)

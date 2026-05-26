@@ -616,6 +616,43 @@
 
         .voice-feedback.active { color: var(--accent); }
 
+        /* ── Mic button — disabled state (e.g. Swahili voice not available) ── */
+        .mic-btn:disabled,
+        .mic-btn[aria-disabled="true"] {
+            opacity: 0.38;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* Tooltip wrapper shown around the mic button when voice is unavailable */
+        .mic-tooltip-wrapper {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .mic-tooltip-wrapper .mic-unavailable-tip {
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            background: rgba(30, 30, 40, 0.92);
+            color: #fff;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: opacity 0.15s ease;
+            z-index: 100;
+        }
+
+        .mic-tooltip-wrapper:hover .mic-unavailable-tip {
+            visibility: visible;
+            opacity: 1;
+        }
+
         /* ── Review Overlay ── */
         .review-overlay {
             position: fixed;
@@ -731,19 +768,19 @@
     <aside class="sidebar">
         <div class="sidebar-brand">
             <div class="brand-icon">💬</div>
-            <div class="brand-name" id="brandName">Rehema Support</div>
+            <div class="brand-name" id="brandName">Eva Support</div>
             <div class="brand-sub" id="brandSub">We usually reply in minutes</div>
         </div>
 
         <div class="sidebar-section">
             <div class="sidebar-label" id="sidebarQuickLabel">Quick Actions</div>
-            <div class="quick-link" id="sidebarQuickTrack" onclick="sendSuggestion('Hey Rehema, track my order')">
+            <div class="quick-link" id="sidebarQuickTrack" onclick="sendSuggestion('Hello Eva, track my order')">
                 <span>📦</span><span id="sidebarTrackLabel">Track my order</span>
             </div>
-            <div class="quick-link" id="sidebarQuickReturn" onclick="sendSuggestion('Hey Rehema, I want to return an item')">
+            <div class="quick-link" id="sidebarQuickReturn" onclick="sendSuggestion('Hello Eva, I want to return an item')">
                 <span>↩️</span><span id="sidebarReturnLabel">Return an item</span>
             </div>
-            <div class="quick-link" id="sidebarQuickAccount" onclick="sendSuggestion('Hey Rehema, help with my account')">
+            <div class="quick-link" id="sidebarQuickAccount" onclick="sendSuggestion('Hello Eva, help with my account')">
                 <span>👤</span><span id="sidebarAccountLabel">Account help</span>
             </div>
         </div>
@@ -768,7 +805,7 @@
                 </button>
                 <div class="agent-avatar" id="agentAvatar">🤖</div>
                 <div>
-                    <div class="agent-name" id="agentName">Rehema</div>
+                    <div class="agent-name" id="agentName">Eva</div>
                     <div class="agent-sub" id="agentSub">AI Support · We're here to help</div>
                 </div>
             </div>
@@ -791,17 +828,17 @@
         <div class="chat-messages" id="chatMessages">
             <div class="welcome" id="welcomeScreen">
                 <div class="welcome-icon">👋</div>
-                <h2 id="welcomeTitle">Start by saying "Hey Rehema"</h2>
-                <p id="welcomeSubtitle">Type or say "Hey Rehema" to begin. I can help with shipping, returns, and account issues.</p>
+                <h2 id="welcomeTitle">Start by saying "Hello Eva"</h2>
+                <p id="welcomeSubtitle">Type or say "Hello Eva" to begin. I can help with shipping, returns, and account issues.</p>
                 <div class="suggestions">
-                    <div class="suggestion-chip" onclick="sendSuggestion('Hey Rehema, track my order')">
-                        <span>📦</span> <span class="chip-label">Hey Rehema, track my order</span>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Hello Eva, track my order')">
+                        <span>📦</span> <span class="chip-label">Hello Eva, track my order</span>
                     </div>
-                    <div class="suggestion-chip" onclick="sendSuggestion('Hey Rehema, I want to return an item')">
-                        <span>↩️</span> <span class="chip-label">Hey Rehema, return an item</span>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Hello Eva, I want to return an item')">
+                        <span>↩️</span> <span class="chip-label">Hello Eva, return an item</span>
                     </div>
-                    <div class="suggestion-chip" onclick="sendSuggestion('Hey Rehema, help with my account')">
-                        <span>👤</span> <span class="chip-label">Hey Rehema, account help</span>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Hello Eva, help with my account')">
+                        <span>👤</span> <span class="chip-label">Hello Eva, account help</span>
                     </div>
                 </div>
             </div>
@@ -822,17 +859,20 @@
                 <input
                     type="text"
                     id="messageInput"
-                    placeholder="Type 'Hey Rehema' to begin…"
+                    placeholder="Type 'Hello Eva' to begin…"
                     onkeypress="handleKeyPress(event)"
                     autocomplete="off"
                 >
-                <button class="mic-btn" id="micButton" onclick="toggleRecording()" title="Voice input">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="9" y="2" width="6" height="12" rx="3"></rect>
-                        <path d="M5 10a7 7 0 0 0 14 0"></path>
-                        <line x1="12" y1="19" x2="12" y2="22"></line>
-                    </svg>
-                </button>
+                <span class="mic-tooltip-wrapper" id="micWrapper">
+                    <span class="mic-unavailable-tip" id="micUnavailableTip">Not available</span>
+                    <button class="mic-btn" id="micButton" onclick="toggleRecording()" title="Voice input">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+                            <path d="M5 10a7 7 0 0 0 14 0"></path>
+                            <line x1="12" y1="19" x2="12" y2="22"></line>
+                        </svg>
+                    </button>
+                </span>
                 <button class="send-btn" onclick="sendMessage()" id="sendButton">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -840,7 +880,7 @@
                     <span id="sendButtonLabel">Send</span>
                 </button>
             </div>
-            <div class="input-hint" id="inputHint">Say or type "Hey Rehema" to get started</div>
+            <div class="input-hint" id="inputHint">Say or type "Hello Eva" to get started</div>
             <div class="voice-feedback" id="voiceFeedback"></div>
         </div>
 
@@ -874,7 +914,7 @@
 <script>
     const API_URL = 'http://localhost:8000';
     const EAT_TIMEZONE = 'Africa/Nairobi';
-    const AGENT_NAME = 'Rehema';
+    const AGENT_NAME = 'Eva';
     let sessionId = localStorage.getItem('sessionId') || null;
     const customerEmail = 'customer@example.com';
     let seenMessageTimestamps = new Set();
@@ -902,16 +942,16 @@
             quickReturn: 'Return an item',
             quickAccount: 'Account help',
             statusOnline: 'Support is online',
-            welcomeTitle: `Start by saying "Hey ${AGENT_NAME}"`,
-            welcomeSubtitle: `Type or say "Hey ${AGENT_NAME}" to begin. I can help with shipping, returns, and account issues.`,
-            chipTrack: `Hey ${AGENT_NAME}, track my order`,
-            chipReturn: `Hey ${AGENT_NAME}, return an item`,
-            chipAccount: `Hey ${AGENT_NAME}, account help`,
+            welcomeTitle: `Start by saying "Hello ${AGENT_NAME}"`,
+            welcomeSubtitle: `Type or say "Hello ${AGENT_NAME}" to begin. I can help with shipping, returns, and account issues.`,
+            chipTrack: `Hello ${AGENT_NAME}, track my order`,
+            chipReturn: `Hello ${AGENT_NAME}, return an item`,
+            chipAccount: `Hello ${AGENT_NAME}, account help`,
             sessionNone: 'No active session',
             sessionFmt: (id) => `Session ${id.substring(0, 8)}…`,
-            placeholderInactive: `Type "Hey ${AGENT_NAME}" to begin…`,
+            placeholderInactive: `Type "Hello ${AGENT_NAME}" to begin…`,
             placeholderActive: 'Type your message…',
-            hintInactive: `Say or type "Hey ${AGENT_NAME}" to get started`,
+            hintInactive: `Say or type "Hello ${AGENT_NAME}" to get started`,
             hintActive: 'Press Enter to send',
             sendButton: 'Send',
             voiceReady: 'Voice: ready. Tap mic to speak.',
@@ -947,16 +987,16 @@
             quickReturn: 'Rudisha bidhaa',
             quickAccount: 'Msaada wa akaunti',
             statusOnline: 'Msaada uko mtandaoni',
-            welcomeTitle: `Anza kwa kusema "Hey ${AGENT_NAME}"`,
-            welcomeSubtitle: `Andika au sema "Hey ${AGENT_NAME}" kuanza. Naweza kusaidia na usafirishaji, marejesho, na masuala ya akaunti.`,
-            chipTrack: `Hey ${AGENT_NAME}, fuatilia agizo langu`,
-            chipReturn: `Hey ${AGENT_NAME}, nataka kurudisha bidhaa`,
-            chipAccount: `Hey ${AGENT_NAME}, msaada wa akaunti`,
+            welcomeTitle: `Anza kwa kusema "Hello ${AGENT_NAME}"`,
+            welcomeSubtitle: `Andika au sema "Hello ${AGENT_NAME}" kuanza. Naweza kusaidia na usafirishaji, marejesho, na masuala ya akaunti.`,
+            chipTrack: `Hello ${AGENT_NAME}, fuatilia agizo langu`,
+            chipReturn: `Hello ${AGENT_NAME}, nataka kurudisha bidhaa`,
+            chipAccount: `Hello ${AGENT_NAME}, msaada wa akaunti`,
             sessionNone: 'Hakuna kikao kinachoendelea',
             sessionFmt: (id) => `Kikao ${id.substring(0, 8)}…`,
-            placeholderInactive: `Andika "Hey ${AGENT_NAME}" kuanza…`,
+            placeholderInactive: `Andika "Hello ${AGENT_NAME}" kuanza…`,
             placeholderActive: 'Andika ujumbe wako…',
-            hintInactive: `Sema au andika "Hey ${AGENT_NAME}" kuanza`,
+            hintInactive: `Sema au andika "Hello ${AGENT_NAME}" kuanza`,
             hintActive: 'Bonyeza Enter kutuma',
             sendButton: 'Tuma',
             voiceReady: 'Sauti: tayari. Bofya kipaza sauti kuongea.',
@@ -1074,6 +1114,27 @@
         if (enOpt && swOpt) {
             enOpt.classList.toggle('active', currentLang === 'en');
             swOpt.classList.toggle('active', currentLang === 'sw');
+        }
+
+        // Voice input is not available for Swahili — disable mic button and
+        // show a "Not available" tooltip on hover. The button is kept in the
+        // DOM (not removed) so layout remains stable.
+        const micBtn = document.getElementById('micButton');
+        const micWrapper = document.getElementById('micWrapper');
+        const isSwahili = currentLang === 'sw';
+        if (micBtn) {
+            micBtn.disabled = isSwahili;
+            micBtn.setAttribute('aria-disabled', String(isSwahili));
+            if (isSwahili) {
+                micBtn.style.pointerEvents = 'none';
+                micBtn.title = 'Not available';
+            } else {
+                micBtn.style.pointerEvents = '';
+                micBtn.title = 'Voice input';
+            }
+        }
+        if (micWrapper) {
+            micWrapper.style.pointerEvents = isSwahili ? 'auto' : '';
         }
     }
 

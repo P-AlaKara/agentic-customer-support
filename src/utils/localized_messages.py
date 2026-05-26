@@ -49,12 +49,12 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
     # Greeting agent
     "greeting.initial": {
         "en": (
-            "Hello, I am Rehema, your support assistant. "
+            "Hello, I am Eva, your support assistant. "
             "I can help you with order tracking, returns and refunds, and account issues. "
             "What can I help you with today?"
         ),
         "sw": (
-            "Habari, mimi ni Rehema, msaidizi wako wa huduma kwa wateja. "
+            "Habari, mimi ni Eva, msaidizi wako wa huduma kwa wateja. "
             "Ninaweza kukusaidia kufuatilia oda, marejesho na marejesho ya pesa, na masuala ya akaunti. "
             "Ningekusaidiaje leo?"
         ),
@@ -260,8 +260,8 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
 
     # Gateway-owned fixed strings
     "gateway.idle_wake_phrase": {
-        "en": "To get started, just type or say \"Hey Rehema\".",
-        "sw": "Ili kuanza, andika tu au sema \"Hey Rehema\".",
+        "en": "To get started, just type or say \"Hello Eva\".",
+        "sw": "Ili kuanza, andika tu au sema \"Hello Eva\".",
     },
     "gateway.operator_delivered": {
         "en": "Your message was delivered to a human operator.",

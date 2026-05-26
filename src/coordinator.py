@@ -78,7 +78,8 @@ class CoordinatorAgent:
     SENTIMENT_ESCALATION_LABELS = ['NEGATIVE', 'ANGRY']
     INTENT_CONFIDENCE_THRESHOLD = 0.7
     CLOSING_RECLASSIFY_PATTERN = re.compile(
-        r"\b(?:bye|goodbye|farewell|that's all|that is all|done|no thanks|nothing else|end (?:this )?(?:chat|conversation))\b",
+        r"\b(?:bye|goodbye|farewell|that's all|that is all|done|no thanks|nothing else|end (?:this )?(?:chat|conversation)"
+        r"|kwaheri|kwaherini|nimemaliza|hiyo ni yote|ndio hivyo|hapana asante|asante kwaheri|hakuna kitu kingine)\b",
         re.IGNORECASE
     )
     ORDER_ID_PATTERN = re.compile(r"\b(ORD\d{5})\b", re.IGNORECASE)
@@ -459,12 +460,22 @@ class CoordinatorAgent:
         logger.info(f"[ROUTING] Routing session {session_id} to {task_name}")
         self.stats['successful_routes'] += 1
 
-        # Customer explicitly asked for a human — escalate directly with the
-        # MANUAL_REQUEST reason instead of going through a BPA.
+        # Intents that map directly to TASK_ESCALATE must go through _escalate()
+        # so the payload is properly structured with a 'reason' key.
         if intent == 'request_human':
             self._escalate(
                 session_id=session_id,
                 reason='MANUAL_REQUEST',
+                details={'intent': intent}
+            )
+            return
+
+        if task_name == 'TASK_ESCALATE':
+            # Any other intent routed to escalation (e.g. account_issues) should
+            # use _escalate() to guarantee a well-formed payload.
+            self._escalate(
+                session_id=session_id,
+                reason='UNKNOWN_INTENT' if intent not in self.INTENT_ROUTING else intent.upper(),
                 details={'intent': intent}
             )
             return

@@ -119,8 +119,20 @@ class EscalationAgent:
         """
         try:
             payload = event.payload
-            session_id = payload['session_id']
-            reason = payload['reason']
+            session_id = payload.get('session_id')
+            if not session_id:
+                logger.error("[Escalation Agent] TASK_ESCALATE received without 'session_id'; dropping event")
+                return
+
+            reason = payload.get('reason')
+            if not reason:
+                logger.warning(
+                    "[Escalation Agent] TASK_ESCALATE payload missing 'reason' key "
+                    "(session=%s, keys=%s). Defaulting to UNKNOWN_ESCALATION_REASON.",
+                    session_id, list(payload.keys())
+                )
+                reason = 'UNKNOWN_ESCALATION_REASON'
+
             details = payload.get('details', {})
             context = payload.get('context')
             priority = payload.get('priority', 'NORMAL')
