@@ -24,18 +24,22 @@ for model in client.models.list():
 
 def embed_text(text: str):
     """Generates embeddings using the model confirmed in your list."""
+    # task_type='retrieval_document' aligns documents with the
+    # 'retrieval_query' space used by src/utils/gemini.py at query time.
     try:
         result = client.models.embed_content(
             model="text-embedding-004", # Try the standard name first
-            contents=text
+            contents=text,
+            config={"task_type": "RETRIEVAL_DOCUMENT"},
         )
         return result.embeddings[0].values
     except Exception:
-        # Fallback 
+        # Fallback
         print("text-embedding-004 not found, trying gemini-embedding-001")
         result = client.models.embed_content(
-            model="gemini-embedding-001", 
-            contents=text
+            model="gemini-embedding-001",
+            contents=text,
+            config={"task_type": "RETRIEVAL_DOCUMENT"},
         )
         return result.embeddings[0].values
 

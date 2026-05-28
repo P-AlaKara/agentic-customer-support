@@ -13,6 +13,7 @@ Provides first-time setup guidance for:
 """
 
 import logging
+import time
 from typing import Dict, Any
 
 # Flexible imports
@@ -129,6 +130,7 @@ class OnboardingAgent:
 
             logger.info(f"[Onboarding Agent] Handling onboarding request for session {session_id}")
             self.stats['requests_handled'] += 1
+            t0 = time.perf_counter()
 
             language = resolve_language_from_context(context)
 
@@ -139,6 +141,11 @@ class OnboardingAgent:
                 context=context,
                 knowledge=knowledge,
                 language=language,
+            )
+
+            logger.info(
+                f"[PERF] session={session_id} stage=bpa agent=onboarding "
+                f"duration_ms={int((time.perf_counter() - t0) * 1000)} chars={len(response)}"
             )
 
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {

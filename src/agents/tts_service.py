@@ -5,6 +5,7 @@ import base64
 import logging
 import os
 import tempfile
+import time
 from typing import Dict, Any
 
 try:
@@ -63,8 +64,13 @@ class TTSService:
         self.stats['tts_requests'] += 1
         text = payload.get('text', '')
 
+        t0 = time.perf_counter()
         try:
             audio_base64 = self._synthesize_base64(text)
+            logger.info(
+                f"[PERF] session={session_id} stage=tts duration_ms={int((time.perf_counter() - t0) * 1000)} "
+                f"chars={len(text)} voice={self.voice}"
+            )
             self.bus.publish('VOICE_SYNTHESIS_COMPLETED', {
                 'session_id': session_id,
                 'audio_base64': audio_base64,

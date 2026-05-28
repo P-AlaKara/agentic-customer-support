@@ -10,6 +10,7 @@ Provides tracking status, estimated delivery, and shipping updates.
 """
 
 import logging
+import time
 from typing import Dict, Any, Optional
 
 # Flexible imports
@@ -136,6 +137,7 @@ class ShippingAgent:
             
             logger.info(f"[Shipping Agent] Handling tracking request for session {session_id}")
             self.stats['requests_handled'] += 1
+            t0 = time.perf_counter()
 
             language = resolve_language_from_context(context)
 
@@ -177,6 +179,11 @@ class ShippingAgent:
             )
             #endregion
             
+            logger.info(
+                f"[PERF] session={session_id} stage=bpa agent=shipping "
+                f"duration_ms={int((time.perf_counter() - t0) * 1000)} chars={len(response)}"
+            )
+
             # Step 4: Send response to user
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,

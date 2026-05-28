@@ -8,6 +8,7 @@ Handles return and refund requests using:
 """
 
 import logging
+import time
 from typing import Dict, Any, Optional
 
 # Flexible imports
@@ -131,9 +132,10 @@ class ReturnsAgent:
             customer_email = context.get('customer_email')
             entities = context.get('entities', {})
             order_id = context.get('order_id') or entities.get('order_id')
-            
+
             logger.info(f"[Returns Agent] Handling return for session {session_id}")
             self.stats['requests_handled'] += 1
+            t0 = time.perf_counter()
 
             language = resolve_language_from_context(context)
 
@@ -174,6 +176,11 @@ class ReturnsAgent:
             )
             #endregion
             
+            logger.info(
+                f"[PERF] session={session_id} stage=bpa agent=returns "
+                f"duration_ms={int((time.perf_counter() - t0) * 1000)} chars={len(response)}"
+            )
+
             # Step 4: Send response to user
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,

@@ -4,6 +4,8 @@ import base64
 import logging
 import os
 import tempfile
+import threading
+import time
 from typing import Dict, Any, Optional
 
 try:
@@ -28,8 +30,11 @@ class STTService:
         self.device = os.getenv('STT_DEVICE', 'cpu')
         self.compute_type = os.getenv('STT_COMPUTE_TYPE', 'int8')
         self.language = os.getenv('STT_LANGUAGE', 'en')
-        self.beam_size = int(os.getenv('STT_BEAM_SIZE', '5'))
+        # beam_size=1 (greedy) is ~3-5x faster than beam_size=5 with negligible
+        # accuracy loss for short utterances. Override via STT_BEAM_SIZE if needed.
+        self.beam_size = int(os.getenv('STT_BEAM_SIZE', '1'))
         self.model = None
+        self._model_lock = threading.Lock()
 
         self.stats = {
             'voice_inputs_received': 0,
@@ -38,30 +43,55 @@ class STTService:
         }
 
         self.bus.subscribe('VOICE_INPUT_RECEIVED', self.handle_voice_input)
+
+        # Warm the model in a background thread so the first request doesn't
+        # eat the load cost (several seconds). Skip with STT_WARMUP=0 for tests.
+        if os.getenv('STT_WARMUP', '1') != '0':
+            threading.Thread(target=self._warm_model, daemon=True).start()
+
         logger.info("STTService initialized")
+
+    def _warm_model(self):
+        t0 = time.perf_counter()
+        model = self._get_model()
+        if model is not None:
+            logger.info(
+                f"[PERF] stage=stt_model_warm duration_ms={int((time.perf_counter() - t0) * 1000)} "
+                f"model={self.model_size} device={self.device} compute_type={self.compute_type}"
+            )
 
     def _get_model(self):
         if self.model is not None:
             return self.model
 
-        try:
-            from faster_whisper import WhisperModel
-            self.model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
-            logger.info(f"STT model loaded: {self.model_size} ({self.device}/{self.compute_type})")
-            return self.model
-        except Exception as exc:
-            logger.warning(f"Failed to initialize faster-whisper model: {exc}")
-            return None
+        with self._model_lock:
+            if self.model is not None:
+                return self.model
+            try:
+                from faster_whisper import WhisperModel
+                self.model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
+                logger.info(f"STT model loaded: {self.model_size} ({self.device}/{self.compute_type})")
+                return self.model
+            except Exception as exc:
+                logger.warning(f"Failed to initialize faster-whisper model: {exc}")
+                return None
 
     def handle_voice_input(self, event: Event):
         payload = event.payload
         session_id = payload.get('session_id')
         self.stats['voice_inputs_received'] += 1
 
+        t0 = time.perf_counter()
         try:
             transcript = self._transcribe_payload(payload)
             if not transcript:
                 raise ValueError("No transcript generated")
+
+            duration_ms = int((time.perf_counter() - t0) * 1000)
+            logger.info(
+                f"[PERF] session={session_id} stage=stt duration_ms={duration_ms} "
+                f"beam_size={self.beam_size} chars={len(transcript)}"
+            )
 
             self.bus.publish('VOICE_TRANSCRIPTION_COMPLETED', {
                 'session_id': session_id,

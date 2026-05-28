@@ -20,6 +20,7 @@ Design Decisions:
 import json
 import logging
 import re
+import time
 from typing import Dict, Any, List, Tuple, Optional
 
 # Flexible import pattern
@@ -426,22 +427,26 @@ class IntentAgent:
             logger.info(f"[Intent Agent] Analyzing message from session {session_id} (lang={language})")
             logger.debug(f"[Intent Agent] Text: '{text}'")
 
+            t0 = time.perf_counter()
             # Classify intent. Primary path: keyword rules for English,
             # Gemini ML for non-English (or when explicitly forced via use_ml).
             # Secondary path: Claude is invoked only when the primary classifier
             # produces a no-confident-match sentinel.
             use_ml = self.use_ml or language != 'en'
+            used_claude = False
             if use_ml:
                 result = self._classify_with_ml(text, history)
                 if result.get('_no_match') or result.get('intent') == 'general_inquiry':
                     claude_result = self._classify_with_claude(text, history)
                     if claude_result is not None:
+                        used_claude = True
                         result = claude_result
             else:
                 result = self._classify_with_rules(text)
                 if result.get('_no_match'):
                     claude_result = self._classify_with_claude(text, history)
                     if claude_result is not None:
+                        used_claude = True
                         result = claude_result
 
             result.pop('_no_match', None)
@@ -449,6 +454,17 @@ class IntentAgent:
             intent = result['intent']
             confidence = result['confidence']
             entities = result.get('entities', {})
+
+            if used_claude:
+                path = 'claude'
+            elif use_ml:
+                path = 'gemini'
+            else:
+                path = 'rules'
+            logger.info(
+                f"[PERF] session={session_id} stage=intent duration_ms={int((time.perf_counter() - t0) * 1000)} "
+                f"path={path} intent={intent} confidence={confidence:.2f}"
+            )
             
             # Update statistics
             self.stats['total_analyzed'] += 1

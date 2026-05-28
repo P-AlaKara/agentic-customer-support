@@ -2759,6 +2759,10 @@
                     <i class="fas fa-tachometer-alt"></i>
                     <span>Agent Performance</span>
                 </div>
+                <div class="nav-item" onclick="showSection('quality-insights', this)">
+                    <i class="fas fa-magnifying-glass-chart"></i>
+                    <span>Quality Insights</span>
+                </div>
                 <div class="nav-item" onclick="showSection('settings', this)">
                     <i class="fas fa-cog"></i>
                     <span>Settings</span>
@@ -3237,6 +3241,88 @@
                 </div>
             </div>
 
+            <!-- ── Quality Insights Section (continuous-improvement aggregate dashboard) ── -->
+            <div id="quality-insights-section" class="section" style="display: none;">
+                <div class="content-header">
+                    <h2>Quality Insights</h2>
+                    <p>Aggregated patterns across critiques of poorly-rated conversations</p>
+                </div>
+                <div class="content-body">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom: 16px;">
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <span style="font-size:13px; color:var(--text-muted);">Window:</span>
+                            <button class="btn btn-secondary qi-range-btn" data-days="7"  onclick="setQIDays(7, this)">7d</button>
+                            <button class="btn btn-secondary qi-range-btn active" data-days="30" onclick="setQIDays(30, this)">30d</button>
+                            <button class="btn btn-secondary qi-range-btn" data-days="90" onclick="setQIDays(90, this)">90d</button>
+                            <span id="qiLastUpdated" style="font-size:11px; color:var(--text-muted); margin-left:8px;"></span>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="btn btn-secondary" onclick="showQICleanupMenu(event)"><i class="fas fa-broom"></i> Cleanup</button>
+                            <button class="btn btn-primary" onclick="loadQualityInsights()"><i class="fas fa-sync"></i> Refresh</button>
+                        </div>
+                    </div>
+
+                    <!-- KPI cards -->
+                    <div class="perf-kpi-grid">
+                        <div class="perf-kpi-card card-success">
+                            <div class="perf-kpi-icon"><i class="fas fa-star-half-alt"></i></div>
+                            <div class="perf-kpi-value" id="qiAvgRating">—</div>
+                            <div class="perf-kpi-label">Avg rating</div>
+                            <div class="perf-kpi-trend neutral" id="qiRatedConversations">no data yet</div>
+                        </div>
+                        <div class="perf-kpi-card card-red">
+                            <div class="perf-kpi-icon"><i class="fas fa-thumbs-down"></i></div>
+                            <div class="perf-kpi-value" id="qiBadRatedCount">—</div>
+                            <div class="perf-kpi-label">Poorly-rated convos</div>
+                            <div class="perf-kpi-trend neutral">rated &le; 3 stars</div>
+                        </div>
+                        <div class="perf-kpi-card card-amber">
+                            <div class="perf-kpi-icon"><i class="fas fa-magic"></i></div>
+                            <div class="perf-kpi-value" id="qiCritiqueCount">—</div>
+                            <div class="perf-kpi-label">Critiques run</div>
+                            <div class="perf-kpi-trend neutral" id="qiErroredCount">0 errored</div>
+                        </div>
+                        <div class="perf-kpi-card card-blue">
+                            <div class="perf-kpi-icon"><i class="fas fa-question-circle"></i></div>
+                            <div class="perf-kpi-value" id="qiUnfairPct">—</div>
+                            <div class="perf-kpi-label">Flagged unfair</div>
+                            <div class="perf-kpi-trend neutral" id="qiUnfairCount">judge said rating wasn't system's fault</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts row 1: failure modes + root cause agents -->
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-chart-bar"></i> Top failure modes</div>
+                            <canvas id="qiFailureModesChart" style="max-height: 320px;"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="card-title"><i class="fas fa-user-tag"></i> Root-cause agents</div>
+                            <canvas id="qiAgentsChart" style="max-height: 320px;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Charts row 2: trend over time -->
+                    <div class="chart-grid">
+                        <div class="chart-card chart-card-wide">
+                            <div class="card-title"><i class="fas fa-chart-area"></i> Critiques over time, by severity</div>
+                            <canvas id="qiTrendChart" style="max-height: 260px;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Fix clusters table -->
+                    <div class="card">
+                        <div class="card-title"><i class="fas fa-layer-group"></i> Suggested fix clusters <small style="color:var(--text-muted); font-weight:400;">(click a row to see every suggestion in the cluster)</small></div>
+                        <div class="table-container" id="qiFixClustersTable">
+                            <div class="empty-state"><p>Loading…</p></div>
+                        </div>
+                    </div>
+
+                    <!-- Drilldown panel (hidden until a cluster row is clicked) -->
+                    <div id="qiFixClusterDetail" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- ── Settings Section ── -->
             <div id="settings-section" class="section" style="display: none;">
                 <div class="content-header">
@@ -3638,6 +3724,9 @@
                     setPerfDateRange(7, document.getElementById('perfPreset7'));
                     loadPerformance();
                     break;
+                case 'quality-insights':
+                    loadQualityInsights();
+                    break;
                 case 'settings':
                     loadSettings();
                     break;
@@ -3843,6 +3932,50 @@
                 case 'low':      return 'info';
                 default:         return 'neutral';
             }
+        }
+
+        // Failure-mode taxonomy mirrored from scripts/migration001.sql.
+        // Keep in sync if codes/descriptions change.
+        const FAILURE_MODE_TAXONOMY = {
+            WRONG_INTENT:                 { label: 'Wrong intent',                 description: 'Intent agent misclassified the user request.' },
+            LOW_CONFIDENCE_NOT_ESCALATED: { label: 'Low confidence not escalated', description: 'Confidence was borderline but the conversation was not escalated.' },
+            POLICY_IGNORED:               { label: 'Policy ignored',               description: 'Agent gave an answer that contradicts an authoritative policy doc.' },
+            POLICY_MISQUOTED:             { label: 'Policy misquoted',             description: 'Agent invented or distorted policy details.' },
+            MISSING_CONTEXT:              { label: 'Missing context',              description: 'Agent did not use available customer or order context.' },
+            WRONG_AGENT_ROUTED:           { label: 'Wrong agent routed',           description: 'Coordinator routed to the wrong specialist agent.' },
+            SENTIMENT_MISSED:             { label: 'Sentiment missed',             description: 'Negative sentiment was not detected or not acted upon.' },
+            INCOMPLETE_ANSWER:            { label: 'Incomplete answer',            description: 'Agent stopped before fully resolving the request.' },
+            HALLUCINATED_ACTION:          { label: 'Hallucinated action',          description: 'Agent claimed to perform an action it did not perform.' },
+            TONE_INAPPROPRIATE:           { label: 'Tone inappropriate',           description: 'Agent tone was wrong for the situation (curt, robotic, etc.).' },
+            LANGUAGE_CONFUSION:           { label: 'Language confusion',           description: 'Mismatch between user language and agent response.' },
+            INFINITE_LOOP:                { label: 'Infinite loop',                description: 'Agents bounced without making progress toward resolution.' },
+            ESCALATION_FAILED:            { label: 'Escalation failed',            description: 'Conversation was escalated but never reached a human.' },
+            SLOW_RESPONSE:                { label: 'Slow response',                description: 'Excessive latency between user turn and agent reply.' },
+            OTHER:                        { label: 'Other',                        description: 'Failure not covered by the existing taxonomy.' },
+        };
+
+        const SEVERITY_META = {
+            critical: { tooltip: 'Wrong or dangerous action taken (e.g. refund issued in error, account locked).', rationale: "wrong or dangerous action was taken — this needs immediate attention." },
+            high:     { tooltip: "User's primary need was not met AND the failure is reproducible.",              rationale: "the user's primary need was not met and the failure is reproducible." },
+            medium:   { tooltip: 'User got partially correct help but with significant friction.',                rationale: 'the user got partially correct help but with significant friction.' },
+            low:      { tooltip: 'Minor tone or phrasing issue; the system mostly worked.',                       rationale: 'it was a minor tone or phrasing issue and the system mostly worked.' },
+        };
+
+        // Active critique tab persisted across re-renders (e.g. after Mark applied).
+        let activeCritiqueTab = 'what';
+        function switchCritiqueTab(tab) {
+            activeCritiqueTab = tab;
+            document.querySelectorAll('#critiqueBody .tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+            });
+            document.querySelectorAll('#critiqueBody .critique-tab-panel').forEach(panel => {
+                panel.style.display = panel.getAttribute('data-tab') === tab ? '' : 'none';
+            });
+        }
+
+        function failureModeBadgeHtml(code) {
+            const meta = FAILURE_MODE_TAXONOMY[code] || { label: code || '', description: '' };
+            return `<span class="badge badge-error" title="${escapeHtml(meta.description)}">${escapeHtml(meta.label)}</span>`;
         }
 
         function renderCritiqueCell(row) {
@@ -4077,6 +4210,7 @@
             }
 
             const sev = c.severity || 'unknown';
+            const sevMeta = SEVERITY_META[(sev || '').toLowerCase()] || { tooltip: '', rationale: '' };
             const failureModes = Array.isArray(c.failure_modes) ? c.failure_modes : [];
             const policyViolations = Array.isArray(c.policy_violations) ? c.policy_violations : [];
             const fixes = Array.isArray(c.suggested_fixes) ? c.suggested_fixes : [];
@@ -4087,55 +4221,86 @@
                     <i class="fas fa-info-circle"></i> <strong>Judge flagged this rating as unfair</strong> &mdash; the failure appears to be outside the system's control.
                 </div>` : '';
 
-            const failureModesHtml = failureModes.length === 0
+            // --- Tab: What went wrong ----------------------------------------------------
+            const whatPanel = failureModes.length === 0
                 ? '<p style="color: var(--text-muted); font-size: 13px;">No failure modes identified.</p>'
                 : failureModes.map(fm => `
                     <div style="margin-bottom: 10px; padding: 10px; background: var(--bg-subtle); border-radius: 6px;">
-                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
-                            <span class="badge badge-error">${escapeHtml(fm.code || '')}</span>
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
+                            ${failureModeBadgeHtml(fm.code)}
                             ${fm.at_turn != null ? `<a href="javascript:void(0)" onclick="highlightTurn(${fm.at_turn})" style="font-size:12px;">&rarr; Turn ${fm.at_turn}</a>` : ''}
                         </div>
                         <div style="font-size: 13px; color: var(--text-secondary); font-style: italic;">"${escapeHtml(fm.evidence || '')}"</div>
                     </div>
                 `).join('');
 
-            const policyHtml = policyViolations.length === 0 ? '' : `
-                <div style="margin-top: 14px;">
-                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">Policy violations</div>
-                    ${policyViolations.map(pv => `
-                        <div style="margin-bottom: 10px; padding: 10px; background: var(--bg-subtle); border-radius: 6px;">
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">${escapeHtml(pv.policy_file || '')}</div>
-                            <div style="font-size: 13px; margin-bottom: 4px;"><strong>Policy:</strong> <span style="font-style: italic;">"${escapeHtml(pv.policy_quote || '')}"</span></div>
-                            <div style="font-size: 13px; margin-bottom: 4px;"><strong>Agent said:</strong> <span style="font-style: italic;">"${escapeHtml(pv.agent_action_quote || '')}"</span></div>
-                            <div style="font-size: 13px;">${escapeHtml(pv.explanation || '')}</div>
-                        </div>
-                    `).join('')}
-                </div>`;
+            // --- Tab: Why it happened ----------------------------------------------------
+            const rootCauseLine = c.root_cause_agent
+                ? `<div style="margin-bottom: 12px; font-size: 13px;">Root cause traced to <span class="badge badge-neutral">${escapeHtml(c.root_cause_agent)}</span>.</div>`
+                : `<div style="margin-bottom: 12px; font-size: 13px; color: var(--text-muted);">No single agent flagged as root cause &mdash; failure is policy, routing, or external.</div>`;
+            const severityLine = sevMeta.rationale
+                ? `<div style="margin-bottom: 14px; font-size: 13px;">Severity is <strong>${escapeHtml(sev)}</strong> because ${escapeHtml(sevMeta.rationale)}</div>`
+                : '';
+            const policyHtml = policyViolations.length === 0
+                ? '<p style="color: var(--text-muted); font-size: 13px;">No policy violations cited.</p>'
+                : policyViolations.map(pv => `
+                    <div style="margin-bottom: 10px; padding: 10px; background: var(--bg-subtle); border-radius: 6px;">
+                        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">${escapeHtml(pv.policy_file || '')}</div>
+                        <div style="font-size: 13px; margin-bottom: 4px;"><strong>Policy:</strong> <span style="font-style: italic;">"${escapeHtml(pv.policy_quote || '')}"</span></div>
+                        <div style="font-size: 13px; margin-bottom: 4px;"><strong>Agent said:</strong> <span style="font-style: italic;">"${escapeHtml(pv.agent_action_quote || '')}"</span></div>
+                        <div style="font-size: 13px;">${escapeHtml(pv.explanation || '')}</div>
+                    </div>
+                `).join('');
+            const whyPanel = `
+                ${rootCauseLine}
+                ${severityLine}
+                <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">Policy violations</div>
+                ${policyHtml}
+            `;
 
-            const fixesHtml = fixes.length === 0 ? '' : `
-                <div style="margin-top: 14px;">
-                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">Suggested fixes</div>
-                    ${fixes.map((fx, i) => {
-                        const decision = fixDecisions[i] || fixDecisions[String(i)];
-                        const statusBadge = decision
-                            ? `<span class="badge badge-${decision.status === 'applied' ? 'success' : 'neutral'}">${escapeHtml(decision.status)}</span>`
-                            : '';
-                        const actionBtns = decision ? '' : `
-                            <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="markFix('${escapeHtml(c.critique_id)}', ${i}, 'applied', this)"><i class="fas fa-check"></i> Mark applied</button>
-                            <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="markFix('${escapeHtml(c.critique_id)}', ${i}, 'dismissed', this)"><i class="fas fa-times"></i> Dismiss</button>`;
-                        return `
+            // --- Tab: How to fix it ------------------------------------------------------
+            const fixPanel = fixes.length === 0
+                ? '<p style="color: var(--text-muted); font-size: 13px;">No suggested fixes.</p>'
+                : fixes.map((fx, i) => {
+                    const decision = fixDecisions[i] || fixDecisions[String(i)];
+                    const statusBadge = decision
+                        ? `<span class="badge badge-${decision.status === 'applied' ? 'success' : 'neutral'}">${escapeHtml(decision.status)}</span>`
+                        : '';
+                    const actionBtns = decision ? '' : `
+                        <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="markFix('${escapeHtml(c.critique_id)}', ${i}, 'applied', this)"><i class="fas fa-check"></i> Mark applied</button>
+                        <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="markFix('${escapeHtml(c.critique_id)}', ${i}, 'dismissed', this)"><i class="fas fa-times"></i> Dismiss</button>`;
+                    return `
                         <div style="margin-bottom: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px;" data-fix-index="${i}">
                             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
-                                <span class="badge badge-info">${escapeHtml(fx.target || '')}: ${escapeHtml(fx.target_name || '')}</span>
-                                <span class="badge badge-neutral">confidence: ${escapeHtml(fx.confidence || '')}</span>
+                                <span class="badge badge-info" title="Where this change should land (prompt / policy / routing / taxonomy) and the specific target.">${escapeHtml(fx.target || '')}: ${escapeHtml(fx.target_name || '')}</span>
+                                <span class="badge badge-neutral" title="The judge's confidence that this fix would resolve the failure.">confidence: ${escapeHtml(fx.confidence || '')}</span>
                                 ${statusBadge}
                             </div>
                             <div style="font-size: 13px; margin-bottom: 6px;"><strong>Change:</strong> ${escapeHtml(fx.change || '')}</div>
                             <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;"><em>${escapeHtml(fx.rationale || '')}</em></div>
                             <div style="display: flex; gap: 8px;">${actionBtns}</div>
                         </div>`;
-                    }).join('')}
-                </div>`;
+                }).join('');
+
+            const tabs = [
+                { key: 'what', icon: 'fa-circle-question',      label: 'What went wrong',   count: failureModes.length,    panel: whatPanel },
+                { key: 'why',  icon: 'fa-magnifying-glass',     label: 'Why it happened',   count: policyViolations.length, panel: whyPanel },
+                { key: 'fix',  icon: 'fa-screwdriver-wrench',   label: 'How to fix it',     count: fixes.length,            panel: fixPanel },
+            ];
+            const tabStripHtml = `
+                <div class="tab-strip" role="tablist">
+                    ${tabs.map(t => `
+                        <button class="tab-btn ${t.key === activeCritiqueTab ? 'active' : ''}" data-tab="${t.key}" onclick="switchCritiqueTab('${t.key}')">
+                            <i class="fas ${t.icon}" style="margin-right:6px;"></i>${escapeHtml(t.label)} <span style="opacity:.7;">(${t.count})</span>
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+            const tabPanelsHtml = tabs.map(t => `
+                <div class="critique-tab-panel" data-tab="${t.key}" style="display: ${t.key === activeCritiqueTab ? '' : 'none'};">
+                    ${t.panel}
+                </div>
+            `).join('');
 
             return `<div class="card" style="background: rgba(185, 28, 28, 0.05);">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom: 12px;">
@@ -4145,8 +4310,8 @@
                             <i class="fas fa-magic"></i> Critique
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                            <span class="badge badge-${severityBadgeClass(sev)}">${escapeHtml(sev)}</span>
-                            ${c.root_cause_agent ? `<span class="badge badge-neutral">root cause: ${escapeHtml(c.root_cause_agent)}</span>` : ''}
+                            <span class="badge badge-${severityBadgeClass(sev)}" title="${escapeHtml(sevMeta.tooltip)}">${escapeHtml(sev)}</span>
+                            ${c.root_cause_agent ? `<span class="badge badge-neutral" title="Agent the judge holds most responsible for the failure.">root cause: ${escapeHtml(c.root_cause_agent)}</span>` : ''}
                             <span style="color: var(--text-muted); font-size: 11px;">model: ${escapeHtml(c.model || '')} &middot; ${escapeHtml(c.prompt_version || '')}</span>
                         </div>
                     </div>
@@ -4157,11 +4322,12 @@
                 </div>
                 <div id="critiqueBody">
                     ${fairBanner}
-                    ${c.overall_summary ? `<p style="font-size: 13px; margin-bottom: 14px;">${escapeHtml(c.overall_summary)}</p>` : ''}
-                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">Failure modes</div>
-                    ${failureModesHtml}
-                    ${policyHtml}
-                    ${fixesHtml}
+                    ${c.overall_summary ? `
+                        <div style="border-left: 3px solid var(--text-muted); padding: 4px 0 4px 12px; margin-bottom: 14px; font-size: 13px;">
+                            ${escapeHtml(c.overall_summary)}
+                        </div>` : ''}
+                    ${tabStripHtml}
+                    ${tabPanelsHtml}
                 </div>
             </div>`;
         }
@@ -4236,6 +4402,290 @@
             } catch (err) {
                 console.error('deleteCritique failed:', err);
                 alert('Failed to delete critique: ' + (err.message || err));
+            }
+        }
+
+        // ===================================================================
+        // Quality Insights — aggregate dashboard
+        // ===================================================================
+
+        let qiDays = 30;
+        const qiCharts = { failureModes: null, agents: null, trend: null };
+
+        function setQIDays(days, btn) {
+            qiDays = days;
+            document.querySelectorAll('.qi-range-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            loadQualityInsights();
+        }
+
+        async function loadQualityInsights() {
+            try {
+                const [overview, clusters] = await Promise.all([
+                    fetch(`${API_URL}/admin/quality-insights/overview?days=${qiDays}`).then(r => r.json()),
+                    fetch(`${API_URL}/admin/quality-insights/fix-clusters?days=${qiDays}`).then(r => r.json()),
+                ]);
+                renderQIKPIs(overview.stats || {});
+                renderQIFailureModesChart(overview.failure_modes || []);
+                renderQIAgentsChart(overview.root_cause_agents || []);
+                renderQITrendChart(overview.severity_trend || []);
+                renderQIFixClusters(clusters.clusters || []);
+                const ts = document.getElementById('qiLastUpdated');
+                if (ts) ts.textContent = `last updated ${new Date().toLocaleTimeString()}`;
+                // Reset drilldown when reloading
+                const detail = document.getElementById('qiFixClusterDetail');
+                if (detail) detail.style.display = 'none';
+            } catch (err) {
+                console.error('loadQualityInsights failed:', err);
+                alert('Failed to load Quality Insights: ' + (err.message || err));
+            }
+        }
+
+        function renderQIKPIs(s) {
+            const fmt = (v, fallback = '—') => (v == null || isNaN(v)) ? fallback : v;
+            document.getElementById('qiAvgRating').textContent =
+                s.avg_rating != null ? Number(s.avg_rating).toFixed(2) : '—';
+            document.getElementById('qiRatedConversations').textContent =
+                `${fmt(s.rated_conversations, 0)} rated convos in ${s.days || qiDays}d`;
+            document.getElementById('qiBadRatedCount').textContent = fmt(s.bad_rated_count, 0);
+            document.getElementById('qiCritiqueCount').textContent = fmt(s.critique_count, 0);
+            document.getElementById('qiErroredCount').textContent =
+                `${fmt(s.errored_count, 0)} errored`;
+            document.getElementById('qiUnfairPct').textContent =
+                s.unfair_pct != null ? `${s.unfair_pct}%` : '—';
+            document.getElementById('qiUnfairCount').textContent =
+                `${fmt(s.unfair_count, 0)} flagged by judge as unfair`;
+        }
+
+        function _destroyChart(name) {
+            if (qiCharts[name]) {
+                try { qiCharts[name].destroy(); } catch (e) {}
+                qiCharts[name] = null;
+            }
+        }
+
+        function renderQIFailureModesChart(rows) {
+            _destroyChart('failureModes');
+            const ctx = document.getElementById('qiFailureModesChart');
+            if (!ctx) return;
+            if (rows.length === 0) {
+                ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
+                return;
+            }
+            qiCharts.failureModes = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.code),
+                    datasets: [{
+                        label: 'Occurrences',
+                        data: rows.map(r => r.count),
+                        backgroundColor: 'rgba(185, 28, 28, 0.6)',
+                        borderColor: 'rgba(185, 28, 28, 1)',
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                }
+            });
+        }
+
+        function renderQIAgentsChart(rows) {
+            _destroyChart('agents');
+            const ctx = document.getElementById('qiAgentsChart');
+            if (!ctx) return;
+            if (rows.length === 0) {
+                ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
+                return;
+            }
+            qiCharts.agents = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.agent),
+                    datasets: [{
+                        label: 'Critiques',
+                        data: rows.map(r => r.count),
+                        backgroundColor: 'rgba(217, 119, 6, 0.6)',
+                        borderColor: 'rgba(217, 119, 6, 1)',
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                }
+            });
+        }
+
+        function renderQITrendChart(rows) {
+            _destroyChart('trend');
+            const ctx = document.getElementById('qiTrendChart');
+            if (!ctx) return;
+            if (rows.length === 0) {
+                ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
+                return;
+            }
+            // Pivot: x = day, series = severity
+            const days = Array.from(new Set(rows.map(r => r.day))).sort();
+            const severities = ['critical', 'high', 'medium', 'low', 'unknown'];
+            const colors = {
+                critical: 'rgba(127, 29, 29, 0.8)',
+                high:     'rgba(185, 28, 28, 0.7)',
+                medium:   'rgba(217, 119, 6, 0.7)',
+                low:      'rgba(59, 130, 246, 0.6)',
+                unknown:  'rgba(107, 114, 128, 0.5)',
+            };
+            const byKey = new Map();
+            for (const r of rows) byKey.set(`${r.day}|${r.severity}`, r.count);
+            const datasets = severities.map(sev => ({
+                label: sev,
+                data: days.map(d => byKey.get(`${d}|${sev}`) || 0),
+                backgroundColor: colors[sev],
+                stack: 'critiques',
+            })).filter(ds => ds.data.some(v => v > 0));
+
+            qiCharts.trend = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: days, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+                    },
+                }
+            });
+        }
+
+        function renderQIFixClusters(clusters) {
+            const container = document.getElementById('qiFixClustersTable');
+            if (!container) return;
+            if (clusters.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No suggested fixes in this window.</p></div>';
+                return;
+            }
+            const rows = clusters.map(c => {
+                const open = c.suggestion_count - (c.applied_count + c.dismissed_count);
+                const openPill = open > 0
+                    ? `<span class="badge badge-warning">${open} open</span>`
+                    : '<span class="badge badge-success">all decided</span>';
+                return `<tr class="clickable" onclick="viewFixCluster('${escapeHtml(c.target)}', '${escapeHtml(c.target_name)}')">
+                    <td><span class="badge badge-info">${escapeHtml(c.target)}</span></td>
+                    <td><code style="font-size:12px;">${escapeHtml(c.target_name)}</code></td>
+                    <td style="text-align:center;"><strong>${c.suggestion_count}</strong></td>
+                    <td style="text-align:center;">${c.critique_count}</td>
+                    <td style="text-align:center;">${c.applied_count}</td>
+                    <td style="text-align:center;">${c.dismissed_count}</td>
+                    <td>${openPill}</td>
+                </tr>`;
+            }).join('');
+            container.innerHTML = `<table>
+                <thead><tr>
+                    <th>Target</th><th>Name</th>
+                    <th style="text-align:center;">Suggestions</th>
+                    <th style="text-align:center;">Critiques</th>
+                    <th style="text-align:center;">Applied</th>
+                    <th style="text-align:center;">Dismissed</th>
+                    <th>Status</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        }
+
+        async function viewFixCluster(target, targetName) {
+            const slot = document.getElementById('qiFixClusterDetail');
+            if (!slot) return;
+            slot.style.display = 'block';
+            slot.innerHTML = '<div class="card"><div class="loading"><div class="spinner"></div><p>Loading cluster…</p></div></div>';
+            try {
+                const url = `${API_URL}/admin/quality-insights/fix-clusters/detail?target=${encodeURIComponent(target)}&target_name=${encodeURIComponent(targetName)}&days=${qiDays}`;
+                const data = await (await fetch(url)).json();
+                const suggestions = data.suggestions || [];
+                const items = suggestions.map(s => {
+                    const decisionBadge = s.decision_status
+                        ? `<span class="badge badge-${s.decision_status === 'applied' ? 'success' : 'neutral'}">${escapeHtml(s.decision_status)}</span>`
+                        : '<span class="badge badge-warning">open</span>';
+                    const sevBadge = s.severity
+                        ? `<span class="badge badge-${severityBadgeClass(s.severity)}">${escapeHtml(s.severity)}</span>`
+                        : '';
+                    const convShort = String(s.conversation_id || '').substring(0, 8);
+                    return `
+                        <div style="padding: 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom: 8px; flex-wrap: wrap;">
+                                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                                    ${sevBadge}
+                                    <span class="badge badge-neutral">confidence: ${escapeHtml(s.confidence || 'n/a')}</span>
+                                    ${decisionBadge}
+                                    <span style="font-size:11px; color:var(--text-muted);">from <code style="font-size:11px;">${escapeHtml(convShort)}...</code> &middot; ${escapeHtml(s.created_at || '')}</span>
+                                </div>
+                                <a href="javascript:void(0)" onclick="jumpToTranscript('${escapeHtml(s.conversation_id)}')" style="font-size:12px;">Open conversation &rarr;</a>
+                            </div>
+                            <div style="font-size:13px; margin-bottom: 6px;"><strong>Change:</strong> ${escapeHtml(s.change || '')}</div>
+                            <div style="font-size:12px; color: var(--text-secondary);"><em>${escapeHtml(s.rationale || '')}</em></div>
+                        </div>`;
+                }).join('');
+                slot.innerHTML = `<div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                        <div class="card-title" style="margin-bottom:0;"><i class="fas fa-list"></i> Cluster: ${escapeHtml(target)} &middot; <code>${escapeHtml(targetName)}</code></div>
+                        <button class="btn btn-secondary" onclick="document.getElementById('qiFixClusterDetail').style.display='none'"><i class="fas fa-times"></i> Close</button>
+                    </div>
+                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">${suggestions.length} individual suggestion${suggestions.length === 1 ? '' : 's'} across the window.</p>
+                    ${items || '<div class="empty-state"><p>No suggestions found.</p></div>'}
+                </div>`;
+                slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (err) {
+                console.error('viewFixCluster failed:', err);
+                slot.innerHTML = `<div class="card"><div class="empty-state"><p>Error loading cluster: ${escapeHtml(String(err.message || err))}</p></div></div>`;
+            }
+        }
+
+        function jumpToTranscript(convId) {
+            // Switch to the Transcripts page and open this conversation's transcript+critique
+            const navItem = document.querySelector(".nav-item[onclick*=\"showSection('transcripts')\"]");
+            if (navItem) navItem.click();
+            setTimeout(() => loadTranscriptById(convId), 50);
+        }
+
+        function showQICleanupMenu(evt) {
+            const choice = prompt(
+                'Cleanup which critiques?\n\n' +
+                '  1 — All errored critiques (judge failed)\n' +
+                '  2 — All critiques flagged as unfair\n' +
+                '  3 — Critiques older than 60 days\n\n' +
+                'Enter 1, 2, or 3 (anything else cancels):'
+            );
+            if (choice === '1') runQICleanup({ errored_only: true }, 'errored');
+            else if (choice === '2') runQICleanup({ unfair_only: true }, 'unfair-flagged');
+            else if (choice === '3') runQICleanup({ older_than_days: 60 }, 'older than 60 days');
+        }
+
+        async function runQICleanup(filter, label) {
+            if (!confirm(`Delete all ${label} critiques? This cannot be undone.`)) return;
+            try {
+                const resp = await fetch(`${API_URL}/admin/critiques/bulk`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(filter),
+                });
+                if (!resp.ok) {
+                    const detail = (await resp.json().catch(() => ({}))).detail || resp.statusText;
+                    throw new Error(detail);
+                }
+                const result = await resp.json();
+                alert(`Deleted ${result.deleted} critique(s).`);
+                loadQualityInsights();
+            } catch (err) {
+                console.error('runQICleanup failed:', err);
+                alert('Cleanup failed: ' + (err.message || err));
             }
         }
 
@@ -6427,7 +6877,16 @@
             'fa-user-plus': 'user-plus',
             'fa-volume-up': 'volume-2',
             'fa-tag': 'tag',
-            'fa-comment': 'message-square'
+            'fa-comment': 'message-square',
+            // Quality Insights icons
+            'fa-magnifying-glass-chart': 'activity',
+            'fa-star-half-alt': 'star-half',
+            'fa-thumbs-down': 'thumbs-down',
+            'fa-magic': 'sparkles',
+            'fa-user-tag': 'user-cog',
+            'fa-chart-area': 'area-chart',
+            'fa-layer-group': 'layers',
+            'fa-broom': 'eraser'
         };
 
         // Same-name forwards (e.g. <i data-lucide="x"> tags from agent registry)

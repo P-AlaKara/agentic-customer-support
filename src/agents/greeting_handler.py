@@ -7,6 +7,7 @@ a specific request.
 """
 
 import logging
+import time
 from typing import Dict, Any
 from pathlib import Path
 
@@ -94,10 +95,16 @@ class GreetingAgent:
             
             logger.info(f"[Greeting Agent] Handling greeting for session {session_id}")
             self.stats['greetings_handled'] += 1
+            t0 = time.perf_counter()
 
             language = resolve_language_from_context(context)
             response = get_message('greeting.initial', language)
-            
+
+            logger.info(
+                f"[PERF] session={session_id} stage=bpa agent=greeting sub=greeting "
+                f"duration_ms={int((time.perf_counter() - t0) * 1000)} chars={len(response)}"
+            )
+
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,
                 'text': response,
@@ -124,9 +131,15 @@ class GreetingAgent:
 
             logger.info(f"[Greeting Agent] Handling closing intent for session {session_id}")
             self.stats['closings_handled'] += 1
+            t0 = time.perf_counter()
 
             language = resolve_language_from_context(context)
             response = get_message('greeting.closing', language)
+
+            logger.info(
+                f"[PERF] session={session_id} stage=bpa agent=greeting sub=closing "
+                f"duration_ms={int((time.perf_counter() - t0) * 1000)} chars={len(response)}"
+            )
 
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,
@@ -159,6 +172,7 @@ class GreetingAgent:
 
             logger.info(f"[Greeting Agent] Handling general inquiry for session {session_id}")
             self.stats['general_inquiries_handled'] += 1
+            t0 = time.perf_counter()
 
             language = resolve_language_from_context(context)
 
@@ -201,6 +215,11 @@ class GreetingAgent:
                 self._escalate_general(session_id, reason='BPA_CANNOT_HANDLE',
                                        details={'cause': 'empty_response'})
                 return
+
+            logger.info(
+                f"[PERF] session={session_id} stage=bpa agent=greeting sub=general_inquiry "
+                f"duration_ms={int((time.perf_counter() - t0) * 1000)} chars={len(response)}"
+            )
 
             self.bus.publish('RESULT_SEND_RESPONSE_TO_USER', {
                 'session_id': session_id,

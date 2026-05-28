@@ -13,6 +13,7 @@ Design Decisions:
 """
 
 import logging
+import time
 from typing import Dict, Any, Optional
 import re
 
@@ -179,10 +180,11 @@ class SentimentAgent:
             payload = event.payload
             session_id = payload['session_id']
             text = payload['text']
-            
+
             logger.info(f"[Sentiment Agent] Analyzing message from session {session_id}")
             logger.debug(f"[Sentiment Agent] Text: '{text}'")
-            
+
+            t0 = time.perf_counter()
             # Analyze sentiment. Primary path: rule-based keyword matching
             # (or the transformer model when use_ml=True). Secondary path:
             # Claude is invoked only when the primary classifier produces a
@@ -193,15 +195,22 @@ class SentimentAgent:
             else:
                 result = self._analyze_with_rules(text)
 
+            used_claude = False
             if result.get('_no_match'):
                 claude_result = self._classify_with_claude(text)
                 if claude_result is not None:
+                    used_claude = True
                     result = claude_result
 
             result.pop('_no_match', None)
 
             sentiment = result['sentiment']
             confidence = result['confidence']
+
+            logger.info(
+                f"[PERF] session={session_id} stage=sentiment duration_ms={int((time.perf_counter() - t0) * 1000)} "
+                f"path={'claude' if used_claude else ('ml' if self.use_ml else 'rules')} label={sentiment}"
+            )
             
             # Update statistics
             self.stats['total_analyzed'] += 1

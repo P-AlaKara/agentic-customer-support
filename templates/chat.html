@@ -1415,20 +1415,32 @@
         }
 
         setTyping(true);
+        const tStart = performance.now();
         const audioBlob = audioChunks.length ? new Blob(audioChunks, { type: mediaRecorder?.mimeType || 'audio/webm' }) : null;
         let audioBase64 = null;
         let mimeType = 'audio/webm';
 
         if (audioBlob) {
             mimeType = audioBlob.type || 'audio/webm';
-            const arrayBuffer = await audioBlob.arrayBuffer();
-            const bytes = new Uint8Array(arrayBuffer);
-            let binary = '';
-            bytes.forEach((b) => binary += String.fromCharCode(b));
-            audioBase64 = btoa(binary);
+            // FileReader.readAsDataURL produces base64 without the O(n^2) string
+            // concatenation that String.fromCharCode-in-a-loop incurs. For a 20-30s
+            // clip the old path could freeze the UI for seconds.
+            const t0 = performance.now();
+            audioBase64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = reader.result || '';
+                    const commaIdx = result.indexOf(',');
+                    resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : '');
+                };
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(audioBlob);
+            });
+            console.log(`[PERF] client stage=base64_encode duration_ms=${Math.round(performance.now() - t0)} bytes=${audioBlob.size}`);
         }
 
         try {
+            const tFetch = performance.now();
             const r = await fetch(`${API_URL}/voice/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1442,6 +1454,8 @@
             });
             if (!r.ok) throw new Error();
             const data = await r.json();
+            console.log(`[PERF] client stage=server_roundtrip duration_ms=${Math.round(performance.now() - tFetch)}`);
+            console.log(`[PERF] client stage=voice_total duration_ms=${Math.round(performance.now() - tStart)}`);
 
             if (!sessionId) {
                 sessionId = data.session_id;

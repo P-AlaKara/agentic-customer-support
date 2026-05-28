@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import time
 import uuid
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -502,6 +503,8 @@ async def voice_chat(message: VoiceChatRequest):
     """
     try:
         session_id = message.session_id or str(uuid.uuid4())
+        t_total = time.perf_counter()
+        audio_bytes_len = len(message.audio_base64) if message.audio_base64 else 0
 
         # Track language preference on the context (parallels /chat).
         ctx_for_voice = store.get_or_create(session_id, customer_email=message.customer_email)
@@ -516,13 +519,28 @@ async def voice_chat(message: VoiceChatRequest):
                 'customer_email': message.customer_email,
                 'language': message.language or 'en'
             })
+            t_resp = time.perf_counter()
             resp = response_collector.get_response(session_id, timeout=12.0)
+            resp_ms = int((time.perf_counter() - t_resp) * 1000)
+            t_voice = time.perf_counter()
             voice = response_collector.get_voice_output(session_id, timeout=4.0) or {}
+            voice_ms = int((time.perf_counter() - t_voice) * 1000)
+            logger.info(
+                f"[PERF] session={session_id} stage=gateway_wait "
+                f"text_wait_ms={resp_ms} voice_wait_ms={voice_ms} text_arrived={resp is not None} "
+                f"voice_arrived={bool(voice.get('audio_base64'))}"
+            )
             return resp, voice
 
         loop = asyncio.get_running_loop()
         response_data, voice_data = await loop.run_in_executor(
             _worker_pool, _process_voice
+        )
+
+        logger.info(
+            f"[PERF] session={session_id} stage=voice_total "
+            f"duration_ms={int((time.perf_counter() - t_total) * 1000)} "
+            f"upload_b64_bytes={audio_bytes_len}"
         )
 
         if not response_data:
@@ -1638,6 +1656,106 @@ async def mark_critique_fix(critique_id: str, fix_index: int, decision: FixDecis
         raise
     except Exception as e:
         logger.error(f"[API] Error marking fix: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class BulkDeleteCritiquesRequest(BaseModel):
+    """Filter for bulk-deleting critiques.
+
+    Either set `critique_ids` directly, or set one or more flag fields and
+    the server will find matching IDs and delete them. Flags are AND-ed.
+    """
+    critique_ids: Optional[List[str]] = None
+    errored_only: bool = False
+    unfair_only: bool = False
+    older_than_days: Optional[int] = None
+
+
+@app.delete("/admin/critiques/bulk")
+async def bulk_delete_critiques_endpoint(req: BulkDeleteCritiquesRequest):
+    """Delete many critiques in one call. Used by the Quality Insights cleanup button."""
+    try:
+        try:
+            from ..improvement.aggregate import find_critique_ids
+            from ..improvement.store import bulk_delete_critiques
+        except (ImportError, ValueError):
+            from src.improvement.aggregate import find_critique_ids
+            from src.improvement.store import bulk_delete_critiques
+
+        ids = list(req.critique_ids or [])
+        if not ids and (req.errored_only or req.unfair_only or req.older_than_days is not None):
+            ids = find_critique_ids(
+                errored_only=req.errored_only,
+                unfair_only=req.unfair_only,
+                older_than_days=req.older_than_days,
+            )
+        if not ids:
+            return {"deleted": 0, "filter": req.model_dump(exclude_none=True)}
+
+        n = bulk_delete_critiques(ids)
+        return {"deleted": n, "filter": req.model_dump(exclude_none=True)}
+    except Exception as e:
+        logger.error(f"[API] Bulk delete failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Quality Insights — aggregate views
+# ============================================================================
+
+@app.get("/admin/quality-insights/overview")
+async def quality_insights_overview(days: int = 30):
+    """Headline stats + all chart data, in one round trip."""
+    try:
+        try:
+            from ..improvement import aggregate
+        except (ImportError, ValueError):
+            from src.improvement import aggregate
+
+        return {
+            "days": days,
+            "stats": aggregate.headline_stats(days),
+            "failure_modes": aggregate.top_failure_modes(days),
+            "root_cause_agents": aggregate.root_cause_agents(days),
+            "severity_trend": aggregate.severity_trend(days),
+        }
+    except Exception as e:
+        logger.error(f"[API] quality_insights_overview failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/quality-insights/fix-clusters")
+async def quality_insights_fix_clusters(days: int = 30, limit: int = 50):
+    """Suggested fixes grouped by (target, target_name)."""
+    try:
+        try:
+            from ..improvement import aggregate
+        except (ImportError, ValueError):
+            from src.improvement import aggregate
+
+        return {"days": days, "clusters": aggregate.fix_clusters(days, limit)}
+    except Exception as e:
+        logger.error(f"[API] fix_clusters failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/quality-insights/fix-clusters/detail")
+async def quality_insights_fix_cluster_detail(target: str, target_name: str, days: int = 30):
+    """All individual suggestions inside one cluster."""
+    try:
+        try:
+            from ..improvement import aggregate
+        except (ImportError, ValueError):
+            from src.improvement import aggregate
+
+        return {
+            "target": target,
+            "target_name": target_name,
+            "days": days,
+            "suggestions": aggregate.fix_cluster_detail(target, target_name, days),
+        }
+    except Exception as e:
+        logger.error(f"[API] fix_cluster_detail failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
