@@ -80,11 +80,13 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
     "shipping.ask_order_id": {
         "en": (
             "I can definitely help with tracking. "
-            "Could you please share your order ID in the format ORDxxxxx so I can check the latest status?"
+            "Could you please share your order ID so I can check the latest status? "
+            "This ID was sent to you in your order confirmation email along with other order details."
         ),
         "sw": (
             "Ninaweza kukusaidia kufuatilia oda yako. "
-            "Tafadhali nipe nambari ya oda yako katika muundo wa ORDxxxxx ili niweze kuangalia hali ya hivi karibuni."
+            "Tafadhali nipe nambari ya oda yako ili niweze kuangalia hali ya hivi karibuni. "
+            "Nambari hii ulitumiwa kwenye barua pepe yako ya uthibitisho wa oda pamoja na maelezo mengine ya oda."
         ),
     },
     "shipping.exception_fallback": {
@@ -138,11 +140,13 @@ _MESSAGES: Dict[str, Dict[str, str]] = {
     "returns.ask_order_id": {
         "en": (
             "I can help with your return. "
-            "Please share your order ID in the format ORDxxxxx so I can review the return status."
+            "Please share your order ID so I can review the return status. "
+            "This ID was sent to you in your order confirmation email along with other order details."
         ),
         "sw": (
             "Ninaweza kukusaidia na marejesho yako. "
-            "Tafadhali nipe nambari ya oda yako katika muundo wa ORDxxxxx ili niweze kuangalia hali ya marejesho."
+            "Tafadhali nipe nambari ya oda yako ili niweze kuangalia hali ya marejesho. "
+            "Nambari hii ulitumiwa kwenye barua pepe yako ya uthibitisho wa oda pamoja na maelezo mengine ya oda."
         ),
     },
     "returns.exception_fallback": {

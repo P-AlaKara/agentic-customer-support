@@ -10,7 +10,7 @@ Otherwise, the customer is responsible for return shipping costs.
 
 ## Required Response Rules
 
-- If `order_id` is missing, politely ask for it using format `ORDxxxxx`.
+- If `order_id` is missing, politely ask the customer for it and direct them to their order confirmation email, where the ID is included alongside other order details.
 - Do not proceed with return-status handling until `order_id` is provided.
 - If `order_id` exists, use only provided order/return details and status.
 - Mention status explicitly.
@@ -24,7 +24,10 @@ Otherwise, the customer is responsible for return shipping costs.
 
 ### APPROVED
 - Confirm approval.
-- Provide packaging and drop-off/shipping instructions.
+- Tell the customer to pack the item in its original packaging if available, or any sturdy box; include all original accessories, manuals, and tags.
+- Tell the customer that a prepaid return label has been sent to their email — they should print it, attach it to the package, and drop the package at any nearby branch of the listed carrier (no appointment needed).
+- Tell the customer to keep the carrier drop-off receipt until the refund is processed.
+- If the customer cannot print the label, instruct them to reply to the confirmation email to request a QR-code drop-off option.
 
 ### RECEIVED
 - Confirm item receipt.

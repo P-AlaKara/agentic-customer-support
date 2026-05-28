@@ -233,7 +233,11 @@ class ReturnsAgent:
         "- Return shipping is free for defective items\n\n"
         "Return status guidance:\n"
         "- REQUESTED: return request is under review, allow 1-2 business days.\n"
-        "- APPROVED: provide packaging and drop-off instructions.\n"
+        "- APPROVED: a prepaid return label has been sent to the customer's email. "
+        "Tell them to pack the item in original packaging if available (or any sturdy box) with all accessories/tags, "
+        "print the label and attach it to the package, and drop it at any branch of the listed carrier. "
+        "Advise keeping the drop-off receipt until the refund is processed. "
+        "If they cannot print, tell them to reply to the confirmation email to request a QR-code drop-off option.\n"
         "- RECEIVED: item received, refund is issued in 5-7 business days.\n"
         "- REJECTED: explain rejection reason and suggest next steps."
     )

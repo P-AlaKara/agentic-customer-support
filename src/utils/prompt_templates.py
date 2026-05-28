@@ -2,18 +2,19 @@
 
 RETURNS_RESPONSE_TEMPLATE = """
 1. Acknowledge the return request
-2. If order_id is missing, politely ask for order ID (format ORDxxxxx) and do not proceed.
+2. If order_id is missing, politely ask for the order ID and direct the customer to their order confirmation email (which contains the ID alongside other order details). Do not proceed.
 3. If order_id is present, use only provided order details/return details.
 4. Mention return status explicitly and follow status-specific guidance exactly.
 5. Explain policy and clear next steps.
 6. Do not invent missing fields.
-7. Be empathetic and helpful.
-8. Keep response to 3-4 sentences maximum.
+7. Never defer information to a later message. Do not say "I will provide", "I will share", "I'll send you", or similar future-tense phrases that promise content within the same conversation. Either include the relevant details now using the provided knowledge, or state plainly that the information is not available and offer a concrete next step (e.g. escalation, checking their email, contacting support).
+8. Be empathetic and helpful.
+9. Keep response to 3-4 sentences maximum.
 """.strip()
 
 SHIPPING_RESPONSE_TEMPLATE = """
 1. Acknowledge the tracking inquiry
-2. If order_id is missing, politely ask for order ID (format ORDxxxxx) and do not proceed.
+2. If order_id is missing, politely ask for the order ID and direct the customer to their order confirmation email (which contains the ID alongside other order details). Do not proceed.
 3. If order_id is present, use only provided order details/status.
 4. If order info available, provide specific tracking details:
    - Order number

@@ -145,7 +145,7 @@ def test_shipping_agent_swahili_missing_order_id_prompt():
     text = responses[0]['text']
     assert 'kufuatilia' in text or 'oda' in text
     assert 'Could you please' not in text
-    assert 'ORDxxxxx' in text
+    assert 'barua pepe' in text
 
 
 def test_shipping_agent_english_missing_order_id_prompt_unchanged():
@@ -166,7 +166,7 @@ def test_shipping_agent_english_missing_order_id_prompt_unchanged():
     assert responses
     text = responses[0]['text']
     assert 'tracking' in text.lower()
-    assert 'ORDxxxxx' in text
+    assert 'order confirmation email' in text
 
 
 def test_shipping_fallback_response_in_swahili_for_in_transit():
@@ -227,7 +227,7 @@ def test_returns_agent_swahili_missing_order_id_prompt():
     text = responses[0]['text']
     assert 'marejesho' in text
     assert 'Please share' not in text
-    assert 'ORDxxxxx' in text
+    assert 'barua pepe' in text
 
 
 def test_returns_fallback_response_in_swahili_for_approved_status():
